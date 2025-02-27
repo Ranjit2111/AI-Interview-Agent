@@ -30,4 +30,31 @@ yarn-error.log*
 *.swo
 
 # Operating System Files
-Thumbs.db 
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.env
+.venv
+env.bak/
+venv.bak/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Next.js
+.next/
+out/
+
+# Vercel
+.vercel 
