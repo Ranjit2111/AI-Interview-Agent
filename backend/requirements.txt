@@ -1,0 +1,20 @@
+# Core dependencies
+langchain-core>=0.1.28
+langchain-community>=0.0.10
+langchain-google-genai>=0.0.3
+
+# PDF processing
+PyMuPDF==1.21.1
+python-docx==0.8.11
+pypdf==3.17.1
+pdfplumber==0.7.4
+
+# Web framework - necessary for our FastAPI backend
+fastapi==0.95.0
+uvicorn[standard]==0.22.0
+python-multipart==0.0.7
+
+# Basic utilities
+scipy==1.10.0
+python-dotenv
+numpy==1.23.5 
