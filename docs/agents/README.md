@@ -4,8 +4,11 @@ This directory contains detailed documentation for each agent in the AI Intervie
 
 ## Contents
 
+- [Base Agent Reference](base_agent_reference.md): Foundation reference for the BaseAgent class that all agents inherit from, including core functionality, methods, and extension patterns.
 - [Interviewer Agent Reference](interviewer_agent_reference.md): Comprehensive reference for the Interviewer Agent, including responsibilities, methods, workflows, and modification guidelines.
 - [Coach Agent Reference](coach_agent_reference.md): Detailed reference for the Coach Agent, including responsibilities, methods, workflows, and modification guidelines.
+- [Skill Assessor Agent Reference](skill_assessor_agent_reference.md): Complete reference for the Skill Assessor Agent, including skill identification, proficiency assessment, and resource suggestion functionalities.
+- [Orchestrator Agent Reference](orchestrator_agent_reference.md): Reference guide for the Agent Orchestrator, which coordinates all agents and manages agent modes, command handling, and multi-agent responses.
 
 ## Agent Documentation Guidelines
 
