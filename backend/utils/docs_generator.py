@@ -153,7 +153,7 @@ if __name__ == "__main__":
     from main import app
     
     # Generate documentation
-    docs_dir = generate_static_docs(app, "docs")
+    docs_dir = generate_static_docs(app, "../docs/api")
     
     print(f"Documentation generated in {docs_dir}")
     print("You can view the documentation by opening the following files in a browser:")

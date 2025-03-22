@@ -16,9 +16,58 @@ from langchain.prompts import PromptTemplate, ChatPromptTemplate
 from langchain.chains import LLMChain, SequentialChain
 from langchain_core.output_parsers import StrOutputParser
 
-from backend.agents.base import BaseAgent, AgentContext
-from backend.utils.event_bus import Event, EventBus
-from backend.models.interview import InterviewStyle, InterviewSession, Question, Answer
+try:
+    # Try standard import in production
+    from backend.agents.base import BaseAgent, AgentContext
+    from backend.utils.event_bus import Event, EventBus
+    from backend.models.interview import InterviewStyle, InterviewSession, Question, Answer
+    from backend.agents.templates.interviewer_templates import (
+        INTERVIEWER_SYSTEM_PROMPT,
+        QUESTION_TEMPLATE,
+        EVALUATION_TEMPLATE, 
+        SUMMARY_TEMPLATE,
+        QUALITY_ASSESSMENT_TEMPLATE,
+        FOLLOW_UP_TEMPLATE,
+        THINK_TEMPLATE,
+        REASON_TEMPLATE,
+        PLANNING_TEMPLATE,
+        JOB_SPECIFIC_TEMPLATE,
+        INTRODUCTION_TEMPLATES,
+        ANSWER_EVALUATION_TEMPLATE,
+        RESPONSE_FORMAT_TEMPLATE
+    )
+    from backend.agents.utils.llm_utils import (
+        invoke_chain_with_error_handling,
+        parse_json_with_fallback,
+        extract_field_safely,
+        format_conversation_history
+    )
+except ImportError:
+    # Use relative imports for development/testing
+    from .base import BaseAgent, AgentContext
+    from ..utils.event_bus import Event, EventBus
+    from ..models.interview import InterviewStyle, InterviewSession, Question, Answer
+    from .templates.interviewer_templates import (
+        INTERVIEWER_SYSTEM_PROMPT,
+        QUESTION_TEMPLATE,
+        EVALUATION_TEMPLATE,
+        SUMMARY_TEMPLATE,
+        QUALITY_ASSESSMENT_TEMPLATE,
+        FOLLOW_UP_TEMPLATE,
+        THINK_TEMPLATE,
+        REASON_TEMPLATE,
+        PLANNING_TEMPLATE,
+        JOB_SPECIFIC_TEMPLATE,
+        INTRODUCTION_TEMPLATES,
+        ANSWER_EVALUATION_TEMPLATE,
+        RESPONSE_FORMAT_TEMPLATE
+    )
+    from .utils.llm_utils import (
+        invoke_chain_with_error_handling,
+        parse_json_with_fallback,
+        extract_field_safely,
+        format_conversation_history
+    )
 
 
 class InterviewState(Enum):
@@ -106,16 +155,9 @@ class InterviewerAgent(BaseAgent):
         Returns:
             System prompt string
         """
-        return (
-            f"You are an AI interviewer for a {self.job_role} position. "
-            f"Your interview style is {self.interview_style.value}. "
-            "You ask relevant questions, listen carefully to answers, and provide constructive feedback. "
-            "Be professional, respectful, and focused on evaluating the candidate's skills and experience.\n\n"
-            "Follow this process for each interaction:\n"
-            "1. THINK: Analyze the current interview state and candidate's previous responses\n"
-            "2. REASON: Determine the most appropriate next action based on interview context\n"
-            "3. ACT: Generate a question, provide feedback, or transition the interview as needed\n\n"
-            "Format your responses according to the current interview phase to maintain a natural conversation flow."
+        return INTERVIEWER_SYSTEM_PROMPT.format(
+            job_role=self.job_role,
+            interview_style=self.interview_style.value
         )
     
     def _initialize_tools(self) -> List[Tool]:
@@ -133,12 +175,12 @@ class InterviewerAgent(BaseAgent):
             ),
             Tool(
                 name="evaluate_answer",
-                func=self._evaluate_answer_tool,
-                description="Evaluate the candidate's answer and provide feedback"
+                func=self._process_answer,
+                description="Evaluate a candidate's answer to a question"
             ),
             Tool(
                 name="summarize_interview",
-                func=self._summarize_interview_tool,
+                func=self._create_summary,
                 description="Generate a summary of the interview with feedback and recommendations"
             )
         ]
@@ -148,163 +190,38 @@ class InterviewerAgent(BaseAgent):
         Set up LangChain chains for the agent's tasks.
         """
         # Question generation chain with improved prompting for different question types
-        question_template = """
-        You are interviewing a candidate for a {job_role} position.
-        The job description is: {job_description}
-        
-        The interview style is: {interview_style}
-        Current difficulty level: {difficulty_level}
-        
-        Previous questions asked: {previous_questions}
-        Candidate's conversation history: {conversation_history}
-        
-        TASK: Generate a relevant, {difficulty_level} difficulty interview question
-
-        THINK:
-        - Consider what skills and knowledge are most important for this position
-        - Review previous questions to avoid redundancy
-        - Identify areas not yet explored based on the job description
-        - Consider the candidate's previous responses to adjust difficulty
-        
-        QUESTION TYPE GUIDANCE:
-        - Technical: Focus on specific technical skills mentioned in the job description
-        - Behavioral: Use the STAR format (Situation, Task, Action, Result)
-        - Problem-solving: Present a realistic scenario related to the job role
-        - Experience-based: Ask about relevant past experiences
-        - Competency-based: Focus on specific skills like communication or leadership
-        
-        REASONING:
-        Based on the interview context, create a {question_type} question that will effectively assess the candidate's suitability.
-        
-        OUTPUT:
-        Generate a clear, concise, and relevant {question_type} question.
-        """
-        
         self.question_chain = LLMChain(
             llm=self.llm,
-            prompt=PromptTemplate.from_template(question_template),
+            prompt=PromptTemplate.from_template(QUESTION_TEMPLATE),
             output_key="question"
         )
         
         # Answer evaluation chain with improved structure
-        evaluation_template = """
-        You are evaluating a candidate's answer for a {job_role} position.
-        
-        Question: {question}
-        Candidate's Answer: {answer}
-        
-        THINK:
-        - How relevant is the answer to the question asked?
-        - What skills or competencies does the answer demonstrate?
-        - How structured and clear is the response?
-        - What specific examples or details were provided?
-        - What is missing from the answer that would strengthen it?
-        
-        REASONING:
-        Develop a balanced assessment that identifies both strengths and areas for improvement.
-        Consider the context of the job role and the specific requirements.
-        
-        OUTPUT - Provide constructive feedback with this structure:
-        1. Strengths: [List 2-3 positive aspects of the answer]
-        2. Areas for Improvement: [List 1-2 specific suggestions]
-        3. Overall Assessment: [Brief summary evaluation]
-        
-        Your feedback style should match: {interview_style}
-        """
-        
         self.evaluation_chain = LLMChain(
             llm=self.llm,
-            prompt=PromptTemplate.from_template(evaluation_template),
+            prompt=PromptTemplate.from_template(EVALUATION_TEMPLATE),
             output_key="feedback"
         )
         
         # Interview summary chain
-        summary_template = """
-        You are summarizing an interview for a {job_role} position.
-        
-        Job Description: {job_description}
-        
-        Questions and Answers:
-        {qa_history}
-        
-        Provide a comprehensive summary of the interview including:
-        1. Overall impression of the candidate
-        2. Key strengths demonstrated
-        3. Areas for improvement
-        4. Suitability for the position
-        5. Specific recommendations for the candidate
-        
-        Be constructive, balanced, and specific in your assessment.
-        """
-        
         self.summary_chain = LLMChain(
             llm=self.llm,
-            prompt=PromptTemplate.from_template(summary_template),
+            prompt=PromptTemplate.from_template(SUMMARY_TEMPLATE),
             output_key="summary"
         )
         
         # Add new chain for answer quality assessment
-        quality_assessment_template = """
-        You are assessing the quality of a candidate's answer for a {job_role} position.
-        
-        Question: {question}
-        Candidate's Answer: {answer}
-        
-        TASK: Evaluate the answer quality on a scale of 1-5 where:
-        1: Poor - Irrelevant, incorrect, or severely lacking
-        2: Basic - Partially relevant but superficial
-        3: Adequate - Relevant and correct but lacking depth
-        4: Good - Relevant, correct, and detailed with some examples
-        5: Excellent - Comprehensive, insightful, with strong examples
-        
-        REASONING:
-        Analyze the answer against these criteria:
-        - Relevance to the question
-        - Accuracy of information
-        - Depth of understanding
-        - Use of specific examples
-        - Clarity and structure
-        
-        OUTPUT - JSON with three fields:
-        {
-            "score": [1-5 rating],
-            "justification": [Brief explanation for the rating],
-            "follow_up_needed": [true/false whether a follow-up question is needed]
-        }
-        """
-        
         self.quality_assessment_chain = LLMChain(
             llm=self.llm,
-            prompt=PromptTemplate.from_template(quality_assessment_template),
+            prompt=PromptTemplate.from_template(QUALITY_ASSESSMENT_TEMPLATE),
             output_parser=StrOutputParser(),
             output_key="quality_assessment"
         )
         
         # Add new chain for follow-up question generation
-        follow_up_template = """
-        You are interviewing a candidate for a {job_role} position.
-        
-        Original Question: {original_question}
-        Candidate's Answer: {answer}
-        
-        TASK: Generate a follow-up question to gain more insight
-        
-        THINK:
-        - What aspects of the answer were unclear or incomplete?
-        - What additional details would help better assess the candidate?
-        - How can you probe deeper into their experience or knowledge?
-        
-        REASONING:
-        Create a follow-up question that will encourage the candidate to expand on their answer,
-        provide specific examples, or clarify their thinking.
-        
-        OUTPUT:
-        A clear, concise follow-up question that naturally builds on the previous response.
-        """
-        
         self.follow_up_chain = LLMChain(
             llm=self.llm,
-            prompt=PromptTemplate.from_template(follow_up_template),
+            prompt=PromptTemplate.from_template(FOLLOW_UP_TEMPLATE),
             output_key="follow_up_question"
         )
     
@@ -329,65 +246,6 @@ class InterviewerAgent(BaseAgent):
         })
         
         return response["question"]
-    
-    def _evaluate_answer_tool(self, answer: str, question_index: int = None) -> str:
-        """
-        Tool function to evaluate a candidate's answer.
-        
-        Args:
-            answer: The candidate's answer
-            question_index: Optional index of the question (uses current if not provided)
-            
-        Returns:
-            Feedback on the answer
-        """
-        if question_index is None:
-            question_index = max(0, self.current_question_index - 1)
-        
-        question = self.questions[question_index] if question_index < len(self.questions) else "Unknown question"
-        
-        response = self.evaluation_chain.invoke({
-            "job_role": self.job_role,
-            "question": question,
-            "answer": answer,
-            "interview_style": self.interview_style.value
-        })
-        
-        return response["feedback"]
-    
-    def _summarize_interview_tool(self, args: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Tool function to summarize the interview.
-        
-        Args:
-            args: Optional arguments for the tool
-            
-        Returns:
-            Interview summary
-        """
-        if not self.current_context:
-            return "No interview context available."
-        
-        # Construct QA history
-        qa_pairs = []
-        current_question = None
-        
-        for message in self.current_context.conversation_history:
-            if message["role"] == "assistant" and message.get("metadata", {}).get("is_question", False):
-                current_question = message["content"]
-            elif message["role"] == "user" and current_question:
-                qa_pairs.append(f"Q: {current_question}\nA: {message['content']}")
-                current_question = None
-        
-        qa_history = "\n\n".join(qa_pairs)
-        
-        response = self.summary_chain.invoke({
-            "job_role": self.job_role,
-            "job_description": self.job_description,
-            "qa_history": qa_history or "No question-answer pairs available."
-        })
-        
-        return response["summary"]
     
     def process_input(self, input_text: str, context: Optional[AgentContext] = None) -> str:
         """
@@ -435,7 +293,7 @@ class InterviewerAgent(BaseAgent):
         elif self.current_state == InterviewState.TRANSITIONING:
             response = self._handle_transition(context)
         elif self.current_state == InterviewState.SUMMARIZING:
-            response = self._handle_summary(context)
+            response = self._handle_summarizing(input_text, context)
         else:
             response = "I'm sorry, there was an issue with the interview state. Let's restart."
             self.current_state = InterviewState.INITIALIZING
@@ -448,64 +306,43 @@ class InterviewerAgent(BaseAgent):
     
     def _think_about_input(self, input_text: str, context: AgentContext) -> Dict[str, Any]:
         """
-        Analyze the current input and context (Think step of ReAct).
+        Analyze the user input to understand its content (Think step of ReAct).
         
         Args:
-            input_text: The user input text
+            input_text: The user's input text
             context: The agent context
             
         Returns:
             Dictionary with analysis results
         """
         # Get conversation history
-        history = context.get_history_as_text()
+        history = format_conversation_history(context.conversation_history)
         
-        # Get current interview state
-        interview_state = self.current_state.value
+        # Current question (if any)
+        current_question = self.questions[self.current_question_index].text if self.current_question_index < len(self.questions) else ""
         
-        # Prepare prompt for analysis
-        prompt = f"""
-        You are an AI interviewer for a {self.job_role} position with a {self.interview_style.value} interview style.
-        
-        Current interview state: {interview_state}
-        
-        Recent conversation:
-        {history}
-        
-        Candidate's latest response:
-        {input_text}
-        
-        Analyze this response considering:
-        - How relevant is it to the current interview state and previous questions?
-        - What key topics or skills does it mention or demonstrate?
-        - What is the sentiment and confidence level conveyed?
-        - How complete or detailed is the response?
-        
-        Provide your analysis in JSON format with these fields:
-        - input_analysis: Your overall analysis of the response
-        - key_topics: List of important topics mentioned
-        - sentiment: The candidate's apparent sentiment (positive, neutral, negative)
-        - relevance: How relevant the response is (high, medium, low)
-        - completeness: How complete the response is (high, medium, low)
-        """
+        # Create inputs for the prompt
+        inputs = {
+            "job_role": self.job_role,
+            "current_state": context.get_state(),
+            "current_question": current_question,
+            "history": history
+        }
         
         try:
-            # Call LLM to analyze input
-            analysis_text = self._call_llm(prompt, context)
+            # Call LLM to analyze input using the THINK_TEMPLATE
+            analysis_text = self._call_llm(THINK_TEMPLATE.format(**inputs), context)
             
-            # Parse analysis as JSON if possible
-            try:
-                analysis = json.loads(analysis_text)
-            except:
-                # If not valid JSON, create a simple dictionary
-                analysis = {
-                    "input_analysis": analysis_text,
-                    "key_topics": [],
-                    "sentiment": "neutral",
-                    "relevance": "medium"
-                }
+            # Parse analysis as JSON with fallback
+            default_analysis = {
+                "input_analysis": "Unable to analyze input",
+                "key_topics": [],
+                "sentiment": "neutral",
+                "relevance": "medium"
+            }
             
-            return analysis
+            return parse_json_with_fallback(analysis_text, default_analysis, self.logger)
+            
         except Exception as e:
             self.logger.error(f"Error in think step: {e}")
             return {
@@ -526,138 +363,125 @@ class InterviewerAgent(BaseAgent):
         Returns:
             Dictionary with reasoning results
         """
-        # Prepare prompt for reasoning
-        prompt = f"""
-        You are an AI interviewer for a {self.job_role} position with a {self.interview_style.value} interview style.
-        
-        Current interview state: {self.current_state.value}
-        Current progress: {self.current_question_index}/{self.question_count} questions
-        
-        Analysis of candidate's response:
-        {json.dumps(think_result, indent=2)}
-        
-        Based on this analysis, determine the most appropriate next action:
-        - Should you continue with the current interview state?
-        - Should you transition to a different state?
-        - Is a follow-up question needed?
-        - Is special guidance needed?
-        
-        Provide your reasoning in JSON format with these fields:
-        - next_action: The action to take (continue, follow_up, provide_guidance, change_state)
-        - justification: Why this action is appropriate
-        - should_change_state: Boolean indicating if state should change
-        - suggested_state: The state to change to if applicable
-        """
+        # Create inputs for the template
+        inputs = {
+            "job_role": self.job_role,
+            "current_state": context.get_state(),
+            "think_result": think_result,
+            "json": json  # Pass json module to template for json.dumps
+        }
         
         try:
             # Call LLM to reason about next action
-            reasoning_text = self._call_llm(prompt, context)
+            reasoning_text = self._call_llm(REASON_TEMPLATE.format(**inputs), context)
             
-            # Parse reasoning as JSON if possible
-            try:
-                reasoning = json.loads(reasoning_text)
-            except:
-                # If not valid JSON, create a simple dictionary
-                reasoning = {
-                    "next_action": "continue",
-                    "justification": reasoning_text,
-                    "should_change_state": False,
-                    "suggested_state": self.current_state.value
-                }
+            # Parse reasoning as JSON with fallback
+            default_reasoning = {
+                "next_action": "ask_question",
+                "justification": "Continuing with interview questions",
+                "suggested_state": context.get_state(),
+                "follow_up_needed": False,
+                "suggested_question_type": "general"
+            }
             
-            # Check if state should be changed
-            if reasoning.get("should_change_state", False):
+            reasoning = parse_json_with_fallback(reasoning_text, default_reasoning, self.logger)
+            
+            # Validate suggested state if present
+            if "suggested_state" in reasoning:
+                suggested_state = reasoning["suggested_state"]
                 try:
-                    new_state = InterviewState(reasoning.get("suggested_state", self.current_state.value))
-                    self.current_state = new_state
-                    self.logger.info(f"Changed interview state to {new_state}")
+                    # Try to convert to InterviewState enum
+                    if not any(suggested_state == state.value for state in InterviewState):
+                        reasoning["suggested_state"] = context.get_state()
+                        self.logger.error(f"Invalid interview state suggested: {suggested_state}")
                 except:
-                    self.logger.error(f"Invalid interview state suggested: {reasoning.get('suggested_state')}")
+                    reasoning["suggested_state"] = context.get_state()
             
             return reasoning
+            
         except Exception as e:
             self.logger.error(f"Error in reason step: {e}")
             return {
-                "next_action": "continue",
+                "next_action": "ask_question",
                 "justification": "Error in reasoning process",
-                "should_change_state": False,
-                "suggested_state": self.current_state.value
+                "suggested_state": context.get_state(),
+                "follow_up_needed": False
             }
     
     def _run_planning_step(self, context: AgentContext) -> Dict[str, Any]:
         """
-        Run a planning step to adjust the interview strategy based on context.
+        Run a planning step to adjust the interview strategy.
         
         Args:
-            context: The current context
+            context: The agent context
             
         Returns:
-            The planning result
+            Dictionary with planning results
         """
-        # Get conversation history
-        history = context.get_history_as_text()
+        # Calculate progress percentage
+        if self.question_count > 0:
+            progress_percentage = min(int((self.current_question_index / self.question_count) * 100), 100)
+        else:
+            progress_percentage = 0
+            
+        # Get questions asked so far
+        questions_asked = [q.text for q in self.questions[:self.current_question_index]]
+        questions_summary = "\n".join([f"- {q}" for q in questions_asked]) if questions_asked else "None yet"
         
-        # Prepare planning prompt
-        planning_prompt = f"""
-        You are an AI interviewer for a {self.job_role} position.
-        Your current interview style is {self.interview_style.value}.
-        You've asked {self.current_question_index} questions out of a planned {self.question_count}.
-        
-        Current interview state: {self.current_state.value}
-        
-        Recent conversation history:
-        {history}
-        
-        Analyze the interview progress and decide if any adjustments are needed:
-        1. Is the current interview style effective, or should it be adjusted?
-        2. Are the questions at an appropriate difficulty level?
-        3. Are there specific topics that should be explored further?
-        4. Is the pace of the interview appropriate?
-        
-        Provide your strategic plan in JSON format with these fields:
-        - continue_current_approach: Boolean indicating if current approach is working
-        - suggested_style_adjustment: Any adjustment to interview style
-        - suggested_difficulty_adjustment: Any adjustment to question difficulty
-        - focus_areas: List of topics to focus on in upcoming questions
-        - pace_adjustment: Any adjustment to interview pace
-        - additional_notes: Any other strategic considerations
-        """
+        # Create inputs for the template
+        inputs = {
+            "job_role": self.job_role,
+            "current_state": context.get_state(),
+            "progress": progress_percentage,
+            "questions_asked": questions_summary,
+            "difficulty_level": self.difficulty_level,
+            "job_description": self.job_description
+        }
         
         try:
-            # Call LLM for planning
-            planning_result_text = self._call_llm(planning_prompt, context)
+            # Call LLM with the planning template
+            planning_result_text = self._call_llm(PLANNING_TEMPLATE.format(**inputs), context)
             
-            # Parse result as JSON
-            try:
-                planning_result = json.loads(planning_result_text)
-            except:
-                planning_result = {
-                    "continue_current_approach": True,
-                    "additional_notes": planning_result_text
-                }
-            
-            # Apply any suggested adjustments
-            if planning_result.get("suggested_difficulty_adjustment"):
-                difficulty_adj = planning_result.get("suggested_difficulty_adjustment").lower()
-                if "easier" in difficulty_adj:
-                    self.difficulty_level = "easy"
-                elif "harder" in difficulty_adj:
-                    self.difficulty_level = "hard"
-                else:
-                    self.difficulty_level = "medium"
-            
-            # Update context with planning result
-            context.metadata["last_planning"] = {
-                "timestamp": datetime.utcnow().isoformat(),
-                "result": planning_result
+            # Parse planning result as JSON with fallback
+            default_planning = {
+                "areas_to_cover": ["technical skills", "problem solving", "teamwork"],
+                "suggested_difficulty": self.difficulty_level,
+                "next_question_types": ["behavioral", "technical"],
+                "should_transition": False,
+                "transition_to": context.get_state(),
+                "justification": "Continuing with current interview plan"
             }
             
+            planning_result = parse_json_with_fallback(planning_result_text, default_planning, self.logger)
+            
+            # Update difficulty level if suggested
+            if "suggested_difficulty" in planning_result:
+                suggested_difficulty = planning_result["suggested_difficulty"]
+                if suggested_difficulty in ["easy", "medium", "hard"]:
+                    self.difficulty_level = suggested_difficulty
+                    self.logger.info(f"Updated difficulty level to {suggested_difficulty}")
+                    
+            # Check if we should transition states
+            if planning_result.get("should_transition", False):
+                suggested_state = planning_result.get("transition_to", "")
+                try:
+                    # Try to convert to InterviewState enum
+                    if any(suggested_state == state.value for state in InterviewState):
+                        context.set_state(suggested_state)
+                        self.logger.info(f"Transitioned to state: {suggested_state}")
+                except:
+                    self.logger.error(f"Invalid transition state suggested: {suggested_state}")
+                    
             return planning_result
+            
         except Exception as e:
             self.logger.error(f"Error in planning step: {e}")
             return {
-                "continue_current_approach": True,
-                "error": str(e)
+                "areas_to_cover": ["technical skills", "soft skills"],
+                "suggested_difficulty": self.difficulty_level,
+                "next_question_types": ["behavioral", "technical"],
+                "should_transition": False,
+                "justification": "Error occurred during planning"
             }
     
     def _handle_initialization(self, context: AgentContext) -> str:
@@ -751,7 +575,7 @@ class InterviewerAgent(BaseAgent):
             
             # If answer quality is very poor, provide some guidance
             if quality_assessment.get("score", 3) <= 2:
-                guidance = self._evaluate_answer_tool(input_text, current_q_index)
+                guidance = self._process_answer(input_text, context)
                 next_question = self._get_next_question()
                 response = f"{guidance}\n\nLet's move on to the next question.\n\n{next_question}"
         else:
@@ -761,7 +585,7 @@ class InterviewerAgent(BaseAgent):
         # If we've reached the end of questions, transition to summary
         if self.current_question_index >= len(self.questions) or self.current_question_index >= self.question_count:
             self.current_state = InterviewState.SUMMARIZING
-            return self._handle_summary(context)
+            return self._handle_summarizing(input_text, context)
         
         # Add response to context
         context.add_message("assistant", response)
@@ -781,7 +605,7 @@ class InterviewerAgent(BaseAgent):
         """
         # This should typically not be called directly as evaluation happens in _handle_questioning
         # But including for completeness
-        feedback = self._evaluate_answer(input_text, self.current_question_index - 1)
+        feedback = self._process_answer(input_text, context)
         self.current_state = InterviewState.TRANSITIONING
         return feedback
     
@@ -807,39 +631,29 @@ class InterviewerAgent(BaseAgent):
         
         return question
     
-    def _handle_summary(self, context: AgentContext) -> str:
+    def _handle_summarizing(self, input_text: str, context: AgentContext) -> Dict[str, Any]:
         """
-        Handle the summary state of the interview.
+        Handle the SUMMARIZING state to generate the interview summary.
         
         Args:
+            input_text: The input text from the user
             context: The agent context
             
         Returns:
-            The summary response
+            The interview summary data
         """
-        # Get question-answer history
-        qa_history = ""
-        for i, message in enumerate(context.conversation_history):
-            if message["role"] == "assistant" and i > 0 and i < len(context.conversation_history) - 1:
-                prev_message = context.conversation_history[i-1]
-                if prev_message["role"] == "user":
-                    qa_history += f"Question: {message['content']}\n"
-                    qa_history += f"Answer: {prev_message['content']}\n\n"
-        
         # Generate summary
-        summary = self._summarize_interview_tool({"qa_history": qa_history})
+        summary = self._create_summary(context)
         
-        # Publish event
+        # Publish summary event
         self._publish_event("interview_summarized", {
             "summary": summary,
             "timestamp": datetime.utcnow().isoformat()
         })
         
-        # Update state
+        # Transition to COMPLETED state
         self.current_state = InterviewState.COMPLETED
-        
-        # Format summary based on style
-        return self._format_response_by_style(summary, "summary")
+        return summary
     
     def _generate_questions(self) -> None:
         """
@@ -1014,7 +828,7 @@ class InterviewerAgent(BaseAgent):
         
         question = self.questions[self.current_question_index]
         self.current_question_index += 1
-        
+            
         # Publish event
         self._publish_event("question_asked", {
             "question_index": self.current_question_index - 1,
@@ -1025,156 +839,118 @@ class InterviewerAgent(BaseAgent):
         # Format question based on style
         return self._format_response_by_style(question, "question")
     
-    def _evaluate_answer(self, answer_text: str, question_index: int) -> str:
+    def _process_answer(self, answer_text: str, context: AgentContext) -> dict:
         """
-        Evaluate an answer to a question.
+        Process and evaluate the candidate's answer.
         
         Args:
-            answer_text: The answer text
-            question_index: The index of the question
+            answer_text: The candidate's answer to evaluate
+            context: The agent context
             
         Returns:
-            Feedback on the answer
+            Dictionary with evaluation results
         """
-        # Get the question
-        question = self.questions[question_index] if question_index < len(self.questions) else "Unknown question"
-        
-        # Get feedback
-        feedback = self._evaluate_answer_tool(answer_text, question_index)
-        
-        # Publish event
-        self._publish_event("answer_evaluated", {
-            "question_index": question_index,
-            "question": question,
+        if not self.current_question:
+            return {
+                "score": 0,
+                "feedback": "No current question to evaluate",
+                "areas_of_improvement": [],
+                "strengths": []
+            }
+            
+        # Create inputs for the template
+        inputs = {
+            "question": self.current_question.text,
             "answer": answer_text,
-            "feedback": feedback,
-            "timestamp": datetime.utcnow().isoformat()
-        })
+            "question_type": self.current_question.question_type,
+            "job_role": self.job_role,
+            "job_description": self.job_description
+        }
         
-        # Format feedback based on style
-        return self._format_response_by_style(feedback, "feedback")
+        # Add rubric if available
+        if hasattr(self.current_question, "rubric") and self.current_question.rubric:
+            inputs["rubric"] = self.current_question.rubric
+        else:
+            inputs["rubric"] = "No specific rubric provided"
+        
+        try:
+            # Call LLM with the evaluation template
+            evaluation_text = self._call_llm(ANSWER_EVALUATION_TEMPLATE.format(**inputs), context)
+            
+            # Set up default evaluation
+            default_evaluation = {
+                "score": 5,
+                "feedback": "The answer was acceptable.",
+                "areas_of_improvement": ["Provide more specific examples"],
+                "strengths": ["Good communication"],
+                "questions_to_probe_further": []
+            }
+            
+            # Parse evaluation
+            evaluation = parse_json_with_fallback(evaluation_text, default_evaluation, self.logger)
+            
+            # Store the evaluation with the question
+            if self.current_question and self.questions and self.current_question_index < len(self.questions):
+                self.questions[self.current_question_index].evaluation = evaluation
+                
+            # Adjust overall candidate performance metrics
+            self._update_candidate_metrics(evaluation)
+            
+            return evaluation
+            
+        except Exception as e:
+            self.logger.error(f"Error evaluating answer: {e}")
+            default_response = {
+                "score": 3,
+                "feedback": "I had difficulty evaluating your answer completely.",
+                "areas_of_improvement": ["Consider providing more specific examples"],
+                "strengths": ["You attempted to answer the question"]
+            }
+            return default_response
     
     def _create_introduction(self) -> str:
         """
-        Create an introduction for the interview based on the interview style.
+        Create an introduction for the interview.
         
         Returns:
-            Introduction message
+            Formatted introduction text
         """
-        job_role = self.job_role or "this position"
+        # Select the appropriate introduction template based on style
+        style_key = self.interview_style.value.lower()
+        template = INTRODUCTION_TEMPLATES.get(style_key, INTRODUCTION_TEMPLATES["formal"])
         
-        # Base introduction components
-        intro_components = {
-            "greeting": f"Hello! I'll be conducting your interview for the {job_role} position today.",
-            "purpose": "I'll ask you a series of questions to evaluate your skills and experience.",
-            "expectation": "Please provide detailed, specific answers with examples from your experience when possible.",
-            "format": f"I'll ask you about {self.question_count} questions, and provide feedback at the end.",
-            "ready": "Let's begin. Are you ready for your first question?"
-        }
-        
-        # Style-specific customizations
-        style_customizations = {
-            InterviewStyle.FORMAL: {
-                "greeting": f"Good day. I am conducting your formal interview for the {job_role} position.",
-                "tone": "professional and thorough",
-                "formality": "This will be a structured interview following standard protocols.",
-                "closing": "Please take a moment to prepare, and we will proceed with the first question."
-            },
-            InterviewStyle.CASUAL: {
-                "greeting": f"Hi there! Thanks for joining me today for your {job_role} interview.",
-                "tone": "conversational and relaxed",
-                "formality": "We'll keep this pretty casual, like a conversation between colleagues.",
-                "closing": "Feel free to ask questions anytime. Ready to get started?"
-            },
-            InterviewStyle.AGGRESSIVE: {
-                "greeting": f"Let's get started with your interview for the {job_role} position.",
-                "tone": "challenging and direct",
-                "formality": "I'll be asking pointed questions to really test your capabilities.",
-                "closing": "I expect precise, substantive answers. Let's see what you've got."
-            },
-            InterviewStyle.TECHNICAL: {
-                "greeting": f"Welcome to your technical interview for the {job_role} position.",
-                "tone": "technically focused and detailed",
-                "formality": "This interview will focus on assessing your technical knowledge and problem-solving abilities.",
-                "closing": "I'll be looking for specificity and technical accuracy in your responses."
-            }
-        }
-        
-        # Get style-specific components
-        style_components = style_customizations.get(self.interview_style, style_customizations[InterviewStyle.FORMAL])
-        
-        # Create introduction based on style
-        introduction = f"{style_components.get('greeting', intro_components['greeting'])}\n\n"
-        
-        introduction += f"This will be a {style_components.get('tone', 'professional')} interview. "
-        introduction += f"{style_components.get('formality', intro_components['purpose'])}\n\n"
-        
-        introduction += f"{intro_components['expectation']}\n"
-        introduction += f"{intro_components['format']}\n\n"
-        
-        introduction += f"{style_components.get('closing', intro_components['ready'])}"
-        
-        return introduction
+        # Format the template with job information
+        return template.format(
+            job_role=self.job_role,
+            interview_duration=f"{self.question_count} questions",
+            company_name=self.company_name or "our company"
+        )
     
-    def _format_response_by_style(self, content: str, response_type: str = "question") -> str:
+    def _format_response_by_style(self, content: str, content_type: str) -> str:
         """
-        Format the response based on the interview style.
+        Format a response based on the interviewer's style.
         
         Args:
             content: The content to format
-            response_type: The type of response (question, feedback, summary)
+            content_type: The type of content (question, feedback, etc.)
             
         Returns:
             Formatted response
         """
-        # Style-specific prefixes and suffixes
-        style_formatting = {
-            InterviewStyle.FORMAL: {
-                "question_prefix": "The next question is: ",
-                "question_suffix": "\n\nPlease provide a comprehensive response.",
-                "feedback_prefix": "Evaluation: ",
-                "feedback_suffix": "\n\nLet's continue with the next question.",
-                "summary_prefix": "Interview Assessment:\n\n",
-                "summary_suffix": "\n\nThank you for participating in this interview process."
-            },
-            InterviewStyle.CASUAL: {
-                "question_prefix": "Let's talk about: ",
-                "question_suffix": "\n\nWhat are your thoughts on this?",
-                "feedback_prefix": "About your answer: ",
-                "feedback_suffix": "\n\nLet's move on to something else.",
-                "summary_prefix": "Here's how I think the interview went:\n\n",
-                "summary_suffix": "\n\nThanks for the great conversation!"
-            },
-            InterviewStyle.AGGRESSIVE: {
-                "question_prefix": "Next: ",
-                "question_suffix": "\n\nBe specific and direct in your answer.",
-                "feedback_prefix": "Feedback: ",
-                "feedback_suffix": "\n\nMoving on immediately.",
-                "summary_prefix": "Interview Performance Analysis:\n\n",
-                "summary_suffix": "\n\nThat concludes this interview session."
-            },
-            InterviewStyle.TECHNICAL: {
-                "question_prefix": "Technical Question: ",
-                "question_suffix": "\n\nPlease provide specific technical details in your response.",
-                "feedback_prefix": "Technical Assessment: ",
-                "feedback_suffix": "\n\nLet's proceed to the next technical area.",
-                "summary_prefix": "Technical Evaluation Summary:\n\n",
-                "summary_suffix": "\n\nThank you for demonstrating your technical knowledge today."
-            }
+        # Create inputs for the template
+        inputs = {
+            "style": self.interview_style.value,
+            "content": content,
+            "content_type": content_type,
+            "job_role": self.job_role
         }
         
-        # Get formatting for current style
-        formatting = style_formatting.get(self.interview_style, style_formatting[InterviewStyle.FORMAL])
-        
-        # Apply formatting based on response type
-        if response_type == "question":
-            return f"{formatting['question_prefix']}{content}{formatting['question_suffix']}"
-        elif response_type == "feedback":
-            return f"{formatting['feedback_prefix']}{content}{formatting['feedback_suffix']}"
-        elif response_type == "summary":
-            return f"{formatting['summary_prefix']}{content}{formatting['summary_suffix']}"
-        else:
-            return content
+        try:
+            # Call LLM with the response format template
+            return self._call_llm(RESPONSE_FORMAT_TEMPLATE.format(**inputs), AgentContext())
+        except Exception as e:
+            self.logger.error(f"Error formatting response: {e}")
+            return content  # Return the original content if formatting fails
     
     def _handle_user_response(self, event: Event) -> None:
         """
@@ -1267,4 +1043,299 @@ class InterviewerAgent(BaseAgent):
             "answer": answer
         })
         
-        return response["follow_up_question"] 
+        return response["follow_up_question"]
+    
+    def _create_summary(self, context: AgentContext) -> Dict[str, Any]:
+        """
+        Create a summary of the interview.
+        
+        Args:
+            context: The agent context
+            
+        Returns:
+            Dictionary with summary results
+        """
+        # Gather all questions and evaluations
+        qa_pairs = []
+        for i, question in enumerate(self.questions):
+            if hasattr(question, "evaluation") and question.evaluation:
+                qa_pairs.append({
+                    "question": question.text,
+                    "question_type": question.question_type,
+                    "answer": question.candidate_answer if hasattr(question, "candidate_answer") else "No answer provided",
+                    "evaluation": question.evaluation
+                })
+        
+        # Calculate average score
+        scores = [qa["evaluation"].get("score", 0) for qa in qa_pairs if "evaluation" in qa and isinstance(qa["evaluation"], dict)]
+        average_score = sum(scores) / len(scores) if scores else 0
+        
+        # Create inputs for the template
+        inputs = {
+            "job_role": self.job_role,
+            "job_description": self.job_description,
+            "qa_pairs": json.dumps(qa_pairs, indent=2),
+            "average_score": round(average_score, 1),
+            "candidate_strengths": json.dumps(self.candidate_metrics.get("strengths", []), indent=2),
+            "candidate_weaknesses": json.dumps(self.candidate_metrics.get("areas_of_improvement", []), indent=2)
+        }
+        
+        try:
+            # Call LLM with the summary template
+            summary_text = self._call_llm(SUMMARY_TEMPLATE.format(**inputs), context)
+            
+            # Set up default summary
+            default_summary = {
+                "overall_assessment": "The candidate demonstrated average performance during the interview.",
+                "technical_skills": "Demonstrated basic understanding of required technical skills.",
+                "communication": "Communication was adequate during the interview.",
+                "culture_fit": "The candidate may be a good cultural fit for the organization.",
+                "recommendation": "Consider for follow-up interview to further assess skills.",
+                "areas_of_strength": self.candidate_metrics.get("strengths", ["Communication skills"]),
+                "areas_for_improvement": self.candidate_metrics.get("areas_of_improvement", ["Technical depth"]),
+                "overall_score": average_score
+            }
+            
+            # Parse summary result as JSON with fallback
+            summary = parse_json_with_fallback(summary_text, default_summary, self.logger)
+            
+            # Format the summary for display
+            formatted_summary = self._format_response_by_style(json.dumps(summary, indent=2), "summary")
+            
+            # Add formatted text to summary
+            summary["formatted_text"] = formatted_summary
+            
+            return summary
+            
+        except Exception as e:
+            self.logger.error(f"Error creating summary: {e}")
+            error_summary = {
+                "overall_assessment": "Unable to generate a complete assessment due to an error.",
+                "technical_skills": "Assessment not available.",
+                "communication": "Assessment not available.",
+                "recommendation": "Review interview transcript manually.",
+                "areas_of_strength": self.candidate_metrics.get("strengths", []),
+                "areas_for_improvement": self.candidate_metrics.get("areas_of_improvement", []),
+                "overall_score": average_score,
+                "error": str(e)
+            }
+            
+            return error_summary 
+    
+    def _update_candidate_metrics(self, evaluation: Dict[str, Any]) -> None:
+        """
+        Update candidate performance metrics based on the latest answer evaluation.
+        
+        Args:
+            evaluation: The evaluation dictionary from _process_answer
+        """
+        if not evaluation:
+            return
+            
+        # Initialize metrics if needed
+        if not hasattr(self, "candidate_metrics"):
+            self.candidate_metrics = {
+                "strengths": [],
+                "areas_of_improvement": [],
+                "scores_by_question_type": {},
+                "total_questions_by_type": {},
+                "follow_up_questions": []
+            }
+            
+        # Update strengths (avoid duplicates but keep track of frequency)
+        if "strengths" in evaluation and isinstance(evaluation["strengths"], list):
+            for strength in evaluation["strengths"]:
+                # Clean and normalize the strength
+                clean_strength = strength.strip().lower()
+                # Check if similar strength already exists
+                exists = False
+                for existing in self.candidate_metrics["strengths"]:
+                    if clean_strength in existing.lower() or existing.lower() in clean_strength:
+                        exists = True
+                        break
+                
+                if not exists:
+                    self.candidate_metrics["strengths"].append(strength)
+                    
+        # Update areas of improvement (avoid duplicates)
+        if "areas_of_improvement" in evaluation and isinstance(evaluation["areas_of_improvement"], list):
+            for area in evaluation["areas_of_improvement"]:
+                # Clean and normalize the area
+                clean_area = area.strip().lower()
+                # Check if similar area already exists
+                exists = False
+                for existing in self.candidate_metrics["areas_of_improvement"]:
+                    if clean_area in existing.lower() or existing.lower() in clean_area:
+                        exists = True
+                        break
+                
+                if not exists:
+                    self.candidate_metrics["areas_of_improvement"].append(area)
+                    
+        # Update scores by question type
+        if "score" in evaluation and self.current_question:
+            question_type = self.current_question.question_type
+            
+            # Initialize if needed
+            if question_type not in self.candidate_metrics["scores_by_question_type"]:
+                self.candidate_metrics["scores_by_question_type"][question_type] = 0
+                self.candidate_metrics["total_questions_by_type"][question_type] = 0
+                
+            # Update scores
+            self.candidate_metrics["scores_by_question_type"][question_type] += evaluation["score"]
+            self.candidate_metrics["total_questions_by_type"][question_type] += 1
+            
+        # Track follow-up questions
+        if "questions_to_probe_further" in evaluation and isinstance(evaluation["questions_to_probe_further"], list):
+            self.candidate_metrics["follow_up_questions"].extend(evaluation["questions_to_probe_further"])
+
+    def _do_action(self, context: AgentContext) -> Dict[str, Any]:
+        """
+        Perform the next action based on the current state.
+        
+        Args:
+            context: The agent context
+            
+        Returns:
+            Result of the action
+        """
+        # Get input text
+        input_text = context.get_last_user_message() or ""
+        
+        # Create response based on current state
+        if self.current_state == InterviewState.INTRODUCTION:
+            # Create and format introduction
+            intro_text = self._create_introduction()
+            formatted_intro = self._format_response_by_style(intro_text, "introduction")
+            
+            # Transition to preparation state
+            self.current_state = InterviewState.PREPARATION
+            
+            return {
+                "response_type": "introduction",
+                "text": formatted_intro
+            }
+            
+        elif self.current_state == InterviewState.PREPARATION:
+            # Run planning step
+            planning_result = self._run_planning_step(context)
+            
+            # Generate questions based on planning
+            self._generate_questions()
+            
+            # Transition to questioning state
+            self.current_state = InterviewState.QUESTIONING
+            
+            # Get first question
+            question = self._get_next_question()
+            formatted_question = self._format_response_by_style(question, "question")
+            
+            return {
+                "response_type": "question",
+                "text": formatted_question,
+                "planning_result": planning_result
+            }
+            
+        elif self.current_state == InterviewState.QUESTIONING:
+            # Process candidate's answer to previous question
+            evaluation = self._process_answer(input_text, context)
+            
+            # Check if we should ask a follow-up question
+            if (
+                "questions_to_probe_further" in evaluation and
+                isinstance(evaluation["questions_to_probe_further"], list) and
+                len(evaluation["questions_to_probe_further"]) > 0
+            ):
+                # Ask a follow-up question
+                followup = evaluation["questions_to_probe_further"][0]
+                formatted_followup = self._format_response_by_style(followup, "followup_question")
+                
+                return {
+                    "response_type": "followup_question",
+                    "text": formatted_followup,
+                    "evaluation": evaluation
+                }
+            else:
+                # Get next question or transition to summarizing
+                if self.current_question_index >= self.question_count:
+                    # Transition to summarizing
+                    self.current_state = InterviewState.SUMMARIZING
+                    
+                    # Generate summary
+                    summary = self._create_summary(context)
+                    formatted_summary = summary.get("formatted_text", "Interview summary")
+                    
+                    return {
+                        "response_type": "summary",
+                        "text": formatted_summary,
+                        "summary_data": summary
+                    }
+                else:
+                    # Get next question
+                    question = self._get_next_question()
+                    formatted_question = self._format_response_by_style(question, "question")
+                    
+                    return {
+                        "response_type": "question",
+                        "text": formatted_question,
+                        "evaluation": evaluation
+                    }
+                    
+        elif self.current_state == InterviewState.SUMMARIZING:
+            # Generate summary
+            summary = self._create_summary(context)
+            formatted_summary = summary.get("formatted_text", "Interview summary")
+            
+            # Transition to completed
+            self.current_state = InterviewState.COMPLETED
+            
+            return {
+                "response_type": "summary",
+                "text": formatted_summary,
+                "summary_data": summary
+            }
+            
+        elif self.current_state == InterviewState.COMPLETED:
+            return {
+                "response_type": "completed",
+                "text": "The interview has been completed. Thank you for your participation."
+            }
+            
+        else:
+            return {
+                "response_type": "error",
+                "text": "I'm sorry, there was an issue with the interview state. Please restart the interview."
+            } 
+
+    def invoke(self, input_text: str, context: Optional[AgentContext] = None) -> Dict[str, Any]:
+        """
+        Invoke the agent with the given input.
+        
+        Args:
+            input_text: The input from the user
+            context: The agent context
+            
+        Returns:
+            Response containing next action
+        """
+        # Initialize context if not provided
+        if not context:
+            context = AgentContext()
+            
+        # Add user message to context
+        context.add_user_message(input_text)
+        
+        # Execute next action based on current state
+        response = self._do_action(context)
+        
+        # Add agent response to context
+        context.add_agent_message(response.get("text", ""))
+        
+        # Check for completed state
+        if response.get("response_type") == "summary":
+            self._publish_event("interview_completed", {
+                "timestamp": datetime.utcnow().isoformat(),
+                "summary": response.get("summary_data", {})
+            })
+            
+        return response 

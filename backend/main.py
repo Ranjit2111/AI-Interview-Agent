@@ -204,7 +204,7 @@ async def generate_interview(request: InterviewRequest):
 @app.on_event("startup")
 async def generate_api_docs():
     """Generate API documentation when the application starts."""
-    docs_dir = os.path.join(os.getcwd(), "docs")
+    docs_dir = os.path.join(os.getcwd(), "..", "docs", "api")
     try:
         generate_static_docs(app, docs_dir)
         print(f"API documentation generated in {os.path.join(docs_dir, 'api_docs')}")
