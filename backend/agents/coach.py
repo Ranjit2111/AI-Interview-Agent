@@ -4,8 +4,11 @@ This agent analyzes interview performance and offers personalized advice for imp
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional, Set, Union
 from datetime import datetime
+import json
+import re
+import random
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents import Tool
@@ -251,6 +254,530 @@ class CoachAgent(BaseAgent):
             prompt=PromptTemplate.from_template(template_prompt),
             output_key="response_template"
         )
+        
+        # Create STAR method evaluation chain
+        star_evaluation_template = """
+        You are an expert interview coach evaluating a candidate's use of the STAR method.
+        
+        Question: {question}
+        Answer: {answer}
+        
+        Evaluate how well the candidate applied the STAR method using the following criteria:
+        - Situation: Did they clearly describe the context/background?
+        - Task: Did they explain their specific role or responsibility?
+        - Action: Did they detail the steps they took?
+        - Result: Did they quantify the outcome or explain the impact?
+        
+        For each component (Situation, Task, Action, Result), rate on a scale of 0-10 and explain why.
+        
+        Format your response as JSON:
+        {
+            "situation": {
+                "score": score_from_0_to_10,
+                "feedback": "specific feedback on situation description"
+            },
+            "task": {
+                "score": score_from_0_to_10,
+                "feedback": "specific feedback on task description"
+            }, 
+            "action": {
+                "score": score_from_0_to_10,
+                "feedback": "specific feedback on action description"
+            },
+            "result": {
+                "score": score_from_0_to_10,
+                "feedback": "specific feedback on result description"
+            },
+            "overall_feedback": "summary of overall STAR method application",
+            "areas_for_improvement": ["specific suggestion 1", "specific suggestion 2"],
+            "strengths": ["strength 1", "strength 2"]
+        }
+        """
+        
+        self.star_evaluation_chain = LLMChain(
+            llm=self.llm,
+            prompt=PromptTemplate.from_template(star_evaluation_template),
+            output_key="star_evaluation"
+        )
+        
+        # Performance analysis chain
+        performance_analysis_template = """
+        You are an expert interview coach analyzing a candidate's interview performance over multiple questions.
+        
+        Review the following response analyses from the interview session:
+        {analyses_json}
+        
+        TASK: Provide a comprehensive performance analysis with patterns, trends, and actionable insights.
+        
+        Your analysis should include:
+        1. Overall Performance Summary: General assessment across all responses
+        2. Pattern Recognition: Recurring strengths and weaknesses across responses
+        3. Progression Analysis: Any improvement or decline in performance during the session
+        4. Skill Assessment: Evaluation of key interview skills (STAR method, communication, specificity, etc.)
+        5. Priority Improvement Areas: The 2-3 most critical areas to focus on improving
+        6. Actionable Development Plan: Specific exercises and practices for improvement
+        
+        FORMAT YOUR RESPONSE AS JSON:
+        {{
+            "overall_summary": "Comprehensive summary of performance",
+            "patterns": {{
+                "strengths": ["Pattern 1", "Pattern 2", ...],
+                "weaknesses": ["Pattern 1", "Pattern 2", ...]
+            }},
+            "progression": "Analysis of improvement/decline during session",
+            "skill_assessment": {{
+                "star_method": {{
+                    "score": <0-10>,
+                    "assessment": "Evaluation of STAR method usage"
+                }},
+                "communication": {{
+                    "score": <0-10>,
+                    "assessment": "Evaluation of communication skills"
+                }},
+                "content_quality": {{
+                    "score": <0-10>,
+                    "assessment": "Evaluation of answer content"
+                }},
+                "specificity": {{
+                    "score": <0-10>,
+                    "assessment": "Evaluation of specific examples"
+                }}
+            }},
+            "priority_improvement_areas": ["Area 1", "Area 2", "Area 3"],
+            "development_plan": [
+                {{
+                    "focus_area": "Area 1",
+                    "exercises": ["Exercise 1", "Exercise 2"],
+                    "resources": ["Resource 1", "Resource 2"]
+                }},
+                ...
+            ]
+        }}
+        """
+        
+        self.performance_analysis_chain = LLMChain(
+            llm=self.llm,
+            prompt=PromptTemplate.from_template(performance_analysis_template),
+            output_key="performance_analysis"
+        )
+        
+        # Create communication skills assessment chain
+        communication_assessment_template = """
+        You are an expert interview coach evaluating a candidate's communication skills in their interview response.
+        
+        Question: {question}
+        Candidate's Response: {answer}
+        
+        TASK: Evaluate the candidate's communication skills across multiple dimensions.
+        
+        Assess the following areas on a scale of 0-10 with specific feedback:
+        - Clarity: How clear and understandable was their communication?
+        - Conciseness: Did they communicate efficiently without unnecessary details?
+        - Structure: How well-organized was their response?
+        - Engagement: How engaging and compelling was their communication style?
+        - Confidence: How confident did they appear through their word choice and phrasing?
+        - Technical Terminology: How appropriate was their use of technical terms (if applicable)?
+        
+        Additionally, provide:
+        - Overall Communication Score (0-10): A weighted assessment across all dimensions
+        - Key Strengths: Communication aspects they handled well
+        - Improvement Areas: Specific communication aspects they should work on
+        - Practical Tips: 2-3 actionable suggestions to improve their communication
+        
+        FORMAT YOUR RESPONSE AS JSON:
+        {{
+            "clarity": {{
+                "score": <0-10>,
+                "feedback": "<specific clarity feedback>"
+            }},
+            "conciseness": {{
+                "score": <0-10>,
+                "feedback": "<specific conciseness feedback>"
+            }},
+            "structure": {{
+                "score": <0-10>,
+                "feedback": "<specific structure feedback>"
+            }},
+            "engagement": {{
+                "score": <0-10>,
+                "feedback": "<specific engagement feedback>"
+            }},
+            "confidence": {{
+                "score": <0-10>,
+                "feedback": "<specific confidence feedback>"
+            }},
+            "technical_terminology": {{
+                "score": <0-10>,
+                "feedback": "<specific technical terminology feedback>"
+            }},
+            "overall_score": <0-10>,
+            "key_strengths": ["<strength 1>", "<strength 2>", ...],
+            "improvement_areas": ["<area 1>", "<area 2>", ...],
+            "practical_tips": ["<tip 1>", "<tip 2>", ...]
+        }}
+        """
+        
+        self.communication_assessment_chain = LLMChain(
+            llm=self.llm,
+            prompt=PromptTemplate.from_template(communication_assessment_template),
+            output_key="communication_assessment"
+        )
+        
+        # Create completeness evaluation chain
+        completeness_evaluation_template = """
+        You are an expert interview coach evaluating the completeness of a candidate's response.
+        
+        Question: {question}
+        Candidate's Response: {answer}
+        Job Role: {job_role}
+        
+        TASK: Evaluate how complete and comprehensive the candidate's answer is for this specific question and job role.
+        
+        Assess the following factors on a scale of 0-10 with specific feedback:
+        - Question Relevance: How directly did they address the actual question asked?
+        - Key Points Coverage: Did they cover all the important aspects related to the question?
+        - Examples: Did they provide sufficient and relevant examples?
+        - Depth: Did they go beyond surface-level explanations?
+        - Context Awareness: Did they tailor their response to the role and company context?
+        
+        Additionally, provide:
+        - Overall Completeness Score (0-10): A comprehensive assessment of response completeness
+        - Missing Elements: Important points they should have included
+        - Excessive Elements: Any unnecessary information that diluted their answer
+        - Improvement Plan: How they could make the response more complete and relevant
+        
+        FORMAT YOUR RESPONSE AS JSON:
+        {{
+            "question_relevance": {{
+                "score": <0-10>,
+                "feedback": "<specific relevance feedback>"
+            }},
+            "key_points_coverage": {{
+                "score": <0-10>,
+                "feedback": "<specific coverage feedback>"
+            }},
+            "examples": {{
+                "score": <0-10>,
+                "feedback": "<specific examples feedback>"
+            }},
+            "depth": {{
+                "score": <0-10>,
+                "feedback": "<specific depth feedback>"
+            }},
+            "context_awareness": {{
+                "score": <0-10>,
+                "feedback": "<specific context awareness feedback>"
+            }},
+            "overall_score": <0-10>,
+            "missing_elements": ["<missing element 1>", "<missing element 2>", ...],
+            "excessive_elements": ["<excessive element 1>", "<excessive element 2>", ...],
+            "improvement_plan": "<specific plan for improving completeness>"
+        }}
+        """
+        
+        self.completeness_evaluation_chain = LLMChain(
+            llm=self.llm,
+            prompt=PromptTemplate.from_template(completeness_evaluation_template),
+            output_key="completeness_evaluation"
+        )
+        
+        # Create personalized feedback generator chain
+        personalized_feedback_template = """
+        You are an expert interview coach creating personalized feedback for a candidate.
+        
+        CANDIDATE PROFILE:
+        - Role they're applying for: {job_role}
+        - Experience level: {experience_level}
+        - Strengths: {strengths}
+        - Areas for improvement: {areas_for_improvement}
+        - Learning style: {learning_style}
+        
+        INTERVIEW EVALUATION:
+        - Question: {question}
+        - Candidate's Response: {answer}
+        - STAR Method Evaluation: {star_evaluation}
+        - Communication Assessment: {communication_assessment}
+        - Response Completeness: {response_completeness}
+        
+        TASK: Create highly personalized feedback and coaching for this specific candidate.
+        
+        Your feedback must include:
+        1. STRENGTHS AFFIRMATION (2-3 points): Highlight what they did well, tied to their specific strengths profile
+        2. GROWTH AREAS (2-3 points): Identify key improvement areas, considering their experience level
+        3. PERSONALIZED COACHING: Tailored advice matching their learning style and professional goals
+        4. CONCRETE EXAMPLES: Rewrite 1-2 portions of their answer to demonstrate improvement
+        5. ACTIONABLE NEXT STEPS: 2-3 specific practice exercises or resources
+        
+        FORMAT YOUR RESPONSE AS JSON:
+        {{
+            "strengths_affirmation": [
+                "<strength point 1 with specific example from their answer>",
+                "<strength point 2 with specific example from their answer>"
+            ],
+            "growth_areas": [
+                "{{
+                    "area": "<improvement area 1>",
+                    "rationale": "<why this matters for their target role>",
+                    "example_from_answer": "<specific example from their response>"
+                }}",
+                "{{
+                    "area": "<improvement area 2>",
+                    "rationale": "<why this matters for their target role>",
+                    "example_from_answer": "<specific example from their response>"
+                }}"
+            ],
+            "personalized_coaching": "<300-400 character paragraph with tailored advice based on learning style>",
+            "improved_answer_examples": [
+                "{{
+                    "original": "<direct quote from their answer>",
+                    "improved": "<rewritten version showing the improvement>"
+                }}"
+            ],
+            "next_steps": [
+                "{{
+                    "activity": "<specific practice exercise>",
+                    "benefit": "<how this addresses their specific needs>"
+                }}",
+                "{{
+                    "activity": "<resource or practice technique>",
+                    "benefit": "<how this builds on their strengths>"
+                }}"
+            ],
+            "summary": "<one sentence personalized encouragement>"
+        }}
+        """
+        
+        self.personalized_feedback_chain = LLMChain(
+            llm=self.llm,
+            prompt=PromptTemplate.from_template(personalized_feedback_template),
+            output_key="personalized_feedback"
+        )
+        
+        # Create performance tracker/metrics generator
+        performance_metrics_template = """
+        You are an expert interview coach tracking a candidate's interview performance over time.
+        
+        PREVIOUS EVALUATIONS:
+        {previous_evaluations}
+        
+        CURRENT EVALUATION:
+        - Question: {question}
+        - Candidate's Response: {answer}
+        - STAR Method Score: {star_score}
+        - Communication Score: {communication_score}
+        - Completeness Score: {completeness_score}
+        
+        TASK: Generate performance metrics comparing current performance to historical data, and create a progress report.
+        
+        Include:
+        1. METRICS SUMMARY: Key scores for this response compared to previous average
+        2. PROGRESS TRACKING: Areas showing improvement and those still needing work
+        3. TREND ANALYSIS: Overall direction of improvement
+        4. ACHIEVEMENT BADGES: Any notable milestones reached
+        5. FOCUS RECOMMENDATIONS: What to prioritize next based on progress
+        
+        FORMAT YOUR RESPONSE AS JSON:
+        {{
+            "metrics_summary": {{
+                "star_score": {{
+                    "current": <current score>,
+                    "previous_avg": <previous average>,
+                    "delta": <change percentage>
+                }},
+                "communication_score": {{
+                    "current": <current score>,
+                    "previous_avg": <previous average>,
+                    "delta": <change percentage>
+                }},
+                "completeness_score": {{
+                    "current": <current score>,
+                    "previous_avg": <previous average>,
+                    "delta": <change percentage>
+                }},
+                "overall_score": {{
+                    "current": <current overall>,
+                    "previous_avg": <previous average>,
+                    "delta": <change percentage>
+                }}
+            }},
+            "progress_tracking": {{
+                "improving_areas": [
+                    "{{
+                        "area": "<improving area 1>",
+                        "evidence": "<specific evidence of improvement>"
+                    }}",
+                    "{{
+                        "area": "<improving area 2>",
+                        "evidence": "<specific evidence of improvement>"
+                    }}"
+                ],
+                "focus_areas": [
+                    "{{
+                        "area": "<focus area 1>",
+                        "rationale": "<why focus is still needed>"
+                    }}",
+                    "{{
+                        "area": "<focus area 2>",
+                        "rationale": "<why focus is still needed>"
+                    }}"
+                ]
+            }},
+            "trend_analysis": "<assessment of overall trajectory with 100-150 character explanation>",
+            "achievement_badges": [
+                "{{
+                    "badge": "<achievement badge 1>",
+                    "description": "<what they did to earn it>"
+                }}"
+            ],
+            "focus_recommendations": [
+                "<specific focus recommendation 1>",
+                "<specific focus recommendation 2>"
+            ]
+        }}
+        """
+        
+        self.performance_metrics_chain = LLMChain(
+            llm=self.llm,
+            prompt=PromptTemplate.from_template(performance_metrics_template),
+            output_key="performance_metrics"
+        )
+        
+        # Create structured feedback templates
+        self.feedback_templates = {
+            "star_method": {
+                "title": "STAR Method Evaluation",
+                "intro": "I've analyzed your answer using the STAR method framework. Here's a breakdown:",
+                "sections": [
+                    {
+                        "name": "Situation",
+                        "icon": "📋",
+                        "description": "Setting the context",
+                        "score_key": "situation.score",
+                        "feedback_key": "situation.feedback"
+                    },
+                    {
+                        "name": "Task",
+                        "icon": "🎯",
+                        "description": "Your specific role",
+                        "score_key": "task.score",
+                        "feedback_key": "task.feedback"
+                    },
+                    {
+                        "name": "Action",
+                        "icon": "⚙️",
+                        "description": "Steps you took",
+                        "score_key": "action.score",
+                        "feedback_key": "action.feedback"
+                    },
+                    {
+                        "name": "Result",
+                        "icon": "🏆",
+                        "description": "Outcome achieved",
+                        "score_key": "result.score",
+                        "feedback_key": "result.feedback"
+                    }
+                ],
+                "summary_key": "overall_feedback",
+                "strengths_key": "strengths",
+                "improvements_key": "areas_for_improvement"
+            },
+            "communication": {
+                "title": "Communication Skills Assessment",
+                "intro": "I've evaluated the communication aspects of your answer. Here's my assessment:",
+                "sections": [
+                    {
+                        "name": "Clarity",
+                        "icon": "💡",
+                        "description": "How clear your message was",
+                        "score_key": "clarity.score",
+                        "feedback_key": "clarity.feedback"
+                    },
+                    {
+                        "name": "Conciseness",
+                        "icon": "✂️",
+                        "description": "Efficiency of your communication",
+                        "score_key": "conciseness.score",
+                        "feedback_key": "conciseness.feedback"
+                    },
+                    {
+                        "name": "Structure",
+                        "icon": "🏗️",
+                        "description": "Organization of your response",
+                        "score_key": "structure.score",
+                        "feedback_key": "structure.feedback"
+                    },
+                    {
+                        "name": "Engagement",
+                        "icon": "🎤",
+                        "description": "How engaging your delivery was",
+                        "score_key": "engagement.score",
+                        "feedback_key": "engagement.feedback"
+                    },
+                    {
+                        "name": "Confidence",
+                        "icon": "👍",
+                        "description": "Confidence in your delivery",
+                        "score_key": "confidence.score",
+                        "feedback_key": "confidence.feedback"
+                    }
+                ],
+                "summary_key": "overall_score",
+                "strengths_key": "key_strengths",
+                "improvements_key": "improvement_areas"
+            },
+            "completeness": {
+                "title": "Response Completeness Analysis",
+                "intro": "I've analyzed how complete and comprehensive your answer was:",
+                "sections": [
+                    {
+                        "name": "Question Relevance",
+                        "icon": "🎯",
+                        "description": "How directly you addressed the question",
+                        "score_key": "question_relevance.score",
+                        "feedback_key": "question_relevance.feedback"
+                    },
+                    {
+                        "name": "Key Points Coverage",
+                        "icon": "📋",
+                        "description": "Coverage of important aspects",
+                        "score_key": "key_points_coverage.score",
+                        "feedback_key": "key_points_coverage.feedback"
+                    },
+                    {
+                        "name": "Examples",
+                        "icon": "🔍",
+                        "description": "Relevance and sufficiency of examples",
+                        "score_key": "examples.score",
+                        "feedback_key": "examples.feedback"
+                    },
+                    {
+                        "name": "Depth",
+                        "icon": "🧠",
+                        "description": "Depth of your explanations",
+                        "score_key": "depth.score",
+                        "feedback_key": "depth.feedback"
+                    },
+                    {
+                        "name": "Context Awareness",
+                        "icon": "🔎",
+                        "description": "Tailoring to role/company context",
+                        "score_key": "context_awareness.score",
+                        "feedback_key": "context_awareness.feedback"
+                    }
+                ],
+                "summary_key": "overall_score",
+                "strengths_key": "",
+                "improvements_key": "missing_elements"
+            },
+            "personalized": {
+                "title": "Personalized Coaching Feedback",
+                "intro": "Based on your profile and this response, here's my personalized coaching:",
+                "sections": [],
+                "summary_key": "personalized_coaching",
+                "strengths_key": "strengths_affirmation",
+                "improvements_key": "growth_areas"
+            }
+        }
     
     def _analyze_response_tool(self, question: str, response: str) -> str:
         """
@@ -322,622 +849,1129 @@ class CoachAgent(BaseAgent):
             "job_role": job_role
         })["response_template"]
     
-    def process_input(self, input_text: str, context: AgentContext) -> str:
+    def process_input(self, message: str, context: AgentContext = None) -> Union[str, Dict]:
         """
-        Process input from the user and generate coaching feedback.
+        Process input message and generate coaching feedback.
+        
+        This is the main method called by the agent framework.
         
         Args:
-            input_text: The user's input text
-            context: The current context of the conversation
+            message: The input message from the user
+            context: The agent context
             
         Returns:
-            The agent's coaching response
+            The response message or a structured response
         """
-        # Update context with user input
-        context.add_message("user", input_text)
+        if not context:
+            context = self._create_context()
         
-        # Determine if this is a request for specific coaching or general feedback
-        if "help" in input_text.lower() or "advice" in input_text.lower() or "tip" in input_text.lower():
-            response = self._provide_generic_advice(input_text, context)
-        elif "strength" in input_text.lower() or "good" in input_text.lower() or "well" in input_text.lower():
-            response = self._highlight_strengths(context)
-        elif "improve" in input_text.lower() or "weakness" in input_text.lower() or "better" in input_text.lower():
-            response = self._suggest_improvements(context)
-        elif "summarize" in input_text.lower() or "summary" in input_text.lower():
-            response = self._generate_coaching_summary(context)
-        elif "resource" in input_text.lower() or "learn" in input_text.lower() or "study" in input_text.lower():
-            response = self._suggest_resources(input_text, context)
+        # Get the current state and metadata from context
+        current_state = context.get_state()
+        metadata = context.get_metadata()
+        
+        # Extract interview data if available
+        question = metadata.get("current_question", "")
+        previous_answer = metadata.get("previous_answer", "")
+        job_role = metadata.get("job_role", "the position")
+        candidate_info = metadata.get("candidate_profile", {})
+        
+        # Parse the input to determine what the user is asking for
+        user_intent = self._analyze_user_intent(message, current_state)
+        
+        # Handle different user intents
+        if user_intent["intent"] == "request_feedback":
+            # User is asking for feedback on their answer
+            if not previous_answer:
+                return "I don't have your previous answer to evaluate. Please provide an answer to receive feedback."
+            
+            # Store current feedback request for tracking
+            if "evaluation_history" not in metadata:
+                metadata["evaluation_history"] = []
+            
+            # Determine if we should use STAR method evaluation
+            requires_star = self._requires_star_evaluation(question, previous_answer)
+            
+            # Determine feedback type based on message content
+            feedback_type = self._determine_feedback_type(message, requires_star)
+            
+            # Generate evaluations based on feedback type
+            evaluations = {}
+            
+            if feedback_type == "comprehensive" or feedback_type == "star_method":
+                evaluations["star"] = self._evaluate_star_method(question, previous_answer)
+            
+            if feedback_type == "comprehensive" or feedback_type == "communication":
+                evaluations["communication"] = self._evaluate_communication_skills(question, previous_answer)
+            
+            if feedback_type == "comprehensive" or feedback_type == "completeness":
+                evaluations["completeness"] = self._evaluate_response_completeness(question, previous_answer)
+            
+            if feedback_type == "comprehensive" or feedback_type == "personalized":
+                evaluations["personalized"] = self.generate_personalized_feedback(question, previous_answer, candidate_info)
+            
+            # Generate performance metrics if we have history
+            if len(metadata.get("evaluation_history", [])) > 0:
+                prev_evaluations = metadata.get("evaluation_history")
+                evaluations["performance"] = self.track_performance(question, previous_answer, prev_evaluations)
+            
+            # Store evaluation data in history
+            evaluation_record = {
+                "timestamp": datetime.now().isoformat(),
+                "question": question,
+                "answer": previous_answer,
+                "star_score": self._calculate_average_star_score(evaluations.get("star", {})),
+                "communication_score": evaluations.get("communication", {}).get("overall_score", 5),
+                "completeness_score": evaluations.get("completeness", {}).get("overall_score", 5)
+            }
+            metadata["evaluation_history"].append(evaluation_record)
+            
+            # Update context with feedback information
+            context.update_metadata({
+                "last_evaluations": evaluations,
+                "feedback_type": feedback_type,
+                "feedback_provided": True,
+                "feedback_timestamp": datetime.now().isoformat(),
+                "evaluation_history": metadata.get("evaluation_history", [])
+            })
+            
+            # Format and return feedback using appropriate template
+            return self._format_structured_feedback(evaluations, feedback_type)
+        
+        elif user_intent["intent"] == "ask_advice":
+            # User is asking for general interview advice
+            topic = user_intent.get("topic", "general")
+            return self._provide_interview_advice(topic, job_role)
+        
+        elif user_intent["intent"] == "track_progress":
+            # User wants to see their progress
+            if not metadata.get("evaluation_history") or len(metadata.get("evaluation_history", [])) < 2:
+                return "I don't have enough data to track your progress yet. Let's practice more interview questions first."
+            
+            # Generate progress report using performance metrics
+            prev_evaluations = metadata.get("evaluation_history")
+            performance_metrics = self.track_performance("", "", prev_evaluations)
+            
+            # Update context
+            context.update_metadata({
+                "last_progress_report": performance_metrics,
+                "progress_report_timestamp": datetime.now().isoformat()
+            })
+            
+            return self._format_progress_report(performance_metrics)
+        
+        elif user_intent["intent"] == "practice_question":
+            # User wants to practice with a specific question type
+            question_type = user_intent.get("question_type", "general")
+            return self._generate_practice_question(question_type, job_role)
+        
         else:
-            # Analyze the most recent answer and provide feedback
-            response = self._analyze_recent_response(context)
+            # Default response for general conversation
+            return "I'm your interview coach. I can help you practice interviews, provide feedback on your answers using the STAR method, evaluate your communication skills, track your progress, or provide general interview advice. What would you like to focus on today?"
+
+    def _calculate_average_star_score(self, star_evaluation: Dict[str, Any]) -> float:
+        """
+        Calculate the average STAR method score from a STAR evaluation.
         
-        # Add response to context
-        context.add_message("assistant", response)
+        Args:
+            star_evaluation: STAR method evaluation dictionary
+            
+        Returns:
+            Average score across STAR components
+        """
+        scores = []
+        for component in ["situation", "task", "action", "result"]:
+            if component in star_evaluation and "score" in star_evaluation[component]:
+                scores.append(star_evaluation[component]["score"])
         
-        # Publish event
-        if self.event_bus:
-            self.event_bus.publish(Event(
-                event_type="coach_feedback",
-                source="coach_agent",
-                data={
-                    "feedback": response,
-                    "session_id": self.interview_session_id,
-                    "timestamp": datetime.utcnow().isoformat()
+        return sum(scores) / len(scores) if scores else 5.0
+
+    def _determine_feedback_type(self, message: str, requires_star: bool) -> str:
+        """
+        Determine what type of feedback to provide based on the user's message.
+        
+        Args:
+            message: The user's message
+            requires_star: Whether the answer requires STAR method evaluation
+            
+        Returns:
+            Feedback type: "comprehensive", "star_method", "communication", "completeness", or "personalized"
+        """
+        message_lower = message.lower()
+        
+        if "comprehensive" in message_lower or "full" in message_lower or "detailed" in message_lower:
+            return "comprehensive"
+        elif "star" in message_lower or "situation task action result" in message_lower:
+            return "star_method"
+        elif "communicate" in message_lower or "clarity" in message_lower or "delivery" in message_lower:
+            return "communication"
+        elif "complete" in message_lower or "thorough" in message_lower or "missing" in message_lower:
+            return "completeness"
+        elif "personal" in message_lower or "for me" in message_lower or "my style" in message_lower:
+            return "personalized"
+        elif requires_star:
+            return "star_method"
+            else:
+            return "comprehensive"
+
+    def _requires_star_evaluation(self, question: str, answer: str) -> bool:
+        """
+        Determine if the question-answer pair requires STAR method evaluation.
+        
+        Args:
+            question: The interview question
+            answer: The candidate's answer
+            
+        Returns:
+            Boolean indicating if STAR method evaluation is appropriate
+        """
+        # Common behavioral question indicators
+        behavioral_indicators = [
+            "tell me about a time", "describe a situation", "give an example", 
+            "how did you handle", "share an experience", "when have you",
+            "what did you do when", "have you ever faced", "challenge you overcame"
+        ]
+        
+        # Check if the question appears to be behavioral
+        for indicator in behavioral_indicators:
+            if indicator in question.lower():
+                return True
+        
+        # If the answer is long enough, it might be a behavioral response
+        if len(answer.split()) > 75:  # Assuming detailed answers are longer
+            return True
+        
+        return False
+
+    def _format_structured_feedback(self, evaluations: Dict[str, Any], feedback_type: str) -> Dict[str, Any]:
+        """
+        Format the feedback evaluations into a structured response.
+        
+        Args:
+            evaluations: Dictionary of evaluation results
+            feedback_type: Type of feedback requested
+            
+        Returns:
+            Structured feedback dictionary
+        """
+        if feedback_type == "comprehensive":
+            # For comprehensive feedback, include multiple sections
+            response = {
+                "feedback_type": "comprehensive",
+                "title": "Comprehensive Interview Answer Evaluation",
+                "introduction": "I've analyzed your answer from multiple perspectives. Here's my comprehensive feedback:",
+                "sections": []
+            }
+            
+            # Add STAR method section if available
+            if "star" in evaluations:
+                response["sections"].append(
+                    self._format_feedback_section("star_method", evaluations["star"])
+                )
+            
+            # Add communication section if available
+            if "communication" in evaluations:
+                response["sections"].append(
+                    self._format_feedback_section("communication", evaluations["communication"])
+                )
+            
+            # Add completeness section if available
+            if "completeness" in evaluations:
+                response["sections"].append(
+                    self._format_feedback_section("completeness", evaluations["completeness"])
+                )
+            
+            # Add personalized section if available
+            if "personalized" in evaluations:
+                personalized = evaluations["personalized"]
+                response["sections"].append({
+                    "title": "Your Personalized Coaching",
+                    "content": personalized.get("personalized_coaching", ""),
+                    "strengths": personalized.get("strengths_affirmation", []),
+                    "improvements": [item.get("area", "") for item in personalized.get("growth_areas", [])],
+                    "next_steps": [item.get("activity", "") for item in personalized.get("next_steps", [])]
+                })
+            
+            # Add overall summary
+            response["summary"] = self._generate_overall_summary(evaluations)
+            
+            return response
+        else:
+            # For specific feedback types, focus on just that evaluation
+            template_key = feedback_type
+            evaluation_key = {
+                "star_method": "star",
+                "communication": "communication",
+                "completeness": "completeness",
+                "personalized": "personalized"
+            }.get(feedback_type)
+            
+            if evaluation_key and evaluation_key in evaluations:
+                return self._format_feedback_section(template_key, evaluations[evaluation_key])
+            else:
+                # Fallback if the requested evaluation is not available
+                return {
+                    "feedback_type": "general",
+                    "title": "Interview Answer Feedback",
+                    "content": "I couldn't generate the specific feedback you requested. Would you like comprehensive feedback instead?"
                 }
-            ))
-        
-        return response
-    
-    def _analyze_recent_response(self, context: AgentContext) -> str:
+
+    def _format_feedback_section(self, template_key: str, evaluation: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Analyze the most recent user response and provide coaching feedback.
+        Format a specific feedback section based on template.
         
         Args:
-            context: The current context of the conversation
+            template_key: The template to use for formatting
+            evaluation: The evaluation results to format
             
         Returns:
-            Coaching feedback on the user's response
+            Formatted feedback section
         """
-        # Get the most recent user message
-        for idx in range(len(context.conversation_history) - 1, -1, -1):
-            message = context.conversation_history[idx]
-            if message["role"] == "user":
-                recent_response = message["content"]
-                break
-        else:
-            return "I don't see any recent responses to analyze. Could you share what you'd like feedback on?"
+        template = self.feedback_templates.get(template_key, {})
+        if not template:
+            return {
+                "title": "Feedback",
+                "content": "Unable to format feedback with the requested template."
+            }
         
-        # TODO: Replace with actual LLM call for more intelligent analysis
-        
-        # Simple analysis based on response length and complexity
-        words = recent_response.split()
-        
-        feedback_parts = []
-        
-        # Communication analysis
-        if CoachingFocus.COMMUNICATION in self.coaching_focus:
-            if len(words) < 20:
-                feedback_parts.append("Your response was quite brief. In interviews, it's generally better to provide more context and details to fully showcase your experience and thinking.")
-                self.improvement_areas.add(CoachingFocus.COMMUNICATION)
-            elif len(words) > 200:
-                feedback_parts.append("Your answer was quite lengthy. While detail is good, try to be more concise while still conveying the key points to respect the interviewer's time.")
-                self.improvement_areas.add(CoachingFocus.CONCISENESS)
-            else:
-                feedback_parts.append("You communicated with a good balance of detail and conciseness.")
-                self.strength_areas.add(CoachingFocus.COMMUNICATION)
-        
-        # Content analysis
-        if CoachingFocus.CONTENT in self.coaching_focus:
-            specificity_words = ["specifically", "example", "instance", "case", "situation", "experience", "project"]
-            has_specifics = any(word in recent_response.lower() for word in specificity_words)
-            
-            if has_specifics:
-                feedback_parts.append("Great job including specific examples in your answer. This makes your response more credible and memorable.")
-                self.strength_areas.add(CoachingFocus.SPECIFICITY)
-            else:
-                feedback_parts.append("Try to include specific examples from your experience to support your points. Instead of general statements, provide concrete instances that demonstrate your skills.")
-                self.improvement_areas.add(CoachingFocus.SPECIFICITY)
-        
-        # Structure analysis
-        structure_words = ["first", "second", "third", "finally", "additionally", "moreover", "in conclusion"]
-        has_structure = any(word in recent_response.lower() for word in structure_words)
-        
-        if has_structure:
-            feedback_parts.append("Your answer has a clear structure, which makes it easy to follow. Well done.")
-            self.strength_areas.add(CoachingFocus.COMMUNICATION)
-        else:
-            feedback_parts.append("Consider structuring your answer more clearly with an introduction, key points, and a conclusion. This makes it easier for the interviewer to follow your thoughts.")
-            self.improvement_areas.add(CoachingFocus.COMMUNICATION)
-        
-        # Personalized improvement tip
-        improvement_tip = self._get_improvement_tip()
-        if improvement_tip:
-            feedback_parts.append(f"\n\nAction item: {improvement_tip}")
-        
-        # Combine feedback parts
-        if self.feedback_verbosity == "brief":
-            # Return only the most important feedback point and improvement tip
-            return f"{feedback_parts[0]}\n\n{feedback_parts[-1]}"
-        elif self.feedback_verbosity == "moderate":
-            # Return a subset of feedback points
-            return "\n\n".join(feedback_parts[:2] + [feedback_parts[-1]])
-        else:
-            # Return all feedback
-            return "\n\n".join(feedback_parts)
-    
-    def _provide_generic_advice(self, input_text: str, context: AgentContext) -> str:
-        """
-        Provide generic interview advice based on the user's query.
-        
-        Args:
-            input_text: The user's input text
-            context: The current context of the conversation
-            
-        Returns:
-            Generic interview advice
-        """
-        # TODO: Replace with actual LLM-based contextual advice
-        
-        # Check for common advice topics
-        if "nervous" in input_text.lower() or "anxiety" in input_text.lower():
-            return (
-                "It's normal to feel nervous before and during interviews. Here are some strategies to manage interview anxiety:\n\n"
-                "1. **Preparation**: The more prepared you are, the more confident you'll feel. Research the company, practice common questions, and know your resume well.\n\n"
-                "2. **Breathing techniques**: Before the interview, take deep breaths: inhale for 4 seconds, hold for 2, exhale for 6. This can help calm your nervous system.\n\n"
-                "3. **Reframe your thinking**: Think of the interview as a conversation rather than an interrogation. You're also evaluating if the company is right for you.\n\n"
-                "4. **Practice makes progress**: The more interviews you do (even practice ones), the more comfortable you'll become with the process.\n\n"
-                "5. **Positive visualization**: Spend time visualizing the interview going well and you responding confidently."
-            )
-        elif "tell me about yourself" in input_text.lower() or "introduce yourself" in input_text.lower():
-            return (
-                "The 'Tell me about yourself' question is often used to start interviews. Here's a structure to craft an effective response:\n\n"
-                "1. **Present**: Start with your current role and responsibilities. Mention your title, what you do, and briefly describe your primary responsibilities.\n\n"
-                "2. **Past**: Briefly explain your background and how you got to where you are today. Highlight relevant experiences and accomplishments.\n\n"
-                "3. **Future**: Explain why you're interested in this position and how it aligns with your career goals.\n\n"
-                "4. **Keep it professional**: Focus on your professional background rather than personal details.\n\n"
-                "5. **Be concise**: Aim for 1-2 minutes maximum. This should be a highlight reel, not your entire work history.\n\n"
-                "Example structure: 'I'm currently a [position] at [company] where I [key responsibilities]. Before that, I [relevant past experience] where I accomplished [notable achievement]. I'm looking for opportunities to [career goal] which is why I'm excited about this position.'"
-            )
-        elif "strength" in input_text.lower() or "weakness" in input_text.lower():
-            return (
-                "Questions about strengths and weaknesses are interview classics. Here's how to approach them effectively:\n\n"
-                "**For strengths**:\n"
-                "1. Choose strengths that are relevant to the position\n"
-                "2. Back them up with specific examples and achievements\n"
-                "3. Explain how these strengths would benefit the company\n\n"
-                "**For weaknesses**:\n"
-                "1. Choose genuine weaknesses that aren't critical to the job\n"
-                "2. Focus primarily on how you're actively working to improve\n"
-                "3. Demonstrate self-awareness and commitment to professional growth\n"
-                "4. Avoid clichés like 'I'm a perfectionist' without genuine context\n\n"
-                "Example weakness response: 'I've sometimes struggled with public speaking. To address this, I joined Toastmasters last year and have been volunteering to lead more team presentations. While I still get nervous, I've made significant progress in my delivery and confidence.'"
-            )
-        elif "salary" in input_text.lower() or "compensation" in input_text.lower():
-            return (
-                "Discussing salary can be tricky. Here's how to navigate compensation questions:\n\n"
-                "1. **Research first**: Know the market rate for your position, experience level, and location using sites like Glassdoor, PayScale, or industry reports.\n\n"
-                "2. **Timing matters**: Ideally, wait for the employer to bring up compensation first. Focus on establishing your value before discussing numbers.\n\n"
-                "3. **Give a range**: When asked, provide a range rather than a specific number. Make sure your minimum is still acceptable to you.\n\n"
-                "4. **Consider the total package**: Remember that compensation includes benefits, work flexibility, growth opportunities, and other perks—not just salary.\n\n"
-                "5. **Practice your response**: Be prepared to confidently state something like: 'Based on my research and experience, I'm looking for a range between $X and $Y, but I'm also considering the entire compensation package and growth opportunities.'"
-            )
-        else:
-            return (
-                "Here are some general interview tips that may help:\n\n"
-                "1. **Research the company**: Understand their mission, products, culture, and recent news.\n\n"
-                "2. **Use the STAR method** for behavioral questions: Situation, Task, Action, Result.\n\n"
-                "3. **Prepare thoughtful questions** to ask the interviewer about the role, team, and company.\n\n"
-                "4. **Practice but don't memorize**: Have talking points ready, but keep your responses conversational.\n\n"
-                "5. **Quantify achievements** whenever possible with numbers, percentages, or timeframes.\n\n"
-                "6. **Listen carefully** to questions before answering to ensure you're addressing what's being asked.\n\n"
-                "7. **Follow up** with a thank-you email within 24 hours of the interview.\n\n"
-                "Is there a specific aspect of interviewing you'd like more targeted advice on?"
-            )
-    
-    def _highlight_strengths(self, context: AgentContext) -> str:
-        """
-        Highlight the user's strengths based on their interview performance.
-        
-        Args:
-            context: The current context of the conversation
-            
-        Returns:
-            Summary of the user's strengths
-        """
-        # TODO: Replace with actual LLM-based analysis of the user's performance
-        
-        if not self.strength_areas:
-            return (
-                "I haven't observed enough of your interview responses yet to identify specific strengths. "
-                "As you continue with the interview practice, I'll provide more personalized feedback on what you're doing well. "
-                "Would you like me to share some general strengths that are valuable in interviews?"
-            )
-        
-        strengths_feedback = {
-            CoachingFocus.COMMUNICATION: "You communicate your thoughts clearly and effectively. Your answers are well-structured and easy to follow.",
-            CoachingFocus.CONTENT: "You provide substantive answers with good depth of knowledge and relevant information.",
-            CoachingFocus.CONFIDENCE: "You project confidence in your responses, which makes your answers more compelling and credible.",
-            CoachingFocus.TECHNICAL_DEPTH: "You demonstrate strong technical knowledge and can explain complex concepts clearly.",
-            CoachingFocus.STORYTELLING: "You use storytelling effectively to make your experiences memorable and engaging.",
-            CoachingFocus.SPECIFICITY: "You provide specific, concrete examples that effectively illustrate your points.",
-            CoachingFocus.CONCISENESS: "You communicate efficiently, making your points without unnecessary verbosity."
+        section = {
+            "title": template.get("title", "Feedback"),
+            "introduction": template.get("intro", "Here's my feedback:"),
+            "components": []
         }
         
-        response_parts = ["Based on your interview responses, here are your key strengths:"]
-        
-        for strength in self.strength_areas:
-            if strength in strengths_feedback:
-                response_parts.append(f"- **{strength.title()}**: {strengths_feedback[strength]}")
-        
-        response_parts.append("\nContinue leveraging these strengths while we work on other areas for improvement.")
-        
-        return "\n\n".join(response_parts)
-    
-    def _suggest_improvements(self, context: AgentContext) -> str:
-        """
-        Suggest improvements based on the user's interview performance.
-        
-        Args:
-            context: The current context of the conversation
+        # Format each component in the template
+        for component in template.get("sections", []):
+            # Extract score and feedback using the keys defined in the template
+            score_key = component.get("score_key", "")
+            feedback_key = component.get("feedback_key", "")
             
-        Returns:
-            Suggested improvements for the user
-        """
-        # TODO: Replace with actual LLM-based analysis of the user's performance
-        
-        if not self.improvement_areas:
-            return (
-                "I haven't observed enough of your interview responses yet to identify specific improvement areas. "
-                "As you continue with the interview practice, I'll provide more personalized feedback on areas to enhance. "
-                "Would you like me to share some common interview skill improvement areas?"
-            )
-        
-        improvement_feedback = {
-            CoachingFocus.COMMUNICATION: "Work on structuring your answers more clearly with an introduction, key points, and a conclusion.",
-            CoachingFocus.CONTENT: "Try to include more substantive content in your answers, including relevant skills, experiences, and achievements.",
-            CoachingFocus.CONFIDENCE: "Practice speaking with more confidence by eliminating filler words and maintaining a steady pace.",
-            CoachingFocus.TECHNICAL_DEPTH: "Consider deepening your technical explanations to demonstrate more expertise in your field.",
-            CoachingFocus.STORYTELLING: "Incorporate more storytelling techniques to make your experiences more engaging and memorable.",
-            CoachingFocus.SPECIFICITY: "Include more specific examples, metrics, and outcomes when discussing your experiences.",
-            CoachingFocus.CONCISENESS: "Work on being more concise while still conveying all key information."
-        }
-        
-        response_parts = ["Based on your interview responses, here are areas for improvement:"]
-        
-        for area in self.improvement_areas:
-            if area in improvement_feedback:
-                response_parts.append(f"- **{area.title()}**: {improvement_feedback[area]}")
-        
-        response_parts.append("\nI recommend focusing on one or two of these areas at a time. Would you like specific exercises to improve in any of these areas?")
-        
-        return "\n\n".join(response_parts)
-    
-    def _suggest_resources(self, input_text: str, context: AgentContext) -> str:
-        """
-        Suggest resources for skill development.
-        
-        Args:
-            input_text: The user's input text
-            context: The current context of the conversation
+            score = 5
+            feedback = ""
             
-        Returns:
-            Suggested resources for skill development
-        """
-        # Check if the query is about a specific area
-        if "technical" in input_text.lower() or "coding" in input_text.lower():
-            return (
-                "Here are resources to improve your technical interview skills:\n\n"
-                "1. **Books**:\n"
-                "   - 'Cracking the Coding Interview' by Gayle Laakmann McDowell\n"
-                "   - 'System Design Interview' by Alex Xu\n\n"
-                "2. **Online Platforms**:\n"
-                "   - LeetCode for coding practice\n"
-                "   - HackerRank for algorithm challenges\n"
-                "   - AlgoExpert for guided technical interview prep\n\n"
-                "3. **Courses**:\n"
-                "   - 'Master the Coding Interview: Data Structures + Algorithms' on Udemy\n"
-                "   - 'Grokking the System Design Interview' on Educative.io\n\n"
-                "4. **YouTube Channels**:\n"
-                "   - Tech Dummies for system design\n"
-                "   - Back To Back SWE for algorithms\n\n"
-                "Practice explaining your thought process aloud while solving problems, as communication during technical interviews is just as important as finding the right solution."
-            )
-        elif "behavior" in input_text.lower() or "star" in input_text.lower():
-            return (
-                "Here are resources to improve your behavioral interview skills:\n\n"
-                "1. **Books**:\n"
-                "   - 'The STAR Interview' by Misha Yurchenko\n"
-                "   - 'Knock 'em Dead Job Interview' by Martin Yate\n\n"
-                "2. **Online Resources**:\n"
-                "   - The Muse for common behavioral questions and example answers\n"
-                "   - Big Interview for practice interviews with AI feedback\n\n"
-                "3. **Courses**:\n"
-                "   - LinkedIn Learning's 'Mastering Common Interview Questions'\n"
-                "   - Coursera's 'How to Succeed in Your English Language Interview'\n\n"
-                "4. **The STAR Method Framework**:\n"
-                "   - **S**ituation: Describe the context\n"
-                "   - **T**ask: Explain your responsibility\n"
-                "   - **A**ction: Detail the steps you took\n"
-                "   - **R**esult: Share the outcomes and learnings\n\n"
-                "I recommend creating a document with 10-15 stories from your experience that can be adapted to answer different behavioral questions."
-            )
-        elif "present" in input_text.lower() or "communication" in input_text.lower():
-            return (
-                "Here are resources to improve your communication and presentation skills:\n\n"
-                "1. **Books**:\n"
-                "   - 'Talk Like TED' by Carmine Gallo\n"
-                "   - 'Crucial Conversations' by Kerry Patterson et al.\n\n"
-                "2. **Organizations**:\n"
-                "   - Toastmasters International for public speaking practice\n"
-                "   - Improv classes for thinking on your feet\n\n"
-                "3. **Courses**:\n"
-                "   - Coursera's 'Dynamic Public Speaking' from University of Washington\n"
-                "   - edX's 'Effective Business Communication' from RITx\n\n"
-                "4. **Practice Methods**:\n"
-                "   - Record yourself answering questions and review your verbal habits\n"
-                "   - Practice in front of a mirror to observe your body language\n"
-                "   - Ask friends to conduct mock interviews and provide feedback\n\n"
-                "Communication is a skill that improves with deliberate practice, so set aside time regularly to practice speaking clearly and concisely."
-            )
-        else:
-            return (
-                "Here are general resources to improve your interview skills:\n\n"
-                "1. **All-Around Interview Prep**:\n"
-                "   - Glassdoor for company-specific interview questions\n"
-                "   - LinkedIn Premium for interview preparation features\n"
-                "   - Pramp for peer-to-peer mock interviews\n\n"
-                "2. **Books**:\n"
-                "   - 'What Color Is Your Parachute?' by Richard Bolles\n"
-                "   - 'How to Answer Interview Questions' by Peggy McKee\n\n"
-                "3. **Podcasts**:\n"
-                "   - 'Find Your Dream Job' by Mac's List\n"
-                "   - 'The Ken Coleman Show' for career advice\n\n"
-                "4. **YouTube Channels**:\n"
-                "   - Linda Raynier for professional interview tips\n"
-                "   - Andrew LaCivita for strategic career advice\n\n"
-                "5. **Communities**:\n"
-                "   - Reddit's r/interviews for peer advice\n"
-                "   - Professional associations in your industry\n\n"
-                "Remember that consistent practice with feedback is the most effective way to improve. Would you like more specific resources for a particular type of interview skill?"
-            )
-    
-    def _generate_coaching_summary(self, context: AgentContext) -> str:
-        """
-        Generate a comprehensive coaching summary.
-        
-        Args:
-            context: The current context of the conversation
-            
-        Returns:
-            Coaching summary
-        """
-        # TODO: Replace with actual LLM-based analysis of the interview
-        
-        strengths = list(self.strength_areas)
-        improvements = list(self.improvement_areas)
-        
-        if not strengths and not improvements:
-            return (
-                "I don't have enough information yet to provide a comprehensive coaching summary. "
-                "As we continue with more interview practice, I'll be able to offer more personalized insights. "
-                "Would you like to continue with the interview questions to gather more data?"
-            )
-        
-        strength_items = "\n".join(f"- {s.title()}" for s in strengths) if strengths else "- Not enough data to determine specific strengths yet"
-        improvement_items = "\n".join(f"- {s.title()}" for s in improvements) if improvements else "- Not enough data to determine specific improvement areas yet"
-        
-        summary = (
-            "# Interview Coaching Summary\n\n"
-            "## Strengths\n"
-            f"{strength_items}\n\n"
-            "## Areas for Improvement\n"
-            f"{improvement_items}\n\n"
-            "## Action Plan\n"
-            "1. **Practice structured answers** using the STAR method (Situation, Task, Action, Result)\n"
-            "2. **Record yourself** answering common interview questions and review for areas to improve\n"
-            "3. **Research the companies** you're interviewing with to tailor your responses\n"
-            "4. **Prepare concise stories** that highlight your relevant achievements\n\n"
-            "## Next Steps\n"
-            "Would you like to focus on practicing any specific type of questions or interview scenarios?"
-        )
-        
-        return summary
-    
-    def _get_improvement_tip(self) -> str:
-        """
-        Get a personalized improvement tip based on identified areas for improvement.
-        
-        Returns:
-            A specific improvement tip
-        """
-        if not self.improvement_areas:
-            return ""
-        
-        # Select a random improvement area from those identified
-        import random
-        area = random.choice(list(self.improvement_areas))
-        
-        tips = {
-            CoachingFocus.COMMUNICATION: "Before your next answer, take 3-5 seconds to mentally organize your response into an introduction, 2-3 key points, and a conclusion.",
-            CoachingFocus.CONTENT: "For your next response, include at least one quantifiable achievement with specific metrics or results.",
-            CoachingFocus.CONFIDENCE: "For your next answer, eliminate filler words like 'um' and 'like', and practice speaking at a measured, deliberate pace.",
-            CoachingFocus.TECHNICAL_DEPTH: "In your next technical explanation, go one level deeper by explaining not just what you did but why you chose that approach and what alternatives you considered.",
-            CoachingFocus.STORYTELLING: "Structure your next example as a story with a clear beginning (challenge), middle (your actions), and end (positive results).",
-            CoachingFocus.SPECIFICITY: "In your next answer, include at least two specific examples with details about context, your actions, and measurable outcomes.",
-            CoachingFocus.CONCISENESS: "Try to make your next response more concise by focusing on the most relevant details and limiting your answer to 1-2 minutes."
-        }
-        
-        return tips.get(area, "Practice using the STAR method (Situation, Task, Action, Result) in your next response.")
-    
-    def _handle_interviewer_message(self, event: Event) -> None:
-        """
-        Handle messages from the interviewer agent.
-        
-        Args:
-            event: The event containing the interviewer message
-        """
-        # Update context with interviewer message
-        if self.current_context:
-            message = event.data.get("response", "")
-            self.current_context.add_message(
-                "assistant", 
-                message, 
-                metadata={"source": "interviewer", "is_question": "?" in message}
-            )
-            
-            # In real-time coaching mode, automatically provide feedback after user responds
-            # This would be handled by the _handle_user_message method
-    
-    def _handle_user_message(self, event: Event) -> None:
-        """
-        Handle messages from the user.
-        
-        Args:
-            event: The event containing the user message
-        """
-        # Update context with user message
-        if self.current_context:
-            self.current_context.add_message(
-                "user", 
-                event.data.get("response", "")
-            )
-            
-            # In real-time coaching mode, provide immediate feedback
-            if self.coaching_mode == CoachingMode.REAL_TIME:
-                feedback = self._provide_real_time_coaching()
-                
-                # Publish feedback event
-                if self.event_bus:
-                    self.event_bus.publish(Event(
-                        event_type="coach_feedback",
-                        source="coach_agent",
-                        data={"feedback": feedback}
-                    ))
-    
-    def _handle_interview_summary(self, event: Event) -> None:
-        """
-        Handle interview summary events.
-        
-        Args:
-            event: The event containing the interview summary
-        """
-        # When an interview ends, provide comprehensive coaching in summary mode
-        if self.coaching_mode == CoachingMode.SUMMARY:
-            summary = self._provide_coaching_summary()
-            
-            # Publish coaching summary event
-            if self.event_bus:
-                self.event_bus.publish(Event(
-                    event_type="coaching_summary",
-                    source="coach_agent",
-                    data={"summary": summary}
-                ))
-    
-    def _handle_coaching_request(self, event: Event) -> None:
-        """
-        Handle explicit coaching requests.
-        
-        Args:
-            event: The event containing the coaching request
-        """
-        # Process specific coaching requests
-        request_type = event.data.get("request_type", "general")
-        request_data = event.data.get("request_data", {})
-        
-        response = None
-        
-        if request_type == "targeted":
-            focus_area = request_data.get("focus_area", "communication")
-            context = request_data.get("context", self._extract_interview_context())
-            response = self._generate_improvement_tips_tool(focus_area, context)
-        elif request_type == "template":
-            question_type = request_data.get("question_type", "behavioral")
-            example_question = request_data.get("example_question", "Tell me about yourself")
-            job_role = request_data.get("job_role", "software developer")
-            response = self._generate_response_template_tool(question_type, example_question, job_role)
-        elif request_type == "summary":
-            response = self._provide_coaching_summary()
-        
-        # Publish response event if we generated one
-        if response and self.event_bus:
-            self.event_bus.publish(Event(
-                event_type="coaching_response",
-                source="coach_agent",
-                data={"response": response}
-            ))
-    
-    def _provide_real_time_coaching(self) -> str:
-        """
-        Provide real-time coaching feedback on the most recent exchange.
-        
-        Returns:
-            Real-time coaching feedback
-        """
-        # Get last question and answer
-        question = None
-        answer = None
-        
-        # Scan conversation history in reverse to find the last Q&A pair
-        history = self.current_context.conversation_history
-        for i in range(len(history) - 1, 0, -1):
-            if history[i]["role"] == "user":
-                answer = history[i]["content"]
-                # Look for the preceding question
-                for j in range(i - 1, -1, -1):
-                    if history[j]["role"] == "assistant" and history[j].get("metadata", {}).get("is_question", False):
-                        question = history[j]["content"]
+            # Navigate nested dictionary using dot notation
+            if score_key:
+                keys = score_key.split('.')
+                value = evaluation
+                for key in keys:
+                    if key in value:
+                        value = value[key]
+                    else:
+                        value = 5
                         break
-                if question:
-                    break
+                if isinstance(value, (int, float)):
+                    score = value
+            
+            if feedback_key:
+                keys = feedback_key.split('.')
+                value = evaluation
+                for key in keys:
+                    if key in value:
+                        value = value[key]
+                    else:
+                        value = ""
+                        break
+                if isinstance(value, str):
+                    feedback = value
+            
+            # Add to components if we have valid data
+            if feedback:
+                section["components"].append({
+                    "name": component.get("name", "Component"),
+                    "icon": component.get("icon", ""),
+                    "description": component.get("description", ""),
+                    "score": score,
+                    "feedback": feedback
+                })
         
-        if not question or not answer:
-            return "I don't have enough context to provide real-time coaching. Could you provide more details about what you'd like coaching on?"
+        # Add summary and strengths/improvements sections if available
+        summary_key = template.get("summary_key", "")
+        strengths_key = template.get("strengths_key", "")
+        improvements_key = template.get("improvements_key", "")
         
-        # Analyze the response using LangChain
-        analysis = self._analyze_response_tool(question, answer)
+        if summary_key and summary_key in evaluation:
+            section["summary"] = evaluation[summary_key]
         
-        # Generate improvement tips for a focus area
-        # For real-time coaching, we'll pick a focus area based on the analysis
-        # This is a simplistic approach - in a real system we might use more sophisticated selection
-        import random
-        focus_area = random.choice(self.coaching_focus)
+        if strengths_key and strengths_key in evaluation:
+            strengths = evaluation[strengths_key]
+            if isinstance(strengths, list):
+                section["strengths"] = strengths
+            elif isinstance(strengths, str):
+                section["strengths"] = [strengths]
         
-        tips = self._generate_improvement_tips_tool(focus_area, analysis)
+        if improvements_key and improvements_key in evaluation:
+            improvements = evaluation[improvements_key]
+            if isinstance(improvements, list):
+                section["improvements"] = improvements
+            elif isinstance(improvements, str):
+                section["improvements"] = [improvements]
         
-        # Combine analysis and tips
-        return f"{analysis}\n\n**Specific tips to improve your {focus_area}:**\n\n{tips}"
-    
-    def _provide_coaching_summary(self) -> str:
+        return section
+
+    def _generate_overall_summary(self, evaluations: Dict[str, Any]) -> str:
         """
-        Provide a comprehensive coaching summary based on the entire interview.
+        Generate an overall summary from multiple evaluations.
         
+        Args:
+            evaluations: Dictionary of evaluation results
+            
         Returns:
-            Coaching summary
+            Overall summary string
         """
-        # Extract relevant information from context
-        interview_context = self._extract_interview_context()
-        qa_pairs = self._extract_qa_pairs()
+        # Calculate overall scores
+        scores = []
         
-        # Generate summary using LangChain
-        if qa_pairs:
-            summary = self._create_coaching_summary_tool(interview_context, qa_pairs)
-            return summary
+        if "star" in evaluations:
+            star_score = self._calculate_average_star_score(evaluations["star"])
+            scores.append(star_score)
+        
+        if "communication" in evaluations:
+            comm_score = evaluations["communication"].get("overall_score", 5)
+            scores.append(comm_score)
+        
+        if "completeness" in evaluations:
+            comp_score = evaluations["completeness"].get("overall_score", 5)
+            scores.append(comp_score)
+        
+        # Calculate average score
+        avg_score = sum(scores) / len(scores) if scores else 5
+        
+        # Generate summary based on score
+        if avg_score >= 8:
+            return "Overall, your answer was excellent! You've demonstrated strong interview skills. The feedback provided can help you refine your already strong performance."
+        elif avg_score >= 6:
+            return "Overall, your answer was good. You've shown solid interview skills, with a few areas where you can improve further to make your responses even stronger."
+        elif avg_score >= 4:
+            return "Your answer was satisfactory. There are several areas where you can improve to make your responses more effective in interview situations."
         else:
-            return "I don't have enough question and answer exchanges to provide a meaningful coaching summary yet."
-    
-    def _extract_interview_context(self) -> str:
+            return "Your answer needs significant improvement. Focus on the feedback provided to strengthen your interview responses and make them more effective."
+
+    def _format_progress_report(self, performance_metrics: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Extract relevant context about the interview from the conversation history.
+        Format performance metrics into a structured progress report.
+        
+        Args:
+            performance_metrics: Performance metrics data
+            
+        Returns:
+            Structured progress report
+        """
+        return {
+            "report_type": "progress",
+            "title": "Your Interview Performance Progress",
+            "introduction": "Here's how your interview performance has been trending:",
+            "metrics_summary": performance_metrics.get("metrics_summary", {}),
+            "improving_areas": performance_metrics.get("progress_tracking", {}).get("improving_areas", []),
+            "focus_areas": performance_metrics.get("progress_tracking", {}).get("focus_areas", []),
+            "trend_analysis": performance_metrics.get("trend_analysis", ""),
+            "achievements": performance_metrics.get("achievement_badges", []),
+            "recommendations": performance_metrics.get("focus_recommendations", [])
+        }
+
+    def _analyze_user_intent(self, message: str, current_state: str) -> Dict[str, Any]:
+        """
+        Analyze the user's message to determine their intent.
+        
+        Args:
+            message: The user's message
+            current_state: The current conversation state
+            
+        Returns:
+            Dictionary with intent and related parameters
+        """
+        message_lower = message.lower()
+        
+        # Check for feedback request
+        if any(phrase in message_lower for phrase in ["feedback", "how did i do", "evaluate", "assessment", "review my answer"]):
+            return {
+                "intent": "request_feedback",
+                "confidence": 0.9
+            }
+        
+        # Check for advice request
+        elif any(phrase in message_lower for phrase in ["advice", "tips", "help with", "how should i", "what's the best way"]):
+            # Determine specific advice topic
+            topic = "general"
+            if "star" in message_lower or "situation task action result" in message_lower:
+                topic = "star_method"
+            elif "technical" in message_lower:
+                topic = "technical_interviews"
+            elif "behavioral" in message_lower:
+                topic = "behavioral_interviews"
+            elif "question" in message_lower:
+                topic = "answering_questions"
+            
+            return {
+                "intent": "ask_advice",
+                "topic": topic,
+                "confidence": 0.8
+            }
+        
+        # Check for progress tracking
+        elif any(phrase in message_lower for phrase in ["progress", "improvement", "how am i doing", "track", "stats", "metrics"]):
+            return {
+                "intent": "track_progress",
+                "confidence": 0.85
+            }
+        
+        # Check for practice request
+        elif any(phrase in message_lower for phrase in ["practice", "try", "example question", "mock interview", "give me a question"]):
+            # Determine question type
+            question_type = "general"
+            if "technical" in message_lower:
+                question_type = "technical"
+            elif "behavioral" in message_lower:
+                question_type = "behavioral"
+            elif "case" in message_lower:
+                question_type = "case_study"
+            
+            return {
+                "intent": "practice_question",
+                "question_type": question_type,
+                "confidence": 0.75
+            }
+        
+        # Default - general conversation
+        return {
+            "intent": "general_conversation",
+            "confidence": 0.5
+        }
+
+    def _provide_interview_advice(self, topic: str, job_role: str) -> str:
+        """
+        Provide general interview advice on various topics.
+        
+        Args:
+            topic: The advice topic
+            job_role: The job role being applied for
         
         Returns:
-            Interview context as a string
+            Formatted advice text
         """
-        if not self.current_context:
-            return "No context available"
+        # Template store for different advice topics
+        advice_templates = {
+            "general": f"""
+# General Interview Tips for {job_role} Positions
+
+## Before the Interview
+1. **Research the Company**: Understand their mission, products, culture
+2. **Review the Job Description**: Map your experience to their requirements
+3. **Prepare Questions**: Thoughtful questions show your interest
+4. **Practice Common Questions**: Especially using the STAR method
+5. **Technical Preparation**: Review relevant skills and concepts
+
+## During the Interview
+1. **Listen Carefully**: Understand what's being asked
+2. **Structured Responses**: Use the STAR method for behavioral questions
+3. **Be Specific**: Use concrete examples rather than generalizations
+4. **Show Your Thinking**: Explain your approach, especially for technical questions
+5. **Authenticity**: Be genuine while maintaining professionalism
+
+## After the Interview
+1. **Send a Thank You Note**: Express appreciation for the opportunity
+2. **Reflect on Your Performance**: Identify areas for improvement
+3. **Follow Up Appropriately**: If you haven't heard back in the stated timeframe
+
+## Interview Psychology
+1. **Confidence vs. Arrogance**: Show self-assurance without overstepping
+2. **Authenticity**: Be yourself while maintaining professionalism
+3. **Growth Mindset**: Frame challenges as learning opportunities
+4. **Positive Language**: Focus on what you can and have done
+
+### Remember: The interview is a two-way evaluation. You're assessing the company as much as they're assessing you.
+        """,
+            "star_method": f"""
+# STAR Method: Structuring Powerful Interview Responses
+
+The STAR method helps you structure your responses to behavioral questions for maximum impact. Here's how to use it effectively:
+
+## Situation
+- Set the scene with a specific context
+- Be concise but include relevant details
+- Example: "While working as a {job_role} at Company X, we faced a critical deadline with limited resources..."
+
+## Task
+- Describe your specific responsibilities
+- Explain the challenges clearly
+- Example: "I was tasked with delivering a complex feature within two weeks while maintaining code quality..."
+
+## Action
+- Detail the steps YOU took (not the team)
+- Use "I" statements to highlight your role
+- Focus on your decision-making process
+- Example: "I created a detailed work breakdown structure, prioritized features, and implemented a daily check-in process..."
+
+## Result
+- Quantify your results whenever possible
+- Highlight what you learned
+- Connect to the job you're applying for
+- Example: "As a result, we delivered the project two days early, increased system performance by 30%, and received recognition from leadership..."
+
+### Practice Exercise:
+Choose 3-5 accomplishments from your experience and write them out using the STAR method. Refine until each example is clear, concise, and compelling.
+        """,
         
-        metadata = self.current_context.metadata
-        job_role = metadata.get("job_role", "Unknown position")
+        "technical_interviews": f"""
+# Excelling in Technical Interviews for {job_role} Positions
+
+## Preparation Strategies
+1. **Review Fundamentals**: Ensure core concepts for {job_role} roles are solid
+2. **Practice Problem-Solving**: Use platforms like LeetCode or HackerRank
+3. **Study System Design**: Understand scalability, performance, and reliability principles
+4. **Know Your Projects**: Be ready to discuss technical decisions and trade-offs
+
+## During the Interview
+1. **Clarify Requirements**: Ask questions before starting to solve
+2. **Think Aloud**: Share your thought process as you work
+3. **Consider Edge Cases**: Show thoroughness in your solutions
+4. **Optimize Incrementally**: Start with a working solution, then improve it
+5. **Test Your Solution**: Demonstrate quality assurance mindset
+
+## Communication Tips
+1. Use proper technical terminology
+2. Explain complex concepts simply
+3. Acknowledge limitations in your approach
+4. Be receptive to hints and feedback
+5. Connect solutions to real-world applications
+
+## Common Pitfalls to Avoid
+1. Jumping to code without planning
+2. Focusing only on the happy path
+3. Overcomplicating simple problems
+4. Being defensive about feedback
+5. Failing to ask clarifying questions
+
+### Remember: Technical interviews assess not just what you know, but how you approach problems and communicate solutions.
+        """,
         
-        return f"Interview for {job_role} position. The conversation includes multiple question-answer exchanges."
+        "behavioral_interviews": f"""
+# Mastering Behavioral Interviews for {job_role} Roles
+
+## Key Preparation Steps
+1. **Research the Company**: Understand their culture, values, and challenges
+2. **Analyze the Job Description**: Identify key traits and experiences they seek
+3. **Prepare Stories**: Develop 8-10 flexible stories using the STAR method
+4. **Practice Delivery**: Record yourself to refine clarity and conciseness
+
+## Behavioral Competencies Often Assessed
+1. **Teamwork**: Collaboration and conflict resolution
+2. **Leadership**: Initiative and influence without authority
+3. **Problem-solving**: Analytical thinking and creativity
+4. **Adaptability**: Response to change and uncertainty
+5. **Communication**: Clarity in different contexts
+
+## Powerful Story Elements
+1. Include specific challenges faced
+2. Highlight your unique contribution
+3. Show self-awareness and growth
+4. Quantify results when possible
+5. Align with the company's values
+
+## Common Questions and Story Applications
+- "Tell me about a time you faced a significant challenge..."
+- "Describe a situation where you had to influence others..."
+- "Give an example of how you handled a conflict with a colleague..."
+- "Share an experience where you had to learn a new technology or skill quickly..."
+
+### Pro Tip: For each story, prepare multiple angles to highlight different skills depending on the question asked.
+        """,
+        
+        "answering_questions": f"""
+# Effective Question-Answering Techniques for {job_role} Interviews
+
+## Universal Principles
+1. **Listen Completely**: Process the entire question before responding
+2. **Pause When Needed**: Take a moment to organize your thoughts
+3. **Structure Clearly**: Use frameworks like STAR for complex answers
+4. **Be Concise**: Aim for 1-2 minute responses for most questions
+5. **Close Strongly**: End with concrete results or lessons learned
+
+## Handling Different Question Types
+
+### Direct Questions
+- Answer explicitly first, then provide supporting details
+- Example Q: "Do you have experience with Python?"
+- Example A: "Yes, I've used Python for 3 years, primarily for data analysis and automation. For instance..."
+
+### Behavioral Questions
+- Use the STAR method (Situation, Task, Action, Result)
+- Focus on YOUR specific contributions
+- Example Q: "Tell me about a time you solved a complex problem."
+
+### Technical Questions
+- Clarify your understanding first
+- Explain your thought process step-by-step
+- Consider multiple approaches
+- Example Q: "How would you optimize this database query?"
+
+### Hypothetical Scenarios
+- State your assumptions
+- Walk through your decision-making framework
+- Balance ideal approaches with practical considerations
+- Example Q: "What would you do if a critical system failed before a launch?"
+
+## Addressing Challenging Questions
+1. **Questions About Weaknesses**: Show self-awareness and improvement efforts
+2. **Knowledge Gaps**: Be honest but emphasize your learning approach
+3. **Negative Past Experiences**: Focus on lessons and growth
+4. **Salary Expectations**: Research industry standards before the interview
+
+### Remember: Every question is an opportunity to demonstrate value and fit for the role.
+        """
+    }
     
-    def _extract_qa_pairs(self) -> List[Dict[str, str]]:
+    return advice_templates.get(topic, advice_templates["general"])
+
+    def _generate_practice_question(self, question_type: str, job_role: str) -> str:
         """
-        Extract question-answer pairs from the conversation history.
+        Generate a practice interview question based on type and job role.
+        
+        Args:
+            question_type: The type of question (technical, behavioral, etc.)
+            job_role: The job role being applied for
+            
+        Returns:
+            Practice question with instructions
+        """
+        # Sample questions by type
+        questions = {
+            "technical": [
+                f"How would you design a scalable architecture for a high-traffic web application in your role as a {job_role}?",
+                f"Explain the process you would follow to troubleshoot a performance issue in a production system as a {job_role}.",
+                f"What testing strategies would you implement for a critical {job_role} project?",
+                f"Describe how you would approach refactoring a legacy codebase as a {job_role}."
+            ],
+            "behavioral": [
+                f"Tell me about a time when you had to deal with a significant challenge in your previous role that relates to being a {job_role}.",
+                f"Describe a situation where you had to work with a difficult team member on a {job_role} project.",
+                f"Give an example of when you had to make a difficult decision with limited information as a {job_role}.",
+                f"Share an experience where you had to learn a new technology or skill quickly for a {job_role} position."
+            ],
+            "case_study": [
+                f"Our company is experiencing scaling issues with our main product. As a {job_role}, how would you analyze the problem and propose solutions?",
+                f"We're considering implementing a new feature that could impact 50% of our users. As a {job_role}, how would you approach this project?",
+                f"Our team is falling behind on sprint commitments. As a {job_role}, what steps would you take to address this situation?",
+                f"We need to reduce operational costs by 20% without affecting quality. As a {job_role}, what strategy would you recommend?"
+            ],
+            "general": [
+                f"Why are you interested in this {job_role} position at our company?",
+                f"Where do you see yourself in five years in the {job_role} field?",
+                f"What unique qualities would you bring to our team as a {job_role}?",
+                f"How do you stay updated with the latest trends and technologies relevant to the {job_role} position?"
+            ]
+        }
+        
+        # Select a random question from the appropriate category
+        question = random.choice(questions.get(question_type, questions["general"]))
+        
+        # Provide instructions based on question type
+        instructions = {
+            "technical": "When answering this technical question, explain your thought process clearly, consider different approaches, and discuss any trade-offs involved.",
+            "behavioral": "Use the STAR method (Situation, Task, Action, Result) to structure your answer to this behavioral question.",
+            "case_study": "For this case study, consider various perspectives including technical feasibility, business impact, and user experience.",
+            "general": "Keep your answer concise, authentic, and relevant to the role you're applying for."
+        }
+        
+        return f"""
+## Practice Interview Question ({question_type.title()} Type)
+
+{question}
+
+### Instructions
+{instructions.get(question_type, instructions["general"])}
+
+Provide your answer, and I'll give you detailed feedback using our assessment framework.
+"""
+
+    def _evaluate_star_method(self, question: str, answer: str) -> Dict[str, Any]:
+        """
+        Evaluate how well a response follows the STAR method.
+        
+        Args:
+            question: The interview question
+            answer: The candidate's answer
+            
+        Returns:
+            Dictionary with STAR evaluation results
+        """
+        try:
+            # Call LLM to analyze response
+            response = self.star_evaluation_chain.invoke({
+                "question": question,
+                "answer": answer
+            })
+            
+            # Parse the response
+            if isinstance(response, dict) and "star_evaluation" in response:
+                evaluation = response["star_evaluation"]
+                try:
+                    if isinstance(evaluation, str):
+                        # Try to parse the string as JSON
+                        evaluation = json.loads(evaluation)
+                    return evaluation
+                except:
+                    self.logger.error("Failed to parse STAR evaluation as JSON")
+                    return self._create_default_star_evaluation()
+            else:
+                return self._create_default_star_evaluation()
+        except Exception as e:
+            self.logger.error(f"Error in STAR method evaluation: {e}")
+            return self._create_default_star_evaluation()
+
+    def _create_default_star_evaluation(self) -> Dict[str, Any]:
+        """
+        Create a default STAR evaluation response for error cases.
         
         Returns:
-            List of question-answer pairs
+            Default STAR evaluation dictionary
         """
-        if not self.current_context:
-            return []
+        return {
+            "situation": {"score": 5, "feedback": "Your description of the situation needs more context."},
+            "task": {"score": 5, "feedback": "Clarify your specific role and responsibility in this scenario."},
+            "action": {"score": 5, "feedback": "Provide more details about the steps you took."},
+            "result": {"score": 5, "feedback": "Quantify or qualify your results more clearly."},
+            "overall_score": 5,
+            "improvements": ["Be more specific about the situation context", "Clearly state your objective", "Describe your actions in more detail", "Quantify your results when possible"],
+            "strengths": ["Basic STAR structure is present"]
+        }    
+
+    def _evaluate_communication_skills(self, question: str, answer: str) -> Dict[str, Any]:
+        """
+        Evaluate communication skills in a response.
         
-        qa_pairs = []
-        current_question = None
+        Args:
+            question: The interview question
+            answer: The candidate's answer
+            
+        Returns:
+            Dictionary with communication assessment results
+        """
+        try:
+            # Call LLM to analyze communication
+            response = self.communication_assessment_chain.invoke({
+                "question": question,
+                "answer": answer
+            })
+            
+            # Parse the response
+            if isinstance(response, dict) and "communication_assessment" in response:
+                assessment = response["communication_assessment"]
+                try:
+                    if isinstance(assessment, str):
+                        # Try to parse the string as JSON
+                        assessment = json.loads(assessment)
+                    return assessment
+                except:
+                    self.logger.error("Failed to parse communication assessment as JSON")
+                    return self._create_default_communication_assessment()
+            else:
+                return self._create_default_communication_assessment()
+        except Exception as e:
+            self.logger.error(f"Error in communication skills assessment: {e}")
+            return self._create_default_communication_assessment()
+
+    def _create_default_communication_assessment(self) -> Dict[str, Any]:
+        """
+        Create a default communication assessment for error cases.
         
-        for message in self.current_context.conversation_history:
-            if message["role"] == "assistant" and message.get("metadata", {}).get("is_question", False):
-                current_question = message["content"]
-            elif message["role"] == "user" and current_question:
-                qa_pairs.append({"question": current_question, "answer": message["content"]})
-                current_question = None
+        Returns:
+            Default communication assessment dictionary
+        """
+        return {
+            "clarity": {"score": 5, "feedback": "Your message was somewhat clear but could be improved."},
+            "conciseness": {"score": 5, "feedback": "Your response had a reasonable length."},
+            "structure": {"score": 5, "feedback": "Your response had some structure but could be more organized."},
+            "engagement": {"score": 5, "feedback": "Your communication style was somewhat engaging."},
+            "confidence": {"score": 5, "feedback": "You showed a moderate level of confidence."},
+            "technical_terminology": {"score": 5, "feedback": "Your use of technical terms was appropriate."},
+            "overall_score": 5,
+            "key_strengths": ["Basic communication skills present"],
+            "improvement_areas": ["Improving clarity", "Enhancing structure"],
+            "practical_tips": ["Organize your thoughts before speaking", "Use transition phrases to connect ideas"]
+        }
+
+    def _evaluate_response_completeness(self, question: str, answer: str) -> Dict[str, Any]:
+        """
+        Evaluate the completeness of a response.
         
-        return qa_pairs 
+        Args:
+            question: The interview question
+            answer: The candidate's answer
+            
+        Returns:
+            Dictionary with completeness evaluation results
+        """
+        try:
+            job_role = "the position" if not hasattr(self, "job_role") else self.job_role
+            
+            # Call LLM to analyze completeness
+            response = self.completeness_evaluation_chain.invoke({
+                "question": question,
+                "answer": answer,
+                "job_role": job_role
+            })
+            
+            # Parse the response
+            if isinstance(response, dict) and "completeness_evaluation" in response:
+                evaluation = response["completeness_evaluation"]
+                try:
+                    if isinstance(evaluation, str):
+                        # Try to parse the string as JSON
+                        evaluation = json.loads(evaluation)
+                    return evaluation
+                except:
+                    self.logger.error("Failed to parse completeness evaluation as JSON")
+                    return self._create_default_completeness_evaluation()
+            else:
+                return self._create_default_completeness_evaluation()
+        except Exception as e:
+            self.logger.error(f"Error in response completeness evaluation: {e}")
+            return self._create_default_completeness_evaluation()
+
+    def _create_default_completeness_evaluation(self) -> Dict[str, Any]:
+        """
+        Create a default completeness evaluation for error cases.
+        
+        Returns:
+            Default completeness evaluation dictionary
+        """
+        return {
+            "question_relevance": {"score": 5, "feedback": "Your answer was somewhat relevant to the question."},
+            "key_points_coverage": {"score": 5, "feedback": "You covered some key points but missed others."},
+            "examples": {"score": 5, "feedback": "You provided some examples but could include more specific ones."},
+            "depth": {"score": 5, "feedback": "Your response had moderate depth."},
+            "context_awareness": {"score": 5, "feedback": "Your answer showed some awareness of the role context."},
+            "overall_score": 5,
+            "missing_elements": ["More specific examples", "Deeper technical details"],
+            "excessive_elements": ["Some tangential information"],
+            "improvement_plan": "Focus more directly on answering the specific question asked, provide concrete examples, and tailor your response to the job requirements."
+        }    
+
+    def generate_personalized_feedback(self, question: str, answer: str, 
+                                      candidate_profile: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Generate personalized feedback based on response evaluation and candidate profile.
+        
+        Args:
+            question: The interview question
+            answer: The candidate's answer
+            candidate_profile: Dictionary containing candidate information
+            
+        Returns:
+            Dictionary with personalized feedback
+        """
+        # Default profile if none provided
+        profile = {
+            "job_role": "the position",
+            "experience_level": "mid-level",
+            "strengths": ["technical knowledge", "communication"],
+            "areas_for_improvement": ["structuring answers", "providing examples"],
+            "learning_style": "visual and practical"
+        }
+        
+        # Update with provided profile if available
+        if candidate_profile:
+            profile.update(candidate_profile)
+        
+        # Evaluate using different methods
+        star_eval = self._evaluate_star_method(question, answer)
+        comm_eval = self._evaluate_communication_skills(question, answer)
+        comp_eval = self._evaluate_response_completeness(question, answer)
+        
+        try:
+            # Generate personalized feedback
+            response = self.personalized_feedback_chain.invoke({
+                "job_role": profile["job_role"],
+                "experience_level": profile["experience_level"],
+                "strengths": ", ".join(profile["strengths"]),
+                "areas_for_improvement": ", ".join(profile["areas_for_improvement"]),
+                "learning_style": profile["learning_style"],
+                "question": question,
+                "answer": answer,
+                "star_evaluation": json.dumps(star_eval),
+                "communication_assessment": json.dumps(comm_eval),
+                "response_completeness": json.dumps(comp_eval)
+            })
+            
+            # Parse the response
+            if isinstance(response, dict) and "personalized_feedback" in response:
+                feedback = response["personalized_feedback"]
+                try:
+                    if isinstance(feedback, str):
+                        # Try to parse the string as JSON
+                        feedback = json.loads(feedback)
+                    return feedback
+                except:
+                    self.logger.error("Failed to parse personalized feedback as JSON")
+                    return self._create_default_personalized_feedback()
+            else:
+                return self._create_default_personalized_feedback()
+        except Exception as e:
+            self.logger.error(f"Error generating personalized feedback: {e}")
+            return self._create_default_personalized_feedback()
+
+    def _create_default_personalized_feedback(self) -> Dict[str, Any]:
+        """
+        Create default personalized feedback for error cases.
+        
+        Returns:
+            Default personalized feedback dictionary
+        """
+        return {
+            "strengths_affirmation": [
+                "You demonstrated good knowledge of the subject matter in your response.",
+                "Your communication was generally clear and professional."
+            ],
+            "growth_areas": [
+                {
+                    "area": "Using the STAR method more effectively",
+                    "rationale": "Structured responses help interviewers follow your experience more easily",
+                    "example_from_answer": "Consider adding more specific details about the actions you took"
+                },
+                {
+                    "area": "Providing more concrete examples",
+                    "rationale": "Examples make your capabilities more tangible to interviewers",
+                    "example_from_answer": "Try quantifying your results with specific metrics"
+                }
+            ],
+            "personalized_coaching": "Focus on structuring your answers with a clear beginning, middle, and end. Start with the situation, describe the specific task you were handling, detail the actions you took, and finish with the results you achieved.",
+            "improved_answer_examples": [
+                {
+                    "original": "I worked on a project with a team",
+                    "improved": "I led a 5-person team on a critical client project where we needed to improve system performance by 30% within 3 months."
+                }
+            ],
+            "next_steps": [
+                {
+                    "activity": "Practice recording yourself answering 3 common interview questions using the STAR method",
+                    "benefit": "This will help you internalize the structure and identify areas for improvement"
+                },
+                {
+                    "activity": "Create a document with 5-10 strong examples from your experience that showcase relevant skills",
+                    "benefit": "This builds a library of experiences you can quickly reference during interviews"
+                }
+            ],
+            "summary": "You're on the right track - with more structured responses and specific examples, you'll significantly strengthen your interview performance."
+        }
+
+    def track_performance(self, question: str, answer: str, 
+                         previous_evaluations: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Track performance over time and generate metrics.
+        
+        Args:
+            question: The interview question
+            answer: The candidate's answer
+            previous_evaluations: List of previous evaluation results
+        
+        Returns:
+            Dictionary with performance metrics
+        """
+        # Default empty list if no previous evaluations
+        prev_evals = previous_evaluations or []
+        
+        # Get current scores
+        star_eval = self._evaluate_star_method(question, answer)
+        comm_eval = self._evaluate_communication_skills(question, answer)
+        comp_eval = self._evaluate_response_completeness(question, answer)
+        
+        star_score = sum([star_eval.get(k, {}).get("score", 5) for k in ["situation", "task", "action", "result"]]) / 4
+        comm_score = comm_eval.get("overall_score", 5)
+        comp_score = comp_eval.get("overall_score", 5)
+        
+        try:
+            # Format previous evaluations for the chain
+            prev_evals_formatted = []
+            for i, eval_data in enumerate(prev_evals[-5:], 1):  # Only use last 5 evaluations
+                prev_evals_formatted.append(
+                    f"Evaluation {i}:\n"
+                    f"- Question: {eval_data.get('question', 'Unknown')}\n"
+                    f"- STAR Score: {eval_data.get('star_score', 5)}\n"
+                    f"- Communication Score: {eval_data.get('communication_score', 5)}\n"
+                    f"- Completeness Score: {eval_data.get('completeness_score', 5)}\n"
+                )
+            
+            prev_evals_str = "\n".join(prev_evals_formatted) if prev_evals_formatted else "No previous evaluations available."
+            
+            # Generate performance metrics
+            response = self.performance_metrics_chain.invoke({
+                "previous_evaluations": prev_evals_str,
+                "question": question,
+                "answer": answer,
+                "star_score": star_score,
+                "communication_score": comm_score,
+                "completeness_score": comp_score
+            })
+            
+            # Parse the response
+            if isinstance(response, dict) and "performance_metrics" in response:
+                metrics = response["performance_metrics"]
+                try:
+                    if isinstance(metrics, str):
+                        # Try to parse the string as JSON
+                        metrics = json.loads(metrics)
+                    return metrics
+                except:
+                    self.logger.error("Failed to parse performance metrics as JSON")
+                    return self._create_default_performance_metrics()
+            else:
+                return self._create_default_performance_metrics()
+        except Exception as e:
+            self.logger.error(f"Error tracking performance: {e}")
+            return self._create_default_performance_metrics()
+
+    def _create_default_performance_metrics(self) -> Dict[str, Any]:
+        """
+        Create default performance metrics for error cases.
+        
+        Returns:
+            Default performance metrics dictionary
+        """
+        return {
+            "metrics_summary": {
+                "star_score": {
+                    "current": 5,
+                    "previous_avg": 5,
+                    "delta": 0
+                },
+                "communication_score": {
+                    "current": 5,
+                    "previous_avg": 5,
+                    "delta": 0
+                },
+                "completeness_score": {
+                    "current": 5,
+                    "previous_avg": 5,
+                    "delta": 0
+                },
+                "overall_score": {
+                    "current": 5,
+                    "previous_avg": 5,
+                    "delta": 0
+                }
+            },
+            "progress_tracking": {
+                "improving_areas": [
+                    {
+                        "area": "Overall structure",
+                        "evidence": "You're starting to use more elements of the STAR method"
+                    }
+                ],
+                "focus_areas": [
+                    {
+                        "area": "Providing specific examples",
+                        "rationale": "Your answers would benefit from more concrete details"
+                    }
+                ]
+            },
+            "trend_analysis": "Your performance is steady. Continue practicing structured responses and adding specific examples to see more improvement.",
+            "achievement_badges": [
+                {
+                    "badge": "Consistent Performer",
+                    "description": "Maintaining a steady level of interview performance"
+                }
+            ],
+            "focus_recommendations": [
+                "Practice the STAR method with 3-5 specific examples from your experience",
+                "Record yourself answering questions to review your communication style"
+            ]
+        }    

@@ -754,7 +754,7 @@ class InterviewerAgent(BaseAgent):
                 guidance = self._evaluate_answer_tool(input_text, current_q_index)
                 next_question = self._get_next_question()
                 response = f"{guidance}\n\nLet's move on to the next question.\n\n{next_question}"
-            else:
+        else:
                 # Get the next question
                 response = self._get_next_question()
         else:
@@ -1226,7 +1226,7 @@ class InterviewerAgent(BaseAgent):
         """
         # Reset interview state
         self.current_state = InterviewState.COMPLETED
-        self.interview_session_id = None
+        self.interview_session_id = None 
     
     def _assess_answer_quality(self, question: str, answer: str) -> Dict[str, Any]:
         """
