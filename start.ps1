@@ -4,7 +4,6 @@
 
 # Define parameters for the script
 param (
-    [switch]$Clean = $false,        # Force clean reinstall of all dependencies
     [switch]$SkipBackend = $false,  # Skip starting the backend
     [switch]$SkipFrontend = $false, # Skip starting the frontend
     [switch]$Help = $false          # Show help message
@@ -16,15 +15,14 @@ if ($Help) {
     Write-Host "Usage: ./start.ps1 [options]" -ForegroundColor Cyan
     Write-Host ""
     Write-Host "Options:"
-    Write-Host "  -Clean         Force clean reinstall of all dependencies"
     Write-Host "  -SkipBackend   Don't start the backend server"
     Write-Host "  -SkipFrontend  Don't start the frontend server"
     Write-Host "  -Help          Display this help message"
     Write-Host ""
     Write-Host "Examples:"
-    Write-Host "  ./start.ps1              # Normal startup, reuse existing environments"
-    Write-Host "  ./start.ps1 -Clean       # Force clean reinstall of all dependencies"
+    Write-Host "  ./start.ps1               # Start both frontend and backend"
     Write-Host "  ./start.ps1 -SkipFrontend # Start only the backend server"
+    Write-Host "  ./start.ps1 -SkipBackend  # Start only the frontend"
     exit 0
 }
 
@@ -32,10 +30,6 @@ Write-Host "===================================" -ForegroundColor Cyan
 Write-Host "   AI INTERVIEWER AGENT STARTUP    " -ForegroundColor Cyan
 Write-Host "===================================" -ForegroundColor Cyan
 Write-Host ""
-
-if ($Clean) {
-    Write-Host "Running in CLEAN mode - Will reinstall all dependencies" -ForegroundColor Yellow
-}
 
 # Explicitly use Python 3.10
 $pythonCommand = "C:\Users\Ranjit\AppData\Local\Programs\Python\Python310\python.exe"
@@ -128,24 +122,19 @@ if (-not (Test-DirectoryExists -Path ".\backend\temp")) {
     Write-Host "✓ Created temp directory." -ForegroundColor Green
 }
 
-# Check and setup Python virtual environment only if needed
-$needsVenvSetup = $Clean -or (-not (Test-DirectoryExists -Path ".\backend\.venv"))
-$needsDependencyInstall = $Clean -or (-not (Test-Path -Path ".\backend\.venv\Scripts\activate.bat"))
-
-if ($needsVenvSetup) {
+# Only perform backend setup if we're going to start the backend
+if (-not $SkipBackend) {
+    # Clean up and recreate Python virtual environment (nuclear approach from original script)
     Write-Host "Setting up Python virtual environment..." -ForegroundColor Yellow
     if (Test-DirectoryExists -Path ".\backend\.venv") {
-        Write-Host "Removing existing virtual environment..." -ForegroundColor Yellow
+        Write-Host "Removing existing virtual environment to avoid dependency conflicts..." -ForegroundColor Yellow
         Remove-Item -Path ".\backend\.venv" -Recurse -Force
     }
 
     Set-Location -Path ".\backend"
     & $pythonCommand -m venv .venv
     Set-Location -Path ".."
-    Write-Host "✓ Virtual environment created fresh." -ForegroundColor Green
-    $needsDependencyInstall = $true
-} else {
-    Write-Host "✓ Using existing Python virtual environment." -ForegroundColor Green
+    Write-Host "✓ Virtual environment created fresh with $pythonCommand." -ForegroundColor Green
 }
 
 # Function to start the backend server
@@ -156,27 +145,13 @@ function Start-BackendServer {
     # Activate virtual environment based on OS
     if ($IsWindowsOS) {
         Write-Host "Activating Windows virtual environment..." -ForegroundColor Yellow
-        
-        # If we need to install dependencies or clean mode is active
-        if ($needsDependencyInstall) {
-            # Use cmd.exe to run everything in one context with the activated environment
-            cmd /c ".\.venv\Scripts\activate.bat && python -m pip install --upgrade pip && python -m pip install setuptools wheel && python -m pip install -r requirements.txt && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
-        } else {
-            # Just activate and run without reinstalling
-            cmd /c ".\.venv\Scripts\activate.bat && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
-        }
+        # Use cmd.exe to run everything in one context with the activated environment
+        cmd /c ".\.venv\Scripts\activate.bat && python -m pip install --upgrade pip && python -m pip install setuptools wheel && python -m pip install -r requirements.txt && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     } 
     else {
         # Unix style activation and execution
         Write-Host "Activating Unix virtual environment..." -ForegroundColor Yellow
-        
-        # If we need to install dependencies or clean mode is active
-        if ($needsDependencyInstall) {
-            bash -c "source ./.venv/bin/activate && python -m pip install --upgrade pip && python -m pip install setuptools wheel && python -m pip install -r requirements.txt && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
-        } else {
-            # Just activate and run without reinstalling
-            bash -c "source ./.venv/bin/activate && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
-        }
+        bash -c "source ./.venv/bin/activate && python -m pip install --upgrade pip && python -m pip install setuptools wheel && python -m pip install -r requirements.txt && python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
     }
 }
 
@@ -185,24 +160,17 @@ function Start-FrontendServer {
     Write-Host "Starting frontend server..." -ForegroundColor Cyan
     Set-Location -Path ".\frontend"
     
-    # Check if node_modules exists
-    $needsNpmInstall = $Clean -or (-not (Test-DirectoryExists -Path ".\node_modules"))
-    
-    # Check if .next directory should be cleaned
-    if ($Clean -and (Test-DirectoryExists -Path ".\.next")) {
+    # Clear .next directory to ensure clean build
+    if (Test-DirectoryExists -Path ".\.next") {
         Write-Host "Removing previous Next.js build artifacts..." -ForegroundColor Yellow
         Remove-Item -Path ".\.next" -Recurse -Force
     }
     
-    # Install dependencies only if needed
-    if ($needsNpmInstall) {
-        Write-Host "Installing frontend dependencies..." -ForegroundColor Yellow
-        npm install
-    } else {
-        Write-Host "✓ Using existing frontend dependencies." -ForegroundColor Green
-    }
+    # Install dependencies if needed
+    Write-Host "Installing/updating frontend dependencies..." -ForegroundColor Yellow
+    npm install
     
-    # Start Next.js development server
+    # Skip build during start - we'll run dev mode directly
     Write-Host "Starting Next.js development server..." -ForegroundColor Green
     npm run dev
 }
@@ -212,33 +180,13 @@ if (-not $SkipBackend -and -not $SkipFrontend) {
     # Start both services
     if ($IsWindowsOS) {
         Write-Host "Starting frontend in a new window..." -ForegroundColor Yellow
-        
-        $frontendCommand = "Set-Location '$PWD'; cd frontend;"
-        if ($Clean) {
-            $frontendCommand += " if (Test-Path -Path '.\.next') { Remove-Item -Path '.\.next' -Recurse -Force };"
-        }
-        if ($Clean -or (-not (Test-DirectoryExists -Path ".\frontend\node_modules"))) {
-            $frontendCommand += " npm install;"
-        }
-        $frontendCommand += " npm run dev"
-        
-        Start-Process -FilePath "powershell" -ArgumentList "-Command", $frontendCommand
+        Start-Process -FilePath "powershell" -ArgumentList "-Command", "Set-Location '$PWD'; cd frontend; npm install; npm run dev"
         Start-BackendServer
     } 
     else {
         # For non-Windows systems
         Write-Host "Starting services in separate terminals..." -ForegroundColor Yellow
-        
-        $frontendCommand = "cd '$PWD/frontend' && "
-        if ($Clean) {
-            $frontendCommand += "rm -rf .next && "
-        }
-        if ($Clean -or (-not (Test-DirectoryExists -Path ".\frontend\node_modules"))) {
-            $frontendCommand += "npm install && "
-        }
-        $frontendCommand += "npm run dev"
-        
-        Start-Process -FilePath "bash" -ArgumentList "-c", $frontendCommand
+        Start-Process -FilePath "bash" -ArgumentList "-c", "cd '$PWD/frontend' && npm install && npm run dev"
         Start-BackendServer
     }
 } 
