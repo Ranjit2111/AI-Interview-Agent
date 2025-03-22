@@ -21,6 +21,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+from backend.utils.docs_generator import generate_static_docs
 
 # API key handling
 load_dotenv()
@@ -199,6 +200,16 @@ async def generate_interview(request: InterviewRequest):
         return InterviewResponse(generated_text=adaptive_prompt)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating interview question: {str(e)}")
+
+@app.on_event("startup")
+async def generate_api_docs():
+    """Generate API documentation when the application starts."""
+    docs_dir = os.path.join(os.getcwd(), "docs")
+    try:
+        generate_static_docs(app, docs_dir)
+        print(f"API documentation generated in {os.path.join(docs_dir, 'api_docs')}")
+    except Exception as e:
+        print(f"Error generating API documentation: {str(e)}")
 
 # Run the application with uvicorn when the script is executed directly
 if __name__ == "__main__":
