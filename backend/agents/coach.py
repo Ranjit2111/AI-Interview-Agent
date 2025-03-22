@@ -1010,7 +1010,7 @@ class CoachAgent(BaseAgent):
             return "personalized"
         elif requires_star:
             return "star_method"
-            else:
+        else:
             return "comprehensive"
 
     def _requires_star_evaluation(self, question: str, answer: str) -> bool:
@@ -1343,7 +1343,7 @@ class CoachAgent(BaseAgent):
         Args:
             topic: The advice topic
             job_role: The job role being applied for
-        
+            
         Returns:
             Formatted advice text
         """
@@ -1382,145 +1382,43 @@ class CoachAgent(BaseAgent):
             "star_method": f"""
 # STAR Method: Structuring Powerful Interview Responses
 
-The STAR method helps you structure your responses to behavioral questions for maximum impact. Here's how to use it effectively:
+## The Framework
+- **Situation**: Set the context by describing the situation/background
+- **Task**: Explain the specific task or challenge you faced
+- **Action**: Detail the specific actions you took to address the task/challenge
+- **Result**: Share the outcomes, what you learned, and how it adds value
 
-## Situation
-- Set the scene with a specific context
-- Be concise but include relevant details
-- Example: "While working as a {job_role} at Company X, we faced a critical deadline with limited resources..."
+## Why It Works
+1. **Structure**: Makes your answer easy to follow
+2. **Relevance**: Keeps you focused on what matters
+3. **Completeness**: Ensures you don't omit critical information
+4. **Impact**: Emphasizes your contributions and results
 
-## Task
-- Describe your specific responsibilities
-- Explain the challenges clearly
-- Example: "I was tasked with delivering a complex feature within two weeks while maintaining code quality..."
+## Example Format
+"In my previous role at [Company], we faced [specific situation]. My responsibility was to [specific task]. To address this, I [specific actions taken]. As a result, [measurable outcomes]."
 
-## Action
-- Detail the steps YOU took (not the team)
-- Use "I" statements to highlight your role
-- Focus on your decision-making process
-- Example: "I created a detailed work breakdown structure, prioritized features, and implemented a daily check-in process..."
+## Common Pitfalls
+1. **Too Much Situation**: Don't spend more than 10-20% on background
+2. **Vague Actions**: Be specific about YOUR contributions
+3. **Missing Results**: Always quantify outcomes when possible
+4. **Irrelevant Details**: Every part should relate to the question
 
-## Result
-- Quantify your results whenever possible
-- Highlight what you learned
-- Connect to the job you're applying for
-- Example: "As a result, we delivered the project two days early, increased system performance by 30%, and received recognition from leadership..."
+## How to Practice
+1. Prepare 5-10 stories covering different competencies
+2. Practice telling them in 1-2 minutes
+3. Record yourself and review for clarity and conciseness
 
-### Practice Exercise:
-Choose 3-5 accomplishments from your experience and write them out using the STAR method. Refine until each example is clear, concise, and compelling.
-        """,
-        
-        "technical_interviews": f"""
-# Excelling in Technical Interviews for {job_role} Positions
-
-## Preparation Strategies
-1. **Review Fundamentals**: Ensure core concepts for {job_role} roles are solid
-2. **Practice Problem-Solving**: Use platforms like LeetCode or HackerRank
-3. **Study System Design**: Understand scalability, performance, and reliability principles
-4. **Know Your Projects**: Be ready to discuss technical decisions and trade-offs
-
-## During the Interview
-1. **Clarify Requirements**: Ask questions before starting to solve
-2. **Think Aloud**: Share your thought process as you work
-3. **Consider Edge Cases**: Show thoroughness in your solutions
-4. **Optimize Incrementally**: Start with a working solution, then improve it
-5. **Test Your Solution**: Demonstrate quality assurance mindset
-
-## Communication Tips
-1. Use proper technical terminology
-2. Explain complex concepts simply
-3. Acknowledge limitations in your approach
-4. Be receptive to hints and feedback
-5. Connect solutions to real-world applications
-
-## Common Pitfalls to Avoid
-1. Jumping to code without planning
-2. Focusing only on the happy path
-3. Overcomplicating simple problems
-4. Being defensive about feedback
-5. Failing to ask clarifying questions
-
-### Remember: Technical interviews assess not just what you know, but how you approach problems and communicate solutions.
-        """,
-        
-        "behavioral_interviews": f"""
-# Mastering Behavioral Interviews for {job_role} Roles
-
-## Key Preparation Steps
-1. **Research the Company**: Understand their culture, values, and challenges
-2. **Analyze the Job Description**: Identify key traits and experiences they seek
-3. **Prepare Stories**: Develop 8-10 flexible stories using the STAR method
-4. **Practice Delivery**: Record yourself to refine clarity and conciseness
-
-## Behavioral Competencies Often Assessed
-1. **Teamwork**: Collaboration and conflict resolution
-2. **Leadership**: Initiative and influence without authority
-3. **Problem-solving**: Analytical thinking and creativity
-4. **Adaptability**: Response to change and uncertainty
-5. **Communication**: Clarity in different contexts
-
-## Powerful Story Elements
-1. Include specific challenges faced
-2. Highlight your unique contribution
-3. Show self-awareness and growth
-4. Quantify results when possible
-5. Align with the company's values
-
-## Common Questions and Story Applications
-- "Tell me about a time you faced a significant challenge..."
-- "Describe a situation where you had to influence others..."
-- "Give an example of how you handled a conflict with a colleague..."
-- "Share an experience where you had to learn a new technology or skill quickly..."
-
-### Pro Tip: For each story, prepare multiple angles to highlight different skills depending on the question asked.
-        """,
-        
-        "answering_questions": f"""
-# Effective Question-Answering Techniques for {job_role} Interviews
-
-## Universal Principles
-1. **Listen Completely**: Process the entire question before responding
-2. **Pause When Needed**: Take a moment to organize your thoughts
-3. **Structure Clearly**: Use frameworks like STAR for complex answers
-4. **Be Concise**: Aim for 1-2 minute responses for most questions
-5. **Close Strongly**: End with concrete results or lessons learned
-
-## Handling Different Question Types
-
-### Direct Questions
-- Answer explicitly first, then provide supporting details
-- Example Q: "Do you have experience with Python?"
-- Example A: "Yes, I've used Python for 3 years, primarily for data analysis and automation. For instance..."
-
-### Behavioral Questions
-- Use the STAR method (Situation, Task, Action, Result)
-- Focus on YOUR specific contributions
-- Example Q: "Tell me about a time you solved a complex problem."
-
-### Technical Questions
-- Clarify your understanding first
-- Explain your thought process step-by-step
-- Consider multiple approaches
-- Example Q: "How would you optimize this database query?"
-
-### Hypothetical Scenarios
-- State your assumptions
-- Walk through your decision-making framework
-- Balance ideal approaches with practical considerations
-- Example Q: "What would you do if a critical system failed before a launch?"
-
-## Addressing Challenging Questions
-1. **Questions About Weaknesses**: Show self-awareness and improvement efforts
-2. **Knowledge Gaps**: Be honest but emphasize your learning approach
-3. **Negative Past Experiences**: Focus on lessons and growth
-4. **Salary Expectations**: Research industry standards before the interview
+## Adapting STAR for Different Questions
+- **Behavioral Questions**: "Tell me about a time when..." - Use full STAR
+- **Competency Questions**: "How do you handle..." - Focus more on A and R
+- **Hypothetical Questions**: "What would you do if..." - Combine STAR with hypothetical approach
 
 ### Remember: Every question is an opportunity to demonstrate value and fit for the role.
         """
-    }
-    
-    return advice_templates.get(topic, advice_templates["general"])
-
+        }
+        
+        return advice_templates.get(topic, advice_templates["general"])
+        
     def _generate_practice_question(self, question_type: str, job_role: str) -> str:
         """
         Generate a practice interview question based on type and job role.
