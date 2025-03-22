@@ -755,9 +755,6 @@ class InterviewerAgent(BaseAgent):
                 next_question = self._get_next_question()
                 response = f"{guidance}\n\nLet's move on to the next question.\n\n{next_question}"
         else:
-                # Get the next question
-                response = self._get_next_question()
-        else:
             # First question or error recovery
             response = self._get_next_question()
         
@@ -1015,9 +1012,9 @@ class InterviewerAgent(BaseAgent):
         if self.current_question_index >= len(self.questions):
             return "I don't have any more questions prepared. Let's summarize the interview."
         
-            question = self.questions[self.current_question_index]
-            self.current_question_index += 1
-            
+        question = self.questions[self.current_question_index]
+        self.current_question_index += 1
+        
         # Publish event
         self._publish_event("question_asked", {
             "question_index": self.current_question_index - 1,
