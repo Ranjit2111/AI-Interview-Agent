@@ -1409,14 +1409,14 @@ class CoachAgent(BaseAgent):
                 self.event_bus.publish(Event(
                     event_type="coach_feedback",
                     source="coach_agent",
-                data={
-                "feedback": feedback,
-                "question": self.current_question,
-                "answer": message,
-                "timestamp": datetime.now().isoformat()
-                }
+        data={
+        "feedback": feedback,
+        "question": self.current_question,
+        "answer": message,
+        "timestamp": datetime.now().isoformat()
+        }
                 ))
-
+    
     def _handle_interview_summary(self, event: Event) -> None:
         """
         Handle interview summary events.

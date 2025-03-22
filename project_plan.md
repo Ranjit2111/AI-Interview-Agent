@@ -53,7 +53,7 @@ This project plan outlines the development roadmap for enhancing the existing AI
 
 ## Development Roadmap
 
-The development is organized into 8 sprints, each focusing on specific components and features:
+The development is organized into 9 sprints, each focusing on specific components and features:
 
 ### Sprint 1 - Core Infrastructure - COMPLETED
 
@@ -66,76 +66,93 @@ The development is organized into 8 sprints, each focusing on specific component
 ### Sprint 2 - Interviewer Agent Enhancement - COMPLETED
 
 [x] InterviewerAgent class enhancement
-  - [x] ReAct-style reasoning
-  - [x] Structured output format
-  - [x] Conversation context management
-[x] Prompt Engineering Framework
-  - [x] Question type templates
-  - [x] Context-aware prompt assembly
-  - [x] Prompt optimization techniques
-[x] Interview Style Customization
-  - [x] Four distinct interview styles
-  - [x] Style switching mechanism
-  - [x] Style-specific response handling
-[x] Adaptive Questioning
-  - [x] Response quality assessment
-  - [x] Follow-up question generation
-  - [x] Difficulty adjustment mechanism
+
+- [X] ReAct-style reasoning
+- [X] Structured output format
+- [X] Conversation context management
+  [x] Prompt Engineering Framework
+- [X] Question type templates
+- [X] Context-aware prompt assembly
+- [X] Prompt optimization techniques
+  [x] Interview Style Customization
+- [X] Four distinct interview styles
+- [X] Style switching mechanism
+- [X] Style-specific response handling
+  [x] Adaptive Questioning
+- [X] Response quality assessment
+- [X] Follow-up question generation
+- [X] Difficulty adjustment mechanism
 
 ### Sprint 3 - Coach Agent Implementation - COMPLETED
 
 [x] Coach Agent class (extending BaseAgent)
-  - [x] Real-time feedback mechanism
-  - [x] Personalized coaching strategies
-  - [x] Performance analysis
-[x] Feedback Framework
-  - [x] Structured feedback templates
-  - [x] Actionable improvement suggestions
-  - [x] Positive reinforcement patterns
-[x] Response Analysis
-  - [x] STAR method evaluation
-  - [x] Communication skill assessment
-  - [x] Response completeness analysis
 
-### Sprint 4 - API & System Integration - IN PROGRESS
+- [X] Real-time feedback mechanism
+- [X] Personalized coaching strategies
+- [X] Performance analysis
+  [x] Feedback Framework
+- [X] Structured feedback templates
+- [X] Actionable improvement suggestions
+- [X] Positive reinforcement patterns
+  [x] Response Analysis
+- [X] STAR method evaluation
+- [X] Communication skill assessment
+- [X] Response completeness analysis
+
+### Sprint 4 - Speech-to-Text, LLM Processing, and Text-to-Speech
+
+[ ] Speech-to-Text Implementation
+
+- [ ] Web Speech API implementation for browser-based transcription
+- [ ] AssemblyAI integration as alternative option
+- [ ] Transcription error handling and fallback mechanisms
+  [ ] LLM Input Processing
+- [ ] Process transcribed text through interviewer agent
+- [ ] Optimize prompt handling for voice interactions
+- [ ] Context maintenance across voice interactions
+  [ ] Text-to-Speech Output
+- [ ] Kokoro TTS integration via Kokoro-FastAPI
+- [ ] Voice selection interface for different agent personas
+- [ ] Speech output optimization for natural-sounding responses
+
+### Sprint 5 - API & System Integration
 
 [ ] API Development
-  - [ ] RESTful endpoints for agent interactions
-  - [ ] Authentication and session management
-  - [ ] Rate limiting and usage tracking
-[ ] System Integration
-  - [ ] Event-driven communication architecture
-  - [ ] Agent orchestration layer
-  - [ ] Persistent context management
-[ ] Data Management
-  - [ ] User profile storage
-  - [ ] Interview session archiving
-  - [ ] Performance metrics tracking
 
-### Sprint 5 - Skill Assessor Implementation
+- [ ] RESTful endpoints for agent interactions
+- [ ] Basic session tracking for local application
+  [ ] System Integration
+- [ ] Event-driven communication architecture
+- [ ] Agent orchestration layer
+- [ ] Persistent context management
+  [ ] Data Management
+- [ ] Interview session archiving
+- [ ] Performance metrics tracking
+- [ ] *User profile storage (ON HOLD for future implementation)*
+
+### Sprint 6 - Skill Assessor Implementation
 
 [ ] Skill Assessor Agent class (extending BaseAgent)
-  - [ ] Skill extraction and categorization
-  - [ ] Quantitative assessment metrics
-  - [ ] Qualitative feedback generation
-[ ] Competency Framework Integration
-  - [ ] Technical skill evaluation
-  - [ ] Soft skill evaluation
-  - [ ] Job-specific competency mapping
-[ ] Resource Recommendation
-  - [ ] Learning resource database
-  - [ ] Personalized improvement plan
-  - [ ] Progress tracking mechanism
 
-### Sprint 6 - Testing and Polish
+- [ ] Skill extraction and categorization
+- [ ] Quantitative assessment metrics
+- [ ] Qualitative feedback generation
+  [ ] Competency Framework Integration
+- [ ] Technical skill evaluation
+- [ ] Soft skill evaluation
+- [ ] Job-specific competency mapping
+  [ ] Resource Recommendation
+- [ ] Web search integration for skill resources
+- [ ] Relevance filtering for search results
+
+### Sprint 7 - Testing and Polish
 
 [ ] Comprehensive system testing
 [ ] User experience improvements
 [ ] Documentation finalization
 [ ] Performance optimization
-[ ] Deployment preparation
 
-### Sprint 7: Web Search & Resource Integration (1 week)
+### Sprint 8: Web Search & Resource Integration (1 week)
 
 ### Goals
 
@@ -162,10 +179,6 @@ The development is organized into 8 sprints, each focusing on specific component
   - Implement content type detection
 - [ ] Implement content relevance scoring
   - Create relevance metrics based on content and query
-- [ ] Create resource metadata extraction
-  - Build metadata parser for different content types
-- [ ] Develop resource storage in database
-  - Create database schema for resources
 
 #### 5.3 Search Query Optimization
 
@@ -205,169 +218,20 @@ The development is organized into 8 sprints, each focusing on specific component
 
 ---
 
-## Sprint 6: Coding Sandbox Environment (2 weeks)
+## Sprint 9: Data Storage & Transcript Management (1-2 weeks)
 
 ### Goals
 
-- Implement coding sandbox for technical assessment
-- Create code evaluation system
-- Develop coding challenge generation
-
-### Tasks
-
-#### 6.1 Coding Sandbox Backend
-
-- [ ] Research and select code execution approach (custom FastAPI service or third-party API)
-  - Evaluate security implications of each approach
-- [ ] Implement secure code execution environment
-  - Create containerized execution if using custom solution
-- [ ] Create language support for Python (extensible to others)
-  - Implement language-specific execution environments
-- [ ] Develop input/output handling for code testing
-  - Create standardized I/O interface
-
-#### 6.2 Code Challenge Generation
-
-- [ ] Create challenge templates for different difficulty levels
-  - Build template database with difficulty tags
-- [ ] Implement challenge selection based on job requirements
-  - Create job requirement to challenge mapping
-- [ ] Develop test case generation for challenges
-  - Implement automatic test case creation
-- [ ] Build solution evaluation criteria
-  - Create scoring rubrics for different challenge types
-
-#### 6.3 Code Evaluation System
-
-- [ ] Implement code execution and result capture
-  - Build execution pipeline with timeout handling
-- [ ] Create evaluation against test cases
-  - Implement test runner and result compiler
-- [ ] Develop code quality assessment
-  - Integrate static analysis tools
-- [ ] Build performance metrics calculation
-  - Implement runtime and memory usage tracking
-
-#### 6.4 Frontend Coding UI
-
-- [ ] Design and implement code editor component
-  - Integrate syntax highlighting and code completion
-- [ ] Create test case display and results visualization
-  - Build test result explorer
-- [ ] Implement real-time syntax highlighting
-  - Integrate Monaco editor or similar
-- [ ] Build code execution control UI
-  - Create execution status and control panel
-
-#### 6.5 Integration with Interview Agent
-
-- [ ] Link technical questions to coding challenges
-  - Create mapping between question types and challenges
-- [ ] Implement coding challenge difficulty adjustment
-  - Build adaptive difficulty based on performance
-- [ ] Create context-aware challenge selection
-  - Implement selection logic based on conversation
-- [ ] Develop coding performance feedback integration
-  - Connect code performance to interview feedback
-
-### Deliverables
-
-- Functional coding sandbox environment
-- Code challenge generation system
-- Code execution and evaluation pipeline
-- Interactive coding UI integrated with interview flow
-
----
-
-## Sprint 7: RAG & Knowledge Base Implementation (1-2 weeks)
-
-### Goals
-
-- Implement Retrieval-Augmented Generation (RAG) system
-- Create local knowledge base
-- Develop embedding-based information retrieval
-
-### Tasks
-
-#### 7.1 Knowledge Base Setup
-
-- [ ] Design knowledge base structure
-  - Create schema for documents and metadata
-- [ ] Collect and organize technical articles and interview resources
-  - Gather domain-specific content for different roles
-- [ ] Create knowledge categorization system
-  - Implement topic and domain tagging
-- [ ] Implement knowledge base management utilities
-  - Build tools for adding and updating content
-
-#### 7.2 Embedding System Implementation
-
-- [ ] Set up embedding model (all-MiniLM-L6-v2 via sentence-transformers)
-  - Configure for CPU optimization
-- [ ] Create embedding generation pipeline
-  - Implement batched processing for efficiency
-- [ ] Implement vector storage in FAISS (CPU optimized)
-  - Configure index parameters for CPU usage
-- [ ] Develop vector search and retrieval with memory optimization
-  - Implement paged loading for large indices
-
-#### 7.3 RAG Integration with Gemini
-
-- [ ] Design RAG-enhanced prompt structure
-  - Create prompt templates with context insertion
-- [ ] Implement knowledge retrieval for prompt enhancement
-  - Build context selection and formatting
-- [ ] Create relevance scoring for retrieved knowledge
-  - Implement result ranking and filtering
-- [ ] Develop knowledge fusion into prompts
-  - Create context integration strategies
-
-#### 7.4 Query Understanding and Processing
-
-- [ ] Implement query embedding generation
-  - Create optimized query processing
-- [ ] Create semantic search for knowledge retrieval
-  - Implement similarity search with thresholds
-- [ ] Develop query expansion techniques
-  - Build query reformulation logic
-- [ ] Build query-specific knowledge filtering
-  - Create content type and domain filtering
-
-#### 7.5 Performance Optimization
-
-- [ ] Implement caching for common queries
-  - Create LRU cache for query results
-- [ ] Create batch processing for embeddings
-  - Implement efficient batching for CPU
-- [ ] Develop index optimization for FAISS
-  - Configure index parameters for speed
-- [ ] Build performance monitoring for RAG system
-  - Implement timing and resource usage tracking
-
-### Deliverables
-
-- Functional RAG system with local knowledge base
-- Embedding generation and search pipeline
-- Knowledge retrieval and fusion with Gemini prompts
-- Optimized performance for real-time use within hardware constraints
-
----
-
-## Sprint 8: Data Storage, Transcript Management & Final Integration (1-2 weeks)
-
-### Goals
-
-- Implement comprehensive data storage system
-- Create transcript management features
-- Finalize system integration
-- Conduct thorough testing
+- Implement comprehensive transcript storage system
+- Create transcript export and import functionality
+- Enable RAG with imported transcripts
 
 ### Tasks
 
 #### 8.1 Transcript Storage System
 
 - [ ] Design transcript data model
-  - Create schema for Q&A pairs and metadata
+  - Create schema for interview Q&A pairs with metadata
 - [ ] Implement transcript creation and updating
   - Build CRUD operations for transcripts
 - [ ] Create metadata association with transcripts
@@ -377,54 +241,41 @@ The development is organized into 8 sprints, each focusing on specific component
 
 #### 8.2 Embedding Storage and Retrieval
 
-- [ ] Finalize FAISS integration for Q&A embeddings
-  - Optimize index configuration
+- [ ] Implement FAISS for conversation embeddings
+  - Optimize index configuration for local hardware
 - [ ] Implement batch embedding processing
   - Create efficient processing pipeline
-- [ ] Create metadata linkage with vectors
-  - Implement metadata storage with vectors
-- [ ] Develop similarity search utilities
-  - Build search tools with filtering
+- [ ] Develop similarity search for past conversations
+  - Build search tools for finding related content
 
 #### 8.3 Export and Import Features
 
-- [ ] Implement plain text transcript export
-  - Create formatting for readable export
-- [ ] Create JSON metadata export with embeddings
-  - Implement serialization for complete data
+- [ ] Determine optimal transcript export format
+  - Design format that includes conversation and metadata
+- [ ] Implement transcript export functionality
+  - Create export utility for downloading conversations
 - [ ] Develop transcript import functionality
-  - Build import parsers and validators
+  - Build import parser for uploaded conversation files
 - [ ] Build import validation and error handling
   - Implement data integrity checks
 
-#### 8.4 System Integration and Testing
+#### 8.4 RAG Implementation with Past Conversations
 
-- [ ] Complete end-to-end integration of all components
-  - Validate all component interactions
-- [ ] Conduct comprehensive system testing
-  - Create test suite for complete system
-- [ ] Implement error handling and recovery
-  - Build robust error management
-- [ ] Develop system monitoring and logging
-  - Create monitoring dashboard
-
-#### 8.5 Performance Optimization and Documentation
-
-- [ ] Conduct performance profiling
-  - Identify bottlenecks and issues
-- [ ] Implement optimization for identified bottlenecks
-  - Apply targeted performance improvements
-- [ ] Create comprehensive user documentation
-  - Write user guides and tutorials
-- [ ] Develop maintenance and troubleshooting guides
-  - Create system administrator documentation
+- [ ] Create embedding generation for imported conversations
+  - Build processing pipeline for uploaded content
+- [ ] Implement RAG context enhancement from past conversations
+  - Design prompt augmentation with relevant past exchanges
+- [ ] Develop relevance scoring for retrieved conversation fragments
+  - Create metrics for context relevance
+- [ ] Implement user interface for viewing enhanced context
+  - Build UI to display how past conversations influence responses
 
 ### Deliverables
 
-- Complete data storage and retrieval system
-- Transcript export and import functionality
-- Fully integrated and tested system
-- Comprehensive documentation
+- Complete transcript storage and retrieval system
+- Conversation export and import functionality
+- RAG integration with imported conversations
+- User interface for transcript management
 
 ---
 
