@@ -10,6 +10,7 @@ from datetime import datetime
 
 from backend.agents.base import BaseAgent, AgentContext
 from backend.utils.event_bus import EventBus, Event
+from backend.tests.utils.mock_services import MockGeminiAPI, MOCK_API_KEY
 
 
 class TestBaseAgent(BaseAgent):
@@ -179,6 +180,114 @@ class TestBaseAgentClass:
         callback.assert_called_once()
         args, _ = callback.call_args
         assert args[0] is event
+
+
+# Test implementation of BaseAgent for testing
+class TestableBaseAgent(BaseAgent):
+    """
+    Implementation of BaseAgent for testing purposes.
+    """
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+    
+    def process_message(self, message: str, context: AgentContext):
+        """
+        Simple implementation of process_message for testing.
+        
+        Args:
+            message: User message
+            context: Agent context
+            
+        Returns:
+            Response message
+        """
+        # Use the LLM to generate a response
+        response = self._call_llm(
+            prompt=f"Respond to this message: {message}",
+            context=context
+        )
+        return response
+
+
+class TestBaseAgent:
+    """
+    Tests for the BaseAgent class.
+    """
+    
+    @pytest.fixture
+    def mock_gemini_api(self):
+        """Fixture for MockGeminiAPI."""
+        return MockGeminiAPI({
+            "Respond to this message: hello": "Hello! How can I help you today?",
+            "Respond to this message: test": "This is a test response."
+        })
+    
+    @pytest.fixture
+    def event_bus(self):
+        """Fixture for EventBus."""
+        return EventBus()
+    
+    @pytest.fixture
+    def agent_context(self):
+        """Fixture for AgentContext."""
+        context = AgentContext(session_id="test-session")
+        return context
+    
+    @patch("langchain_google_generativeai.ChatGoogleGenerativeAI")
+    def test_initialization(self, mock_llm):
+        """Test BaseAgent initialization."""
+        # Setup mock
+        mock_llm.return_value = MagicMock()
+        
+        # Create agent
+        agent = TestableBaseAgent(
+            api_key=MOCK_API_KEY,
+            model_name="gemini-1.5-pro"
+        )
+        
+        # Check agent properties
+        assert agent.api_key == MOCK_API_KEY
+        assert agent.model_name == "gemini-1.5-pro"
+        assert agent.planning_interval == 0
+        assert agent.event_bus is not None
+    
+    def test_process_message_with_mock(self, mock_gemini_api, agent_context):
+        """Test process_message with mocked LLM."""
+        # Patch the LLM method
+        with patch.object(TestableBaseAgent, '_call_llm', return_value="Hello! How can I help you today?"):
+            agent = TestableBaseAgent(api_key=MOCK_API_KEY)
+            
+            # Process a message
+            response = agent.process_message("hello", agent_context)
+            
+            # Check response
+            assert response == "Hello! How can I help you today!"
+    
+    def test_event_publishing(self, event_bus, agent_context):
+        """Test event publishing."""
+        # Set up a listener
+        received_events = []
+        def event_listener(event):
+            received_events.append(event)
+        
+        # Subscribe to all events
+        event_bus.subscribe("*", event_listener)
+        
+        # Create agent with event bus
+        agent = TestableBaseAgent(
+            api_key=MOCK_API_KEY,
+            event_bus=event_bus
+        )
+        
+        # Publish an event
+        agent._publish_event("test_event", {"data": "test_data"})
+        
+        # Check if event was received
+        assert len(received_events) == 1
+        assert received_events[0].event_type == "test_event"
+        assert received_events[0].source == "TestableBaseAgent"
+        assert received_events[0].data["data"] == "test_data"
 
 
 if __name__ == "__main__":
