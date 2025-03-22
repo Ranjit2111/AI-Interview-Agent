@@ -14,7 +14,31 @@ fastapi==0.95.0
 uvicorn[standard]==0.22.0
 python-multipart==0.0.7
 
-# Basic utilities
+# Database and ORM
+sqlalchemy>=2.0.0
+alembic>=1.9.0
+faiss-cpu>=1.7.4
+# sqlite3 is part of the Python standard library and shouldn't be installed via pip
+# sqlite3>=3.7.17; python_version < "3.11"
+# sqlite3 for Python 3.11+ is included in standard library
+
+# Embeddings and vector storage
+sentence-transformers>=2.2.2
+numpy==1.23.5
 scipy==1.10.0
-python-dotenv
-numpy==1.23.5 
+
+# Agent system
+pydantic>=1.10.0,<2.0.0
+typing-extensions>=4.5.0
+python-dotenv>=1.0.0
+pytest>=7.3.1
+pytest-asyncio>=0.21.0
+
+# Event system
+pyee>=9.0.4
+msgpack>=1.0.5
+
+# Utilities
+tqdm>=4.65.0
+loguru>=0.7.0
+tenacity>=8.2.2 
