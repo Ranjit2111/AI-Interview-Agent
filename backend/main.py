@@ -1,6 +1,6 @@
 """
-AI Interviewer Agent - Local Backend
-This application provides interview preparation services that run locally.
+Main application entry point for the AI Interviewer Agent.
+Initializes the FastAPI application and routes.
 """
 
 import os
@@ -12,6 +12,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import numpy as np
 import scipy.io.wavfile as wav
@@ -27,43 +28,61 @@ from backend.api import create_app
 from backend.database.connection import init_db
 from backend.services import initialize_services
 from backend.utils.docs_generator import generate_static_docs
+from backend.api.agent_api import create_agent_api
+from backend.api.resource_api import create_resource_api
 
 
-# API key handling
+# Load environment variables
 load_dotenv()
-api_key = os.environ.get('API_KEY')
-if not api_key:
-    print("WARNING: No API key found. Please set the API_KEY environment variable.")
-    api_key = "MISSING_API_KEY"
 
-# Create temp directory if it doesn't exist
-TEMP_DIR = os.path.join(os.getcwd(), "temp")
-os.makedirs(TEMP_DIR, exist_ok=True)
+# Configure logging
+log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
-# Initialize services
-service_provider = initialize_services({
-    "log_level": logging.INFO,
-    "api_key": api_key
-})
+# Create FastAPI application
+app = FastAPI(
+    title="AI Interviewer Agent",
+    description="AI-powered interview practice and coaching system",
+    version="0.1.0",
+)
 
-# Initialize database
-init_db()
-
-# Create API app
-app = create_app()
-
-# Add CORS middleware to allow cross-origin requests from the frontend
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend URL
+    allow_origins=["*"],  # In production, this should be restricted
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Import API routes
+from backend.api.agent_api import create_agent_api
+from backend.api.resource_api import create_resource_api
+from backend.services import initialize_services
+
+# Initialize services
+service_provider = initialize_services()
+logger.info("Services initialized")
+
+# Create API routes
+create_agent_api(app)
+create_resource_api(app)
+logger.info("API routes registered")
+
+# Mount static files (if needed)
+# app.mount("/static", StaticFiles(directory="static"), name="static")
+
 @app.get("/")
 async def root():
-    return {"message": "Welcome to the AI Interviewer Agent API (Local Version)"}
+    """Root endpoint for health check."""
+    return {
+        "status": "ok",
+        "message": "AI Interviewer Agent is running"
+    }
 
 @app.post("/process-audio", response_model=AudioResponse)
 async def process_audio(audio_file: UploadFile = File(...)):
@@ -172,7 +191,11 @@ async def generate_api_docs():
     except Exception as e:
         print(f"Error generating API documentation: {str(e)}")
 
-# Run the application with uvicorn when the script is executed directly
+# Run the application if executed directly
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", 8000))
+    
+    logger.info(f"Starting server on {host}:{port}")
+    uvicorn.run("backend.main:app", host=host, port=port, reload=True) 

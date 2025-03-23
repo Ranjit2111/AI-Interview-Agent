@@ -8,6 +8,7 @@ import json
 import uuid
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+import logging
 
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Query
 from fastapi.responses import JSONResponse
@@ -481,7 +482,9 @@ def create_agent_api(app: FastAPI):
     def get_skill_resources(
         skill_name: str = Query(...),
         session_id: str = Query(...),
-        orchestrator: AgentOrchestrator = Depends(get_session)
+        proficiency_level: Optional[str] = Query(None),
+        orchestrator: AgentOrchestrator = Depends(get_session),
+        db: Session = Depends(get_db)
     ):
         """
         Get resources for improving a specific skill.
@@ -489,7 +492,9 @@ def create_agent_api(app: FastAPI):
         Args:
             skill_name: The skill to get resources for
             session_id: The session identifier
+            proficiency_level: Optional proficiency level (beginner, intermediate, advanced, expert)
             orchestrator: Orchestrator instance
+            db: Database session
             
         Returns:
             List of skill resources
@@ -505,11 +510,34 @@ def create_agent_api(app: FastAPI):
         skill_assessor = orchestrator.agents["skill_assessor"]
         
         try:
-            # Get resources as JSON string
-            resources_json = skill_assessor._get_resources_for_skill(skill_name)
+            # If proficiency level is not provided, try to get it from the database
+            if not proficiency_level:
+                # Look up the skill assessment in the database
+                assessment = db.query(DBSkillAssessment).filter(
+                    DBSkillAssessment.interview_session_id == session_id,
+                    DBSkillAssessment.skill_name.ilike(f"%{skill_name}%")
+                ).first()
+                
+                if assessment:
+                    # Convert database proficiency level to string
+                    proficiency_map = {
+                        1: "beginner",
+                        2: "basic",
+                        3: "intermediate",
+                        4: "advanced",
+                        5: "expert"
+                    }
+                    proficiency_level = proficiency_map.get(assessment.proficiency, "intermediate")
             
-            # Parse JSON
-            resources_data = json.loads(resources_json)
+            # Default to intermediate if still not available
+            if not proficiency_level:
+                proficiency_level = "intermediate"
+            
+            # Get the agent context
+            context = orchestrator._get_agent_context("skill_assessor")
+            
+            # Get resources using the skill assessor's new method
+            resources = skill_assessor.get_resources_for_skill(skill_name, context)
             
             # Format resources
             return [
@@ -518,11 +546,12 @@ def create_agent_api(app: FastAPI):
                     url=resource["url"],
                     description=resource["description"],
                     resource_type=resource["type"],
-                    relevance_score=5  # Default high relevance
+                    relevance_score=float(resource.get("relevance_score", 0.8))
                 )
-                for resource in resources_data.get("resources", [])
+                for resource in resources
             ]
         except Exception as e:
+            logging.error(f"Error getting resources: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail=f"Error getting resources: {str(e)}"

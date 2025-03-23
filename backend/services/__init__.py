@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 from backend.utils.event_bus import EventBus
 from backend.services.data_management import DataManagementService
 from backend.services.session_manager import SessionManager
+from backend.services.search_service import SearchService
 
 
 class ServiceProvider:
@@ -45,11 +46,17 @@ class ServiceProvider:
             logger=self.logger
         )
         
+        # Create search service
+        self.search_service = SearchService(
+            logger=self.logger
+        )
+        
         # Track service instances
         self.services = {
             "event_bus": self.event_bus,
             "session_manager": self.session_manager,
-            "data_service": self.data_service
+            "data_service": self.data_service,
+            "search_service": self.search_service
         }
         
         self._initialized = True
@@ -124,6 +131,16 @@ def get_data_service() -> DataManagementService:
         Data management service instance
     """
     return service_provider.data_service
+
+
+def get_search_service() -> SearchService:
+    """
+    Get the global search service instance.
+    
+    Returns:
+        Search service instance
+    """
+    return service_provider.search_service
 
 
 def initialize_services(config: Optional[Dict[str, Any]] = None) -> ServiceProvider:
