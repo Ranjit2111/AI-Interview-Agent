@@ -7,9 +7,19 @@ import dynamic from 'next/dynamic';
 const BACKEND_URL = "http://localhost:8000";
 console.log("Using backend URL:", BACKEND_URL);
 
-// Dynamically import a client-only component with no SSR
+// Dynamically import client-only components with no SSR
 const DynamicCameraView = dynamic(
   () => import('../components/CameraView'),
+  { ssr: false }
+);
+
+const DynamicSpeechInput = dynamic(
+  () => import('../components/SpeechInput'),
+  { ssr: false }
+);
+
+const DynamicSpeechOutput = dynamic(
+  () => import('../components/SpeechOutput'),
   { ssr: false }
 );
 
@@ -27,6 +37,11 @@ export default function Home() {
   const [navbarVisible, setNavbarVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isClient, setIsClient] = useState(false);
+  
+  // New state for speech features
+  const [useSpeechInput, setUseSpeechInput] = useState(false);
+  const [useSpeechOutput, setUseSpeechOutput] = useState(false);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   
   const audioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -199,6 +214,16 @@ export default function Home() {
 
   const scrollToSection = (sectionId) => {
     sectionsRef.current[sectionId]?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Speech input handler
+  const handleSpeechInput = (transcript) => {
+    setUserInput(transcript);
+    if (transcript.trim()) {
+      // Auto-submit the form when speech input is received
+      const fakeEvent = { preventDefault: () => {} };
+      handleSubmitInterview(fakeEvent);
+    }
   };
 
   return (
@@ -408,121 +433,106 @@ export default function Home() {
 
       {/* Interview Section */}
       <section 
-        ref={el => sectionsRef.current.interview = el}
-        className="section"
+        id="interview" 
+        ref={(el) => (sectionsRef.current.interview = el)}
+        className="min-h-screen flex flex-col items-center justify-center py-12"
       >
-        <div className="container-custom">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-            <div>
-              <div className="slide-up">
-                <h2 className="text-3xl font-bold mb-6">Interview Session</h2>
-                <div className="camera-container mb-6">
-                  {isClient ? <DynamicCameraView /> : 
-                    <div className="w-full h-full flex items-center justify-center bg-dark-800">
-                      <p className="text-shaga-secondary">Camera loading...</p>
-                    </div>
-                  }
-                  <div className="absolute inset-0 border border-accent-yellow pointer-events-none"></div>
-                  <div className="absolute top-4 left-4 flex items-center">
-                    <div className="w-2 h-2 rounded-full bg-accent-green mr-2 animate-pulse"></div>
-                    <span className="text-xs text-shaga-secondary uppercase tracking-wider">Live Camera</span>
-                  </div>
-                  {isRecording && (
-                    <div className="absolute top-4 right-4 flex items-center">
-                      <div className="w-2 h-2 rounded-full bg-red-500 mr-2 animate-pulse"></div>
-                      <span className="text-xs text-red-400 uppercase tracking-wider">Recording</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <div className="flex gap-4 mb-8 slide-up animation-delay-200">
-                <button 
-                  onClick={isRecording ? stopRecording : startRecording} 
-                  className={`flex-1 ${isRecording ? 'btn-primary border-red-500 text-red-400' : 'btn-primary'}`}
-                >
-                  {isRecording ? 'Stop Recording' : 'Start Recording'}
-                </button>
-                <button 
-                  onClick={() => scrollToSection('feedback')} 
-                  className="btn-outline"
-                >
-                  View Feedback
-                </button>
-              </div>
-              
-              {audioFeedback && (
-                <div className="card p-4 slide-up animation-delay-300">
-                  <h3 className="text-lg font-medium text-shaga-primary mb-2">Audio Feedback:</h3>
-                  <audio ref={audioRef} controls src={audioFeedback} className="w-full mt-2" />
-                </div>
-              )}
+        <h2 className="text-3xl font-bold mb-8">Interview Session</h2>
+        
+        <div className="w-full max-w-4xl bg-gray-800 rounded-lg shadow-xl p-6">
+          <div className="flex flex-col md:flex-row gap-6">
+            {/* Video feed */}
+            <div className="w-full md:w-1/3 h-64 md:h-auto bg-gray-700 rounded-lg overflow-hidden">
+              {isClient && <DynamicCameraView />}
             </div>
             
-            <div className="space-y-6">
-              {response && (
-                <div className="card p-6 bg-dark-700 border-l-2 border-l-accent-yellow slide-up">
-                  <h3 className="text-lg font-medium text-accent-yellow mb-2">Interviewer Question:</h3>
-                  <p className="text-shaga-primary">{response}</p>
-                </div>
-              )}
+            {/* Interview content */}
+            <div className="w-full md:w-2/3 flex flex-col">
+              {/* Response area */}
+              <div className="flex-grow mb-6 bg-gray-700 rounded-lg p-4 overflow-y-auto max-h-64 md:max-h-96">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                  </div>
+                ) : response ? (
+                  <div className="space-y-4">
+                    <p className="whitespace-pre-line">{response}</p>
+                    
+                    {/* Add speech output component */}
+                    {isClient && useSpeechOutput && (
+                      <div className="mt-4 pt-4 border-t border-gray-600">
+                        <DynamicSpeechOutput
+                          text={response}
+                          onPlay={() => setIsAudioPlaying(true)}
+                          onEnd={() => setIsAudioPlaying(false)}
+                          backendUrl={BACKEND_URL}
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 italic">
+                    Your interview responses will appear here. Start by entering your response below.
+                  </p>
+                )}
+              </div>
               
-              <form onSubmit={handleSubmitInterview} className="card p-6 slide-up animation-delay-200">
-                <div className="space-y-4">
-                  <div>
-                    <label htmlFor="userInput" className="block text-sm font-medium text-shaga-secondary mb-1">
-                      Your Answer
-                    </label>
-                    <textarea 
-                      id="userInput"
-                      value={userInput} 
-                      onChange={(e) => setUserInput(e.target.value)} 
-                      placeholder="Type your answer here..." 
-                      className="input-field min-h-[120px]"
-                      rows={4}
-                    />
+              {/* Input area with speech options */}
+              <div className="bg-gray-700 rounded-lg p-4">
+                <form onSubmit={handleSubmitInterview} className="space-y-4">
+                  {/* Speech input toggle */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <label className="text-sm cursor-pointer flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={useSpeechInput}
+                          onChange={() => setUseSpeechInput(!useSpeechInput)}
+                          className="mr-2"
+                        />
+                        Voice Input
+                      </label>
+                      
+                      <label className="text-sm cursor-pointer flex items-center ml-4">
+                        <input
+                          type="checkbox"
+                          checked={useSpeechOutput}
+                          onChange={() => setUseSpeechOutput(!useSpeechOutput)}
+                          className="mr-2"
+                        />
+                        Voice Output
+                      </label>
+                    </div>
                   </div>
                   
-                  <button 
-                    type="submit" 
-                    className="btn-accent w-full"
-                    disabled={isLoading || !userInput}
+                  {/* Speech input component */}
+                  {isClient && useSpeechInput ? (
+                    <DynamicSpeechInput
+                      onSpeechInput={handleSpeechInput}
+                      language="en-US"
+                      autoStart={false}
+                    />
+                  ) : (
+                    <textarea
+                      className="w-full p-3 bg-gray-600 text-white rounded-lg"
+                      rows="4"
+                      placeholder="Type your response here..."
+                      value={userInput}
+                      onChange={(e) => setUserInput(e.target.value)}
+                      disabled={isLoading || isAudioPlaying}
+                    ></textarea>
+                  )}
+                  
+                  <button
+                    type="submit"
+                    className={`px-4 py-2 bg-blue-600 text-white rounded-lg ${
+                      isLoading || isAudioPlaying ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+                    }`}
+                    disabled={isLoading || isAudioPlaying}
                   >
-                    {isLoading && !isRecording ? (
-                      <span className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Processing...
-                      </span>
-                    ) : (
-                      'Submit Answer'
-                    )}
+                    {isLoading ? 'Processing...' : 'Submit Response'}
                   </button>
-                </div>
-              </form>
-              
-              <div className="card p-6 slide-up animation-delay-300">
-                <h3 className="text-lg font-medium text-shaga-primary mb-4">Interview Stats</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-accent-yellow mb-1">
-                      {response ? '1' : '0'}
-                    </div>
-                    <div className="text-xs text-shaga-muted uppercase tracking-wider">
-                      Questions
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-accent-yellow mb-1">
-                      {userInput ? '1' : '0'}
-                    </div>
-                    <div className="text-xs text-shaga-muted uppercase tracking-wider">
-                      Answers
-                    </div>
-                  </div>
-                </div>
+                </form>
               </div>
             </div>
           </div>
