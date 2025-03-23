@@ -30,11 +30,17 @@ chromadb==0.4.22
 # Agent frameworks
 smol-agent==0.1.2
 
+# Speech processing
+assemblyai==0.18.0  # For AssemblyAI transcription
+pydub==0.25.1       # Audio processing
+SpeechRecognition==3.10.0
+pyaudio==0.2.13
+
+# TTS Integration
+kokoro-tts-fastapi-client==0.5.0  # Client for Kokoro TTS API
+
 # Utils
 python-dotenv==1.0.0
 loguru==0.7.2
 pandas==2.1.1
-numpy==1.26.0
-pydub==0.25.1
-SpeechRecognition==3.10.0
-pyaudio==0.2.13 
+numpy==1.26.0 
