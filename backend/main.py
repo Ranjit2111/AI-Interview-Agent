@@ -4,6 +4,7 @@ This application provides interview preparation services that run locally.
 """
 
 import os
+import logging
 import shutil
 import tempfile
 import uuid
@@ -21,7 +22,12 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
+
+from backend.api import create_app
+from backend.database.connection import init_db
+from backend.services import initialize_services
 from backend.utils.docs_generator import generate_static_docs
+
 
 # API key handling
 load_dotenv()
@@ -34,62 +40,17 @@ if not api_key:
 TEMP_DIR = os.path.join(os.getcwd(), "temp")
 os.makedirs(TEMP_DIR, exist_ok=True)
 
-# Initialize the Google Gemini LLM with the API key
-llm = ChatGoogleGenerativeAI(model="gemini-pro", api_key=api_key)
+# Initialize services
+service_provider = initialize_services({
+    "log_level": logging.INFO,
+    "api_key": api_key
+})
 
-# Create a prompt template for adaptive questioning
-prompt_template = PromptTemplate(
-    input_variables=["user_input", "job_role", "job_description"],
-    template="Based on the user's previous responses: {user_input}, job role: {job_role}, job description: {job_description}, generate an adaptive interview question."
-)
+# Initialize database
+init_db()
 
-# Create a chain using the newer langchain-core approach
-chain = prompt_template | llm | StrOutputParser()
-
-# Simple agent to decide next questions
-class SimpleAgent:
-    def decide_next_question(self, context):
-        return "Tell me more about your experience with this role."
-
-# Initialize SimpleAgent
-smol_agent = SimpleAgent()
-
-# Helper functions
-def transcribe_audio(audio_path: str) -> str:
-    # Simplified transcription function that returns a placeholder
-    return "This is a placeholder transcription. In a real implementation, this would be the transcribed text from the audio file."
-
-def synthesize_speech(text: str, output_path: str):
-    # Generate a simple sine wave as a placeholder
-    sample_rate = 44100  # 44.1kHz
-    duration = 3  # seconds
-    frequency = 440  # A4 note
-    t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
-    audio_data = 0.5 * np.sin(2 * np.pi * frequency * t)
-    wav.write(output_path, sample_rate, audio_data.astype(np.float32))
-
-# Pydantic models for request/response validation
-class InterviewRequest(BaseModel):
-    user_input: str
-    job_role: str
-    job_description: str
-
-class InterviewResponse(BaseModel):
-    generated_text: str
-
-class ContextResponse(BaseModel):
-    message: str
-
-class AudioResponse(BaseModel):
-    audio_url: str
-    transcription: str
-
-# Create FastAPI app
-app = FastAPI(
-    title="AI Interviewer Agent",
-    description="API for AI interview preparation services (Local Version)",
-    version="1.0.0"
-)
+# Create API app
+app = create_app()
 
 # Add CORS middleware to allow cross-origin requests from the frontend
 app.add_middleware(
