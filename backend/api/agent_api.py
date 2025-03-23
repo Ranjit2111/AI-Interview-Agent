@@ -18,11 +18,7 @@ from backend.database.connection import get_db
 from backend.models.interview import InterviewStyle, InterviewSession
 from backend.models.user import User
 from backend.agents import AgentOrchestrator, OrchestratorMode
-
-
-# Global orchestrator instances cache
-# Maps session_id to orchestrator instance
-orchestrators = {}
+from backend.services import get_session_manager, get_data_service
 
 
 class UserMessage(BaseModel):
@@ -32,21 +28,13 @@ class UserMessage(BaseModel):
     session_id: Optional[str] = Field(None, description="Session identifier")
 
 
-class AgentResponse(BaseModel):
-    """Model for agent responses."""
-    message: str = Field(..., description="The agent's response text")
-    session_id: str = Field(..., description="Session identifier")
-    agent_id: str = Field(..., description="Identifier of the agent that generated the response")
-    timestamp: str = Field(..., description="ISO timestamp of when the response was generated")
-
-
 class InterviewConfig(BaseModel):
-    """Model for interview configuration."""
+    """Model for configuring a new interview session."""
     job_role: str = Field(..., description="Target job role for the interview")
-    job_description: Optional[str] = Field("", description="Description of the job")
-    interview_style: str = Field("formal", description="Style of the interview (formal, casual, aggressive, technical)")
+    job_description: str = Field("", description="Detailed job description")
+    interview_style: str = Field("FORMAL", description="Style of interview (FORMAL, CASUAL, AGGRESSIVE, TECHNICAL)")
+    mode: str = Field(OrchestratorMode.INTERVIEW_WITH_COACHING, description="Operating mode for the orchestrator")
     user_id: Optional[str] = Field(None, description="User identifier")
-    mode: str = Field(OrchestratorMode.INTERVIEW_WITH_COACHING, description="Operation mode for the orchestrator")
 
 
 class SessionInfo(BaseModel):
@@ -59,23 +47,44 @@ class SessionInfo(BaseModel):
     active_agent: str = Field(..., description="Currently active agent")
 
 
-def get_orchestrator(session_id: str) -> AgentOrchestrator:
+class SessionMetrics(BaseModel):
+    """Model for session metrics."""
+    total_messages: int = Field(..., description="Total messages in conversation")
+    user_message_count: int = Field(..., description="Number of user messages")
+    assistant_message_count: int = Field(..., description="Number of assistant messages")
+    average_user_message_length: float = Field(..., description="Average length of user messages")
+    average_assistant_message_length: float = Field(..., description="Average length of assistant messages")
+    average_response_time_seconds: Optional[float] = Field(None, description="Average time between messages in seconds")
+    conversation_duration_seconds: Optional[float] = Field(None, description="Total conversation duration in seconds")
+
+
+class AgentResponse(BaseModel):
+    """Model for agent responses."""
+    response: str = Field(..., description="The agent's response text")
+    session_id: str = Field(..., description="Session identifier")
+    agent: str = Field(..., description="Agent that provided the response")
+    timestamp: str = Field(..., description="ISO timestamp of the response")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional response metadata")
+
+
+def get_session(session_id: str) -> AgentOrchestrator:
     """
-    Get the orchestrator for a session.
+    Get an orchestrator instance for a session.
     
     Args:
         session_id: The session identifier
         
     Returns:
-        The orchestrator for the session
+        Orchestrator instance
         
     Raises:
-        HTTPException: If the session is not found
+        HTTPException: If session not found
     """
-    if session_id not in orchestrators:
+    session_manager = get_session_manager()
+    orchestrator = session_manager.get_session(session_id)
+    if not orchestrator:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
-    
-    return orchestrators[session_id]
+    return orchestrator
 
 
 def create_agent_api(app: FastAPI):
@@ -85,6 +94,9 @@ def create_agent_api(app: FastAPI):
     Args:
         app: The FastAPI application
     """
+    # Get service instances
+    session_manager = get_session_manager()
+    data_service = get_data_service()
     
     @app.post("/api/interview/start", response_model=SessionInfo)
     def start_interview(config: InterviewConfig, db: Session = Depends(get_db)):
@@ -98,232 +110,180 @@ def create_agent_api(app: FastAPI):
         Returns:
             Information about the created session
         """
-        # Create a new session ID
-        session_id = str(uuid.uuid4())
-        
-        # Map string style to enum
-        try:
-            style = InterviewStyle(config.interview_style.upper())
-        except ValueError:
-            # Default to formal if invalid style
-            style = InterviewStyle.FORMAL
-        
-        # Create a new orchestrator
-        orchestrator = AgentOrchestrator(
+        # Create a new session using the session manager
+        session_info = session_manager.create_session(
             mode=config.mode,
             job_role=config.job_role,
             job_description=config.job_description,
-            interview_style=style
+            interview_style=config.interview_style,
+            user_id=config.user_id
         )
         
-        # Store in cache
-        orchestrators[session_id] = orchestrator
+        # Get the session ID and orchestrator
+        session_id = session_info["session_id"]
+        orchestrator = session_manager.get_session(session_id)
         
         # Store session in database if user_id provided
         if config.user_id:
-            # Check if user exists
-            user = db.query(User).filter(User.id == config.user_id).first()
-            
-            if not user:
-                raise HTTPException(status_code=404, detail=f"User {config.user_id} not found")
-            
-            # Create interview session
-            interview_session = InterviewSession(
-                id=session_id,
-                user_id=config.user_id,
-                job_role=config.job_role,
-                job_description=config.job_description,
-                style=style,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow()
-            )
-            
-            db.add(interview_session)
-            db.commit()
+            # Persist to database
+            session_manager.persist_session(db, session_id)
         
         # Initiate the interview
         welcome_message = orchestrator.process_input("/start")
         
-        # Return session info
+        # Return session info with welcome message
         return {
-            "session_id": session_id,
-            "job_role": config.job_role,
-            "interview_style": style.value,
-            "mode": orchestrator.mode,
-            "created_at": datetime.utcnow().isoformat(),
-            "active_agent": orchestrator.active_agent_id,
+            **session_info,
             "welcome_message": welcome_message
         }
     
-    @app.post("/api/interview/message", response_model=AgentResponse)
-    def send_message(message: UserMessage, orchestrator: AgentOrchestrator = Depends(get_orchestrator)):
+    @app.post("/api/interview/send", response_model=AgentResponse)
+    def send_message(
+        message: UserMessage,
+        background_tasks: BackgroundTasks,
+        db: Session = Depends(get_db),
+        orchestrator: AgentOrchestrator = Depends(get_session)
+    ):
         """
-        Send a message to the interview agents.
+        Send a message to the interview agent.
         
         Args:
             message: The user's message
-            orchestrator: The orchestrator for the session
+            background_tasks: FastAPI background tasks
+            db: Database session
+            orchestrator: Orchestrator instance
             
         Returns:
-            The agent's response
+            Agent response
         """
         # Process the message
-        response = orchestrator.process_input(message.message, message.user_id)
+        user_id = message.user_id
+        if user_id:
+            orchestrator.user_id = user_id
+        
+        # Process input
+        response_text = orchestrator.process_input(message.message, user_id=user_id)
+        
+        # Schedule background tasks
+        background_tasks.add_task(session_manager.persist_session, db, message.session_id)
         
         # Return the response
         return {
-            "message": response,
-            "session_id": orchestrator.session_id,
-            "agent_id": orchestrator.active_agent_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "response": response_text,
+            "session_id": message.session_id,
+            "agent": orchestrator.active_agent_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "metadata": None
         }
     
-    @app.post("/api/interview/end")
+    @app.post("/api/interview/end", response_model=Dict[str, Any])
     def end_interview(
-        session_id: str = Query(..., description="Session identifier"),
-        db: Session = Depends(get_db)
+        message: UserMessage,
+        background_tasks: BackgroundTasks,
+        db: Session = Depends(get_db),
+        orchestrator: AgentOrchestrator = Depends(get_session)
     ):
         """
         End an interview session.
         
         Args:
-            session_id: The session identifier
+            message: The user's message (session_id required)
+            background_tasks: FastAPI background tasks
             db: Database session
+            orchestrator: Orchestrator instance
             
         Returns:
-            Success message
+            End confirmation and summary
         """
-        orchestrator = get_orchestrator(session_id)
-        
-        # End the interview
+        # Send end command
         end_message = orchestrator.process_input("/end")
         
-        # Update the session in the database
-        session = db.query(InterviewSession).filter(InterviewSession.id == session_id).first()
+        # Calculate metrics
+        metrics = data_service.calculate_session_metrics(orchestrator.conversation_history)
         
-        if session:
-            session.updated_at = datetime.utcnow()
-            db.commit()
+        # Archive the session
+        background_tasks.add_task(
+            data_service.archive_session, 
+            db, 
+            message.session_id, 
+            orchestrator.conversation_history
+        )
         
-        # Remove from cache
-        del orchestrators[session_id]
+        # End the session
+        background_tasks.add_task(session_manager.end_session, message.session_id)
         
-        return {"message": "Interview session ended", "end_message": end_message}
+        # Return end confirmation and metrics
+        return {
+            "message": end_message,
+            "session_id": message.session_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "metrics": metrics
+        }
     
     @app.get("/api/interview/sessions", response_model=List[SessionInfo])
-    def list_sessions(user_id: Optional[str] = None, db: Session = Depends(get_db)):
+    def list_sessions(user_id: Optional[str] = None):
         """
         List active interview sessions.
         
         Args:
             user_id: Filter by user ID
-            db: Database session
             
         Returns:
             List of active sessions
         """
-        # Get active sessions from cache
-        active_sessions = []
-        
-        for session_id, orchestrator in orchestrators.items():
-            # Filter by user_id if provided
-            if user_id and orchestrator.user_id != user_id:
-                continue
-            
-            active_sessions.append({
-                "session_id": session_id,
-                "job_role": orchestrator.job_role,
-                "interview_style": orchestrator.interview_style.value,
-                "mode": orchestrator.mode,
-                "created_at": "unknown",  # We don't track creation time in orchestrator
-                "active_agent": orchestrator.active_agent_id
-            })
-        
-        return active_sessions
+        # Get active sessions from session manager
+        return session_manager.list_sessions(user_id)
     
     @app.get("/api/interview/info", response_model=SessionInfo)
-    def get_session_info(session_id: str = Query(...), orchestrator: AgentOrchestrator = Depends(get_orchestrator)):
+    def get_session_info(session_id: str = Query(...)):
         """
         Get information about an interview session.
         
         Args:
             session_id: The session identifier
-            orchestrator: The orchestrator for the session
             
         Returns:
             Session information
         """
-        return {
-            "session_id": session_id,
-            "job_role": orchestrator.job_role,
-            "interview_style": orchestrator.interview_style.value,
-            "mode": orchestrator.mode,
-            "created_at": "unknown",  # We don't track creation time in orchestrator
-            "active_agent": orchestrator.active_agent_id
-        }
+        session_info = session_manager.get_session_info(session_id)
+        if not session_info:
+            raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+        return session_info
     
-    @app.post("/api/interview/switch-agent")
-    def switch_agent(
-        session_id: str = Query(..., description="Session identifier"),
-        agent_id: str = Query(..., description="Agent identifier"),
-        orchestrator: AgentOrchestrator = Depends(get_orchestrator)
+    @app.get("/api/interview/metrics", response_model=SessionMetrics)
+    def get_session_metrics(
+        session_id: str = Query(...),
+        orchestrator: AgentOrchestrator = Depends(get_session)
     ):
         """
-        Switch the active agent for a session.
+        Get metrics for an interview session.
         
         Args:
             session_id: The session identifier
-            agent_id: The agent to switch to
-            orchestrator: The orchestrator for the session
+            orchestrator: Orchestrator instance
             
         Returns:
-            Success message
+            Session metrics
         """
-        # Switch agent
-        response = orchestrator.process_input(f"/switch {agent_id}")
-        
-        return {"message": response}
+        # Calculate metrics from conversation history
+        return data_service.calculate_session_metrics(orchestrator.conversation_history)
     
-    @app.post("/api/interview/switch-mode")
-    def switch_mode(
-        session_id: str = Query(..., description="Session identifier"),
-        mode: str = Query(..., description="Mode to switch to"),
-        orchestrator: AgentOrchestrator = Depends(get_orchestrator)
+    @app.get("/api/interview/history", response_model=List[Dict[str, Any]])
+    def get_conversation_history(
+        session_id: str = Query(...),
+        orchestrator: AgentOrchestrator = Depends(get_session)
     ):
         """
-        Switch the orchestrator mode for a session.
+        Get the conversation history for a session.
         
         Args:
             session_id: The session identifier
-            mode: The mode to switch to
-            orchestrator: The orchestrator for the session
+            orchestrator: Orchestrator instance
             
         Returns:
-            Success message
+            List of conversation messages
         """
-        # Switch mode
-        response = orchestrator.process_input(f"/mode {mode}")
-        
-        return {"message": response}
-    
-    @app.post("/api/interview/reset")
-    def reset_session(
-        session_id: str = Query(..., description="Session identifier"),
-        orchestrator: AgentOrchestrator = Depends(get_orchestrator)
-    ):
-        """
-        Reset an interview session.
-        
-        Args:
-            session_id: The session identifier
-            orchestrator: The orchestrator for the session
-            
-        Returns:
-            Success message
-        """
-        # Reset session
-        response = orchestrator.process_input("/reset")
-        
-        return {"message": response}
+        # Return the conversation history
+        return orchestrator.conversation_history
     
     return app 

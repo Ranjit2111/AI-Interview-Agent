@@ -4,6 +4,7 @@ Provides SQLAlchemy engine and session management.
 """
 
 import os
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -15,6 +16,9 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL", 
     "sqlite:///./interview_agent.db"
 )
+
+# Create logger
+logger = logging.getLogger(__name__)
 
 # Create the SQLAlchemy engine
 engine = create_engine(
@@ -55,4 +59,10 @@ def init_db() -> None:
     """
     Initialize the database by creating all tables.
     """
-    Base.metadata.create_all(bind=engine) 
+    logger.info("Initializing database...")
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created successfully")
+    except Exception as e:
+        logger.error(f"Error creating database tables: {str(e)}")
+        raise 
