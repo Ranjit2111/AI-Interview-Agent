@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 
 // Set default to localhost if not specified in environment variables
 // IMPORTANT: This ensures we ALWAYS use localhost for this local project
@@ -227,50 +228,29 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       <Head>
-        <title>AI Interview Coach | Advanced Interview Training</title>
-        <meta name="description" content="AI-powered interview coaching with real-time feedback and analysis" />
+        <title>AI Interview Agent</title>
+        <meta name="description" content="Practice interviews with AI coaching" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      {/* Navbar */}
-      <nav className={`navbar ${navbarVisible ? 'navbar-visible' : 'navbar-hidden'}`}>
-        <div className="container-custom py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <h1 className="text-xl font-bold tracking-wider text-accent-yellow">:AI·COACH</h1>
-            <div className="hidden md:flex space-x-6">
-              <button 
-                onClick={() => scrollToSection('home')} 
-                className={`nav-link ${activeSection === 'home' ? 'nav-link-active' : ''}`}
-              >
-                :HOME
-              </button>
-              <button 
-                onClick={() => scrollToSection('setup')} 
-                className={`nav-link ${activeSection === 'setup' ? 'nav-link-active' : ''}`}
-              >
-                :SETUP
-              </button>
-              <button 
-                onClick={() => scrollToSection('interview')} 
-                className={`nav-link ${activeSection === 'interview' ? 'nav-link-active' : ''}`}
-              >
-                :INTERVIEW
-              </button>
-              <button 
-                onClick={() => scrollToSection('feedback')} 
-                className={`nav-link ${activeSection === 'feedback' ? 'nav-link-active' : ''}`}
-              >
-                :FEEDBACK
-              </button>
-            </div>
+      {/* Navigation Bar */}
+      <header className={`bg-white shadow transition-all duration-300 ease-in-out ${navbarVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center">
+            <span className="text-xl font-bold text-gray-900">AI Interview Agent</span>
           </div>
-          <div>
-            <span className="text-xs text-shaga-muted tracking-widest">©AI·COACH</span>
-          </div>
+          <nav className="flex space-x-6">
+            <Link href="/">
+              <a className="text-blue-600 font-medium">Home</a>
+            </Link>
+            <Link href="/transcripts">
+              <a className="text-gray-600 hover:text-blue-600 transition">Transcripts</a>
+            </Link>
+          </nav>
         </div>
-      </nav>
+      </header>
 
       {/* Hero Section */}
       <section 

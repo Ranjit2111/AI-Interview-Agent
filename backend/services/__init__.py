@@ -4,12 +4,15 @@ Provides initialization functions for creating and configuring service instances
 """
 
 import logging
+import os
 from typing import Dict, Any, Optional
 
 from backend.utils.event_bus import EventBus
 from backend.services.data_management import DataManagementService
 from backend.services.session_manager import SessionManager
 from backend.services.search_service import SearchService
+from backend.services.transcript_service import TranscriptService
+from backend.utils.vector_store import VectorStore
 
 
 class ServiceProvider:
@@ -26,40 +29,58 @@ class ServiceProvider:
         return cls._instance
     
     def __init__(self):
-        if self._initialized:
-            return
-        
-        # Create logger
-        self.logger = logging.getLogger(__name__)
-        
-        # Create event bus
-        self.event_bus = EventBus()
-        
-        # Create services
-        self.session_manager = SessionManager(
-            event_bus=self.event_bus,
-            logger=self.logger
-        )
-        
-        self.data_service = DataManagementService(
-            event_bus=self.event_bus,
-            logger=self.logger
-        )
-        
-        # Create search service
-        self.search_service = SearchService(
-            logger=self.logger
-        )
-        
-        # Track service instances
-        self.services = {
-            "event_bus": self.event_bus,
-            "session_manager": self.session_manager,
-            "data_service": self.data_service,
-            "search_service": self.search_service
-        }
-        
-        self._initialized = True
+        """Initialize service provider and register services."""
+        if not hasattr(self, "initialized"):
+            self.logger = logging.getLogger(__name__)
+            self.logger.info("Initializing service provider")
+            
+            # Configure service registry
+            self.services = {}
+            
+            # Initialize event bus
+            from backend.utils.event_bus import EventBus
+            self.event_bus = EventBus()
+            self.services["event_bus"] = self.event_bus
+            
+            # Initialize session manager
+            from backend.services.session_manager import SessionManager
+            self.session_manager = SessionManager(event_bus=self.event_bus)
+            self.services["session_manager"] = self.session_manager
+            
+            # Initialize data management service
+            from backend.services.data_management import DataManagementService
+            self.data_service = DataManagementService(event_bus=self.event_bus)
+            self.services["data_service"] = self.data_service
+            
+            # Initialize search service
+            from backend.services.search_service import SearchService
+            self.search_service = SearchService()
+            self.services["search_service"] = self.search_service
+            
+            # Initialize transcript service
+            from backend.services.transcript_service import TranscriptService
+            from backend.utils.vector_store import VectorStore
+            
+            # Configure vector store for transcript embeddings
+            vector_store_dir = os.environ.get("VECTOR_DB_PATH", "./data/vector_store")
+            embedding_model = os.environ.get("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+            
+            vector_store = VectorStore(
+                embedding_model_name=embedding_model,
+                index_dir=vector_store_dir
+            )
+            
+            self.transcript_service = TranscriptService(
+                event_bus=self.event_bus,
+                vector_store=vector_store,
+                embedding_model_name=embedding_model,
+                vector_store_dir=vector_store_dir
+            )
+            self.services["transcript_service"] = self.transcript_service
+            
+            # Mark as initialized
+            self.initialized = True
+            self.logger.info("Service provider initialized successfully")
     
     def get(self, service_name: str) -> Any:
         """
@@ -143,25 +164,39 @@ def get_search_service() -> SearchService:
     return service_provider.search_service
 
 
+def get_transcript_service() -> TranscriptService:
+    """
+    Get the transcript service instance.
+    
+    Returns:
+        TranscriptService: The transcript service instance.
+    """
+    return ServiceProvider().get("transcript_service")
+
+
 def initialize_services(config: Optional[Dict[str, Any]] = None) -> ServiceProvider:
     """
-    Initialize all services with optional configuration.
+    Initialize all services and return the service provider.
     
     Args:
-        config: Optional configuration dictionary
+        config: Optional configuration dictionary.
         
     Returns:
-        Service provider instance
+        ServiceProvider: The service provider instance.
     """
-    # Configure logging
-    log_level = logging.INFO
-    if config and "log_level" in config:
-        log_level = config["log_level"]
+    # Initialize database
+    try:
+        init_db()
+    except Exception as e:
+        logging.error(f"Error initializing database: {str(e)}")
     
-    service_provider.configure_logging(level=log_level)
+    # Create and return service provider
+    provider = ServiceProvider()
+    provider.configure_logging()
     
-    # Log initialization
-    service_provider.logger.info("Initializing services...")
+    # Apply configuration if provided
+    if config:
+        # Apply configuration to services as needed
+        pass
     
-    # Return service provider
-    return service_provider 
+    return provider 

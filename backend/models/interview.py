@@ -77,6 +77,7 @@ class InterviewSession(Base):
     questions = relationship("Question", back_populates="interview_session", cascade="all, delete-orphan")
     skill_assessments = relationship("SkillAssessment", back_populates="interview_session", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="session", cascade="all, delete-orphan")
+    transcripts = relationship("Transcript", back_populates="interview_session", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<InterviewSession(id={self.id}, job_role='{self.job_role}', mode='{self.mode.value}')>"
