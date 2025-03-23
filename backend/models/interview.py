@@ -2,7 +2,7 @@
 Interview models for the interview preparation system.
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, JSON, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -20,6 +20,38 @@ class InterviewStyle(enum.Enum):
     TECHNICAL = "technical"
 
 
+class SessionMode(enum.Enum):
+    """
+    Enumeration of available session modes.
+    """
+    INTERVIEW = "interview"
+    COACHING = "coaching"
+    SKILL_ASSESSMENT = "skill_assessment"
+
+
+class ProficiencyLevel(enum.Enum):
+    """
+    Enumeration of skill proficiency levels.
+    """
+    BEGINNER = "beginner"
+    BASIC = "basic"
+    INTERMEDIATE = "intermediate"
+    ADVANCED = "advanced"
+    EXPERT = "expert"
+
+
+class SkillCategory(enum.Enum):
+    """
+    Enumeration of skill categories.
+    """
+    TECHNICAL = "technical"
+    SOFT = "soft"
+    LANGUAGE = "language"
+    FRAMEWORK = "framework"
+    TOOL = "tool"
+    METHODOLOGY = "methodology"
+
+
 class InterviewSession(Base):
     """
     Interview session model representing a complete interview interaction.
@@ -32,6 +64,7 @@ class InterviewSession(Base):
     job_description = Column(Text, nullable=True)
     resume_text = Column(Text, nullable=True)
     style = Column(Enum(InterviewStyle), default=InterviewStyle.FORMAL)
+    mode = Column(Enum(SessionMode), default=SessionMode.INTERVIEW)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -41,7 +74,7 @@ class InterviewSession(Base):
     skill_assessments = relationship("SkillAssessment", back_populates="interview_session", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<InterviewSession(id={self.id}, job_role='{self.job_role}')>"
+        return f"<InterviewSession(id={self.id}, job_role='{self.job_role}', mode='{self.mode.value}')>"
 
 
 class Question(Base):
@@ -95,8 +128,9 @@ class SkillAssessment(Base):
     id = Column(Integer, primary_key=True, index=True)
     interview_session_id = Column(Integer, ForeignKey("interview_sessions.id"))
     skill_name = Column(String, nullable=False)
-    category = Column(String, nullable=False)  # Technical, Soft, etc.
-    proficiency = Column(Integer, nullable=False)  # 1-5 scale
+    category = Column(Enum(SkillCategory), nullable=False)
+    proficiency_level = Column(Enum(ProficiencyLevel), nullable=False)
+    confidence = Column(Float, default=0.0)  # Confidence score of the assessment (0.0 - 1.0)
     feedback = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -106,7 +140,7 @@ class SkillAssessment(Base):
     resources = relationship("Resource", back_populates="skill_assessment", cascade="all, delete-orphan")
     
     def __repr__(self):
-        return f"<SkillAssessment(id={self.id}, skill_name='{self.skill_name}', proficiency={self.proficiency})>"
+        return f"<SkillAssessment(id={self.id}, skill_name='{self.skill_name}', proficiency_level='{self.proficiency_level.value}')>"
 
 
 class Resource(Base):
@@ -121,7 +155,7 @@ class Resource(Base):
     url = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     resource_type = Column(String, nullable=False)  # Article, Course, Video, etc.
-    relevance_score = Column(Integer, nullable=False)  # 1-5 scale
+    relevance_score = Column(Float, default=0.0)  # Relevance score (0.0 - 1.0)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships

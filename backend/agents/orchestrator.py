@@ -4,555 +4,771 @@ This module manages communication between agents and determines which agent shou
 """
 
 import logging
+import traceback
+import time
 import uuid
+import json
+import hashlib
 from typing import Dict, Any, List, Optional, Tuple, Type
-from datetime import datetime
+from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
+from enum import Enum
 
 from backend.agents.base import BaseAgent, AgentContext
 from backend.agents.interviewer import InterviewerAgent
 from backend.agents.coach import CoachAgent
 from backend.agents.skill_assessor import SkillAssessorAgent
-from backend.utils.event_bus import Event, EventBus
-from backend.models.interview import InterviewStyle
+from backend.agents.feedback_agent import FeedbackAgent
+from backend.utils.event_bus import Event, EventBus, EventType
+from backend.models.interview import InterviewStyle, SessionMode, InterviewSession, SkillAssessment, Resource
+from backend.config import settings
 
+import backoff
+import httpx
+from tenacity import retry, stop_after_attempt, wait_exponential
 
-class OrchestratorMode(str):
-    """Orchestrator operating modes that determine which agents are active."""
-    INTERVIEW_ONLY = "interview_only"  # Only interviewer agent responds
-    INTERVIEW_WITH_COACHING = "interview_with_coaching"  # Interviewer leads with coaching feedback
-    COACHING_ONLY = "coaching_only"  # Only coach responds
-    SKILL_ASSESSMENT = "skill_assessment"  # Targeted skill assessment
-    FULL_FEEDBACK = "full_feedback"  # All agents provide feedback
+# Default system message for the orchestrator
+ORCHESTRATOR_SYSTEM_MESSAGE = """
+You are an orchestrator managing an interview preparation session. Your goal is to help the user prepare for job interviews
+by coordinating specialized agents to provide tailored assistance.
+"""
 
+class OrchestratorMode(str, Enum):
+    """Orchestrator operating modes."""
+    INTERVIEW = "interview"  # Standard interview mode with questions
+    SKILL_ASSESSMENT = "skill_assessment"  # Focused skill assessment
+    FEEDBACK = "feedback"  # Providing feedback on user answers
 
-class AgentOrchestrator:
+# Cache expiration time in seconds
+RESPONSE_CACHE_TTL = 120  # 2 minutes
+
+class Orchestrator:
     """
-    Orchestrator that coordinates multiple agents.
+    Orchestrator that coordinates multiple agents in the interview system.
     
     The orchestrator is responsible for:
     - Managing the lifecycle of multiple agents
     - Routing user input to appropriate agents
     - Aggregating responses from multiple agents
-    - Determining when to switch between agents
-    - Maintaining coherent conversation flow
+    - Maintaining session state and mode
+    - Handling skill assessment events
     """
     
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        model_name: str = "gpt-4-turbo",
+        session_id: str,
+        job_role: Optional[str] = None,
+        job_description: Optional[str] = None,
+        interview_style: Optional[str] = None,
+        mode: OrchestratorMode = OrchestratorMode.INTERVIEW,
+        system_message: Optional[str] = None,
+        event_bus: Optional[EventBus] = None,
+        db_session: Optional[Session] = None,
         logger: Optional[logging.Logger] = None,
-        mode: str = OrchestratorMode.INTERVIEW_WITH_COACHING,
-        job_role: str = "",
-        job_description: str = "",
-        interview_style: InterviewStyle = InterviewStyle.FORMAL
     ):
         """
-        Initialize the agent orchestrator.
+        Initialize the orchestrator.
         
         Args:
-            api_key: API key for the language model
-            model_name: Name of the language model to use
-            logger: Logger for recording orchestrator activity
-            mode: Operating mode that determines which agents are active
-            job_role: Target job role for the interview
+            session_id: Unique identifier for the interview session
+            job_role: The role the user is interviewing for
             job_description: Description of the job
-            interview_style: Style of interview to conduct
+            interview_style: Style of interview (e.g., behavioral, technical)
+            mode: Operating mode for the orchestrator
+            system_message: Custom system message for the orchestrator
+            event_bus: Event bus for publishing events
+            db_session: Database session for persistence
+            logger: Logger for recording orchestrator activity
         """
-        self.api_key = api_key
-        self.model_name = model_name
-        self.logger = logger or logging.getLogger(__name__)
+        self.session_id = session_id
+        self.job_role = job_role or "Software Engineer"
+        self.job_description = job_description or "A general software engineering role requiring coding skills and problem-solving abilities."
+        self.interview_style = interview_style or "technical"
         self.mode = mode
-        self.job_role = job_role
-        self.job_description = job_description
-        self.interview_style = interview_style
+        self.system_message = system_message or ORCHESTRATOR_SYSTEM_MESSAGE
+        self.event_bus = event_bus or EventBus()
+        self.db_session = db_session
+        self.logger = logger or logging.getLogger(__name__)
         
-        # Create event bus for inter-agent communication
-        self.event_bus = EventBus()
+        # Conversation history
+        self.conversation_history: List[Dict[str, Any]] = []
         
-        # Create agents
-        self.agents = {}
-        self._initialize_agents()
+        # Performance tracking
+        self.last_response_time = 0
+        self.avg_response_time = 0
+        self.response_time_samples = 0
         
-        # Track which agent is currently active/responding
-        self.active_agent_id = None
+        # LLM API call stats
+        self.total_tokens_used = 0
+        self.api_call_count = 0
         
-        # Track conversation contexts for each agent
-        self.agent_contexts = {}
+        # Caching for better performance
+        self._last_processed_msg_index = -1
+        self._agent_cache = {}
+        self._response_cache = {}
+        self._response_cache_timestamps = {}
+        self._message_hash_cache = {}
         
-        # Session tracking
-        self.session_id = str(uuid.uuid4())
-        self.user_id = None
-        self.conversation_history = []
+        # History window settings
+        self._history_window_size = 20  # Maximum number of messages to include
+        self._summarized_history = None  # Summary of older messages
+        self._summarization_threshold = 10  # When to summarize older messages
         
-        # Command tracking
-        self.commands = {
-            "help": self._handle_help_command,
-            "mode": self._handle_mode_command,
-            "reset": self._handle_reset_command,
-            "agents": self._handle_agents_command,
-            "switch": self._handle_switch_command,
-            "start": self._handle_start_command,
-            "end": self._handle_end_command
-        }
+        # Initialize agents (lazy loading - will be created when needed)
+        self._interviewer_agent: Optional[InterviewerAgent] = None
+        self._feedback_agent: Optional[FeedbackAgent] = None
+        self._skill_assessor_agent: Optional[SkillAssessorAgent] = None
         
-        # Subscribe to relevant events
-        self.event_bus.subscribe("*", self._handle_event)
-    
-    def _initialize_agents(self) -> None:
-        """
-        Initialize all required agents based on the current mode.
-        """
-        # Create interviewer agent
-        interviewer = InterviewerAgent(
-            api_key=self.api_key,
-            model_name=self.model_name,
-            event_bus=self.event_bus,
-            logger=self.logger,
-            interview_style=self.interview_style,
-            job_role=self.job_role,
-            job_description=self.job_description
+        # In case we need quick access to the current agent being used
+        self.current_agent_type = None
+        
+        # Set up event handlers
+        self._setup_event_handlers()
+        
+        # Log orchestrator initialization
+        self.logger.info(
+            f"Initialized orchestrator for session {session_id} - "
+            f"Job: {job_role}, Style: {interview_style}, Mode: {mode}"
         )
-        self.agents["interviewer"] = interviewer
-        
-        # Only create coach and skill assessor for modes that need them
-        if self.mode in [OrchestratorMode.INTERVIEW_WITH_COACHING, 
-                         OrchestratorMode.COACHING_ONLY,
-                         OrchestratorMode.FULL_FEEDBACK]:
-            coach = CoachAgent(
-                api_key=self.api_key,
-                model_name=self.model_name,
+    
+    def _setup_event_handlers(self) -> None:
+        """Set up event handlers for the orchestrator."""
+        self.event_bus.subscribe("interview_start", self._handle_interview_start)
+        self.event_bus.subscribe("interview_end", self._handle_interview_end)
+        self.event_bus.subscribe("mode_change", self._handle_mode_change)
+    
+    @property
+    def interviewer_agent(self) -> InterviewerAgent:
+        """Get or create the interviewer agent."""
+        if not self._interviewer_agent:
+            # Lazy initialization of the interviewer agent
+            self._interviewer_agent = InterviewerAgent(
+                session_id=self.session_id,
+                job_role=self.job_role,
+                job_description=self.job_description,
+                interview_style=self.interview_style,
                 event_bus=self.event_bus,
                 logger=self.logger
             )
-            self.agents["coach"] = coach
-        
-        if self.mode in [OrchestratorMode.SKILL_ASSESSMENT, 
-                         OrchestratorMode.FULL_FEEDBACK]:
-            skill_assessor = SkillAssessorAgent(
-                api_key=self.api_key,
-                model_name=self.model_name,
-                event_bus=self.event_bus,
-                logger=self.logger,
-                job_role=self.job_role
-            )
-            self.agents["skill_assessor"] = skill_assessor
-        
-        # Set initial active agent based on mode
-        if self.mode == OrchestratorMode.COACHING_ONLY:
-            self.active_agent_id = "coach"
-        elif self.mode == OrchestratorMode.SKILL_ASSESSMENT:
-            self.active_agent_id = "skill_assessor"
-        else:
-            self.active_agent_id = "interviewer"
+        return self._interviewer_agent
     
-    def process_input(self, input_text: str, user_id: Optional[str] = None) -> str:
-        """
-        Process user input and route it to the appropriate agent(s).
-        
-        Args:
-            input_text: The user's input text
-            user_id: Identifier for the user (for session tracking)
-            
-        Returns:
-            The agent's response
-        """
-        # Update user ID if provided
-        if user_id:
-            self.user_id = user_id
-        
-        # Add to conversation history
-        self.conversation_history.append({
-            "role": "user",
-            "content": input_text,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-        
-        # Publish user input event
-        self.event_bus.publish(Event(
-            event_type="user_response",
-            source="user",
-            data={
-                "response": input_text,
-                "session_id": self.session_id,
-                "user_id": self.user_id,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        ))
-        
-        # Check if this is a command
-        if input_text.startswith("/"):
-            command_parts = input_text[1:].split()
-            command = command_parts[0].lower()
-            args = command_parts[1:] if len(command_parts) > 1 else []
-            
-            if command in self.commands:
-                return self.commands[command](args)
-            else:
-                return f"Unknown command: /{command}. Type /help for available commands."
-        
-        # Determine which agent(s) should respond
-        if self.mode == OrchestratorMode.FULL_FEEDBACK:
-            # In full feedback mode, get responses from all agents
-            responses = self._get_all_agent_responses(input_text)
-            return self._format_multi_agent_response(responses)
-        else:
-            # In other modes, use the active agent
-            return self._get_active_agent_response(input_text)
-    
-    def _get_active_agent_response(self, input_text: str) -> str:
-        """
-        Get a response from the currently active agent.
-        
-        Args:
-            input_text: The user's input text
-            
-        Returns:
-            The active agent's response
-        """
-        agent_id = self.active_agent_id
-        agent = self.agents.get(agent_id)
-        
-        if not agent:
-            self.logger.error(f"Active agent {agent_id} not found")
-            return "Sorry, there was an error processing your request. Please try again."
-        
-        # Get or create context for this agent
-        context = self._get_agent_context(agent_id)
-        
-        # Get response from agent
-        response = agent.process_input(input_text, context)
-        
-        # Add to conversation history
-        self.conversation_history.append({
-            "role": "assistant",
-            "agent": agent_id,
-            "content": response,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-        
-        return response
-    
-    def _get_all_agent_responses(self, input_text: str) -> Dict[str, str]:
-        """
-        Get responses from all active agents.
-        
-        Args:
-            input_text: The user's input text
-            
-        Returns:
-            Dictionary mapping agent ID to response
-        """
-        responses = {}
-        
-        for agent_id, agent in self.agents.items():
-            # Get or create context for this agent
-            context = self._get_agent_context(agent_id)
-            
-            # Get response from agent
-            try:
-                response = agent.process_input(input_text, context)
-                responses[agent_id] = response
-            except Exception as e:
-                self.logger.error(f"Error getting response from agent {agent_id}: {e}")
-                responses[agent_id] = f"[Agent {agent_id} encountered an error]"
-        
-        # Add combined response to conversation history
-        self.conversation_history.append({
-            "role": "assistant",
-            "agent": "multi",
-            "responses": responses,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-        
-        return responses
-    
-    def _format_multi_agent_response(self, responses: Dict[str, str]) -> str:
-        """
-        Format responses from multiple agents into a single coherent response.
-        
-        Args:
-            responses: Dictionary mapping agent ID to response
-            
-        Returns:
-            Formatted multi-agent response
-        """
-        # Prioritize responses based on content and agent role
-        has_interviewer = "interviewer" in responses and responses["interviewer"].strip()
-        has_coach = "coach" in responses and responses["coach"].strip()
-        has_skill_assessor = "skill_assessor" in responses and responses["skill_assessor"].strip()
-        
-        result_parts = []
-        
-        # Always include interviewer response first if available
-        if has_interviewer:
-            result_parts.append(f"👩‍💼 **Interviewer**: {responses['interviewer']}")
-        
-        # Add coaching feedback if substantial
-        if has_coach and len(responses["coach"]) > 30:  # Only add if meaningful
-            result_parts.append(f"\n\n🧠 **Coach**: {responses['coach']}")
-        
-        # Add skill assessment if substantial
-        if has_skill_assessor and len(responses["skill_assessor"]) > 30:
-            result_parts.append(f"\n\n📊 **Skill Assessment**: {responses['skill_assessor']}")
-        
-        if not result_parts:
-            return "No response from agents. Please try again."
-        
-        return "\n".join(result_parts)
-    
-    def _get_agent_context(self, agent_id: str) -> AgentContext:
-        """
-        Get or create a context for an agent.
-        
-        Args:
-            agent_id: The agent identifier
-            
-        Returns:
-            Agent context
-        """
-        if agent_id not in self.agent_contexts:
-            # Create new context
-            self.agent_contexts[agent_id] = AgentContext(
+    @property
+    def feedback_agent(self) -> FeedbackAgent:
+        """Get or create the feedback agent."""
+        if not self._feedback_agent:
+            # Lazy initialization of the feedback agent
+            self._feedback_agent = FeedbackAgent(
                 session_id=self.session_id,
-                user_id=self.user_id
+                job_role=self.job_role,
+                job_description=self.job_description,
+                event_bus=self.event_bus,
+                logger=self.logger
             )
-        
-        return self.agent_contexts[agent_id]
+        return self._feedback_agent
     
-    def _handle_event(self, event: Event) -> None:
-        """
-        Handle events from the event bus.
-        
-        Args:
-            event: The event to handle
-        """
-        # Log events for debugging
-        self.logger.debug(f"Event received: {event.event_type} from {event.source}")
-        
-        # Handle specific event types
-        if event.event_type == "interview_start":
-            # Update session ID if provided
-            if "session_id" in event.data:
-                self.session_id = event.data["session_id"]
-            
-            # Reset contexts
-            self.agent_contexts = {}
-        
-        elif event.event_type == "interview_end":
-            # Clean up after interview ends
-            pass
-    
-    def _handle_help_command(self, args: List[str]) -> str:
-        """
-        Handle the /help command.
-        
-        Args:
-            args: Command arguments
-            
-        Returns:
-            Help message
-        """
-        return (
-            "Available commands:\n"
-            "/help - Show this help message\n"
-            "/mode [mode] - Show or set the orchestrator mode\n"
-            "/reset - Reset the current session\n"
-            "/agents - List available agents\n"
-            "/switch [agent] - Switch to a different agent\n"
-            "/start - Start a new interview\n"
-            "/end - End the current interview"
-        )
-    
-    def _handle_mode_command(self, args: List[str]) -> str:
-        """
-        Handle the /mode command.
-        
-        Args:
-            args: Command arguments
-            
-        Returns:
-            Mode information or confirmation
-        """
-        if not args:
-            available_modes = [
-                OrchestratorMode.INTERVIEW_ONLY,
-                OrchestratorMode.INTERVIEW_WITH_COACHING,
-                OrchestratorMode.COACHING_ONLY,
-                OrchestratorMode.SKILL_ASSESSMENT,
-                OrchestratorMode.FULL_FEEDBACK
-            ]
-            
-            return (
-                f"Current mode: {self.mode}\n\n"
-                f"Available modes:\n" + 
-                "\n".join([f"- {mode}" for mode in available_modes])
+    @property
+    def skill_assessor_agent(self) -> SkillAssessorAgent:
+        """Get or create the skill assessor agent."""
+        if not self._skill_assessor_agent:
+            # Lazy initialization of the skill assessor agent
+            self._skill_assessor_agent = SkillAssessorAgent(
+                session_id=self.session_id, 
+                job_role=self.job_role,
+                job_description=self.job_description,
+                event_bus=self.event_bus,
+                logger=self.logger
             )
-        
-        new_mode = args[0]
-        valid_modes = [
-            OrchestratorMode.INTERVIEW_ONLY,
-            OrchestratorMode.INTERVIEW_WITH_COACHING,
-            OrchestratorMode.COACHING_ONLY,
-            OrchestratorMode.SKILL_ASSESSMENT,
-            OrchestratorMode.FULL_FEEDBACK
-        ]
-        
-        if new_mode not in valid_modes:
-            return f"Invalid mode: {new_mode}. Valid modes are: {', '.join(valid_modes)}"
-        
-        # Change mode
-        old_mode = self.mode
-        self.mode = new_mode
-        
-        # Reinitialize agents for new mode
-        self._initialize_agents()
-        
-        return f"Mode changed from {old_mode} to {self.mode}"
+        return self._skill_assessor_agent
     
-    def _handle_reset_command(self, args: List[str]) -> str:
+    def _get_relevant_history(self) -> List[Dict[str, Any]]:
         """
-        Handle the /reset command.
+        Get relevant conversation history, with potential summarization 
+        of older messages if the history is long.
         
-        Args:
-            args: Command arguments
-            
         Returns:
-            Reset confirmation
+            Optimized conversation history for agent processing
         """
-        # Generate new session ID
-        self.session_id = str(uuid.uuid4())
+        history_length = len(self.conversation_history)
         
-        # Reset contexts
-        self.agent_contexts = {}
+        # If history is short, just return it all
+        if history_length <= self._history_window_size:
+            return self.conversation_history
         
-        # Reset conversation history
-        self.conversation_history = []
-        
-        # Publish reset event
-        self.event_bus.publish(Event(
-            event_type="session_reset",
-            source="orchestrator",
-            data={
-                "session_id": self.session_id,
+        # If history is long, only include most recent messages
+        if self._summarized_history is None and history_length > self._summarization_threshold:
+            # Create a summary if needed
+            older_history = self.conversation_history[:history_length - self._history_window_size]
+            
+            # Count older messages by role
+            user_msgs = sum(1 for msg in older_history if msg.get("role") == "user")
+            assistant_msgs = sum(1 for msg in older_history if msg.get("role") == "assistant")
+            
+            # Create a simple summary message
+            self._summarized_history = {
+                "role": "system",
+                "content": f"[History summary: {len(older_history)} earlier messages ({user_msgs} from user, {assistant_msgs} from assistant) discussing {self.job_role} interview preparation]",
+                "is_summary": True,
                 "timestamp": datetime.utcnow().isoformat()
             }
-        ))
         
-        return "Session reset. Ready for a new conversation."
+        # Return summary + recent messages
+        if self._summarized_history:
+            recent_history = self.conversation_history[history_length - self._history_window_size:]
+            return [self._summarized_history] + recent_history
+        
+        return self.conversation_history
     
-    def _handle_agents_command(self, args: List[str]) -> str:
+    def _get_message_hash(self, message: str) -> str:
         """
-        Handle the /agents command.
+        Generate a hash for a message for caching purposes.
         
         Args:
-            args: Command arguments
+            message: The message to hash
             
         Returns:
-            Agent information
+            Hash string of the message
         """
-        agent_info = []
+        # Check cache first
+        if message in self._message_hash_cache:
+            return self._message_hash_cache[message]
         
-        for agent_id, agent in self.agents.items():
-            status = "active" if agent_id == self.active_agent_id else "inactive"
-            agent_info.append(f"- {agent_id}: {status}")
+        # Generate a hash of the message
+        hash_obj = hashlib.md5(message.encode())
+        hash_str = hash_obj.hexdigest()
         
-        return f"Available agents:\n{chr(10).join(agent_info)}"
+        # Cache and return
+        self._message_hash_cache[message] = hash_str
+        return hash_str
     
-    def _handle_switch_command(self, args: List[str]) -> str:
+    def _get_conversation_hash(self) -> str:
         """
-        Handle the /switch command.
+        Generate a hash representing the current conversation state.
         
-        Args:
-            args: Command arguments
-            
         Returns:
-            Switch confirmation or error
+            Hash string representing the conversation state
         """
-        if not args:
-            return "Please specify an agent to switch to. Available agents: " + ", ".join(self.agents.keys())
+        # Create a string from the last 5 messages or all if less
+        recent_msgs = self.conversation_history[-5:] if len(self.conversation_history) >= 5 else self.conversation_history
+        conv_str = json.dumps([{
+            "role": msg.get("role", ""),
+            "content": msg.get("content", "")[:100],  # Only hash first 100 chars
+            "agent": msg.get("agent", "")
+        } for msg in recent_msgs])
         
-        agent_id = args[0]
-        
-        if agent_id not in self.agents:
-            return f"Unknown agent: {agent_id}. Available agents: " + ", ".join(self.agents.keys())
-        
-        # Switch active agent
-        old_agent = self.active_agent_id
-        self.active_agent_id = agent_id
-        
-        return f"Switched from {old_agent} to {agent_id}"
+        # Create a hash from the string
+        hash_obj = hashlib.md5(conv_str.encode())
+        return hash_obj.hexdigest()
     
-    def _handle_start_command(self, args: List[str]) -> str:
+    def start_interview(self) -> Dict[str, Any]:
         """
-        Handle the /start command.
+        Start a new interview session.
         
-        Args:
-            args: Command arguments
-            
         Returns:
-            Start confirmation
+            Initial agent response to start the interview
         """
-        # Generate new session ID
-        self.session_id = str(uuid.uuid4())
+        start_time = time.time()
         
-        # Reset contexts
-        self.agent_contexts = {}
-        
-        # Reset conversation history
-        self.conversation_history = []
-        
-        # Publish interview start event
+        # Publish event for session start
         self.event_bus.publish(Event(
             event_type="interview_start",
-            source="orchestrator",
             data={
                 "session_id": self.session_id,
                 "job_role": self.job_role,
-                "job_description": self.job_description,
-                "interview_style": self.interview_style.value,
-                "timestamp": datetime.utcnow().isoformat()
+                "interview_style": self.interview_style,
+                "mode": self.mode
             }
         ))
         
-        # Get initial response from interviewer
-        if "interviewer" in self.agents:
-            interviewer = self.agents["interviewer"]
-            context = self._get_agent_context("interviewer")
-            
-            # Use empty string as initial input to get introduction
-            response = interviewer.process_input("", context)
-            
-            # Add to conversation history
-            self.conversation_history.append({
-                "role": "assistant",
-                "agent": "interviewer",
-                "content": response,
-                "timestamp": datetime.utcnow().isoformat()
-            })
-            
-            return response
+        # Get a response based on the current mode
+        if self.mode == OrchestratorMode.INTERVIEW:
+            agent_response = self.interviewer_agent.start_interview()
+            self.current_agent_type = "interviewer"
+        elif self.mode == OrchestratorMode.SKILL_ASSESSMENT:
+            agent_response = self.skill_assessor_agent.start_assessment()
+            self.current_agent_type = "skill_assessor"
+        elif self.mode == OrchestratorMode.FEEDBACK:
+            agent_response = self.feedback_agent.start_feedback()
+            self.current_agent_type = "feedback"
         else:
-            return "Interview started. What would you like to discuss?"
+            raise ValueError(f"Unknown orchestrator mode: {self.mode}")
+        
+        # Add response to history
+        response_data = {
+            "role": "assistant",
+            "content": agent_response["message"],
+            "agent": agent_response.get("agent_type", self.current_agent_type),
+            "timestamp": datetime.utcnow().isoformat(),
+            "metadata": {"mode": self.mode.value}
+        }
+        self.conversation_history.append(response_data)
+        
+        # Track token usage
+        if "tokens_used" in agent_response:
+            self.total_tokens_used += agent_response["tokens_used"]
+            self.api_call_count += 1
+        
+        # Track response time
+        elapsed = time.time() - start_time
+        self._update_response_time_stats(elapsed)
+        
+        # Log success
+        self.logger.info(
+            f"Started interview session {self.session_id} in {self.mode} mode, "
+            f"response generated in {elapsed:.2f}s"
+        )
+        
+        return response_data
     
-    def _handle_end_command(self, args: List[str]) -> str:
+    def process_message(self, message: str, user_id: Optional[str] = None) -> Dict[str, Any]:
         """
-        Handle the /end command.
+        Process a user message and get an agent response.
         
         Args:
-            args: Command arguments
+            message: User's message
+            user_id: Optional user identifier
             
         Returns:
-            End confirmation
+            Agent response
         """
-        # Publish interview end event
+        start_time = time.time()
+        
+        # Add user message to history
+        user_message = {
+            "role": "user",
+            "content": message,
+            "user_id": user_id,
+            "timestamp": datetime.utcnow().isoformat(),
+            "metadata": {"mode": self.mode.value}
+        }
+        self.conversation_history.append(user_message)
+        
+        # Clear cached summary since history changed
+        self._summarized_history = None
+        
+        # Check if we have a cached response for similar message + conversation state
+        msg_hash = self._get_message_hash(message)
+        conv_hash = self._get_conversation_hash()
+        cache_key = f"{msg_hash}_{conv_hash}_{self.mode.value}"
+        
+        now = datetime.utcnow()
+        if (cache_key in self._response_cache and
+            cache_key in self._response_cache_timestamps and
+            (now - self._response_cache_timestamps[cache_key]).total_seconds() < RESPONSE_CACHE_TTL):
+            
+            # Use cached response but generate a new timestamp
+            cached_response = self._response_cache[cache_key].copy()
+            cached_response["timestamp"] = datetime.utcnow().isoformat()
+            self.conversation_history.append(cached_response)
+            
+            self.logger.info(f"Used cached response for message in session {self.session_id}")
+            return cached_response
+        
+        # Publish event for user message
         self.event_bus.publish(Event(
-            event_type="interview_end",
-            source="orchestrator",
+            event_type="user_response",
             data={
                 "session_id": self.session_id,
-                "timestamp": datetime.utcnow().isoformat()
+                "message": message,
+                "user_id": user_id,
+                "mode": self.mode
             }
         ))
         
-        return "Interview ended. Type /start to begin a new interview." 
+        # Get response based on current mode with optimized history
+        relevant_history = self._get_relevant_history()
+        
+        try:
+            if self.mode == OrchestratorMode.INTERVIEW:
+                agent_response = self._process_interview_message(message, relevant_history)
+                self.current_agent_type = "interviewer"
+            elif self.mode == OrchestratorMode.SKILL_ASSESSMENT:
+                agent_response = self._process_skill_assessment_message(message, relevant_history)
+                self.current_agent_type = "skill_assessor"
+            elif self.mode == OrchestratorMode.FEEDBACK:
+                agent_response = self._process_feedback_message(message, relevant_history)
+                self.current_agent_type = "feedback"
+            else:
+                raise ValueError(f"Unknown orchestrator mode: {self.mode}")
+        
+        except Exception as e:
+            self.logger.error(f"Error processing message: {str(e)}")
+            self.logger.error(traceback.format_exc())
+            
+            # Return error response
+            agent_response = {
+                "message": "I apologize, but I encountered an error processing your message. Please try again.",
+                "agent_type": self.current_agent_type or "system"
+            }
+        
+        # Add response to history
+        response_data = {
+            "role": "assistant",
+            "content": agent_response["message"],
+            "agent": agent_response.get("agent_type", self.current_agent_type),
+            "timestamp": datetime.utcnow().isoformat(),
+            "metadata": {"mode": self.mode.value}
+        }
+        self.conversation_history.append(response_data)
+        
+        # Cache the response
+        self._response_cache[cache_key] = response_data
+        self._response_cache_timestamps[cache_key] = now
+        
+        # Track token usage
+        if "tokens_used" in agent_response:
+            self.total_tokens_used += agent_response["tokens_used"]
+            self.api_call_count += 1
+        
+        # Track response time
+        elapsed = time.time() - start_time
+        self._update_response_time_stats(elapsed)
+        
+        # Publish event for agent response
+        self.event_bus.publish(Event(
+            event_type="agent_response",
+            data={
+                "session_id": self.session_id,
+                "message": agent_response["message"],
+                "agent_type": agent_response.get("agent_type", self.current_agent_type),
+                "mode": self.mode
+            }
+        ))
+        
+        # Log success
+        self.logger.info(
+            f"Processed message in session {self.session_id}, mode: {self.mode}, "
+            f"response generated in {elapsed:.2f}s, tokens: {agent_response.get('tokens_used', 'unknown')}"
+        )
+        
+        return response_data
+    
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+    def _process_interview_message(self, message: str, history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """
+        Process a message in interview mode.
+        
+        Args:
+            message: User message
+            history: Optional conversation history, uses full history if None
+            
+        Returns:
+            Agent response dictionary
+        """
+        return self.interviewer_agent.generate_response(
+            message, history or self.conversation_history
+        )
+    
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+    def _process_feedback_message(self, message: str, history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """
+        Process a message in feedback mode.
+        
+        Args:
+            message: User message
+            history: Optional conversation history, uses full history if None
+            
+        Returns:
+            Agent response dictionary
+        """
+        return self.feedback_agent.generate_response(
+            message, history or self.conversation_history
+        )
+    
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=1, max=10))
+    def _process_skill_assessment_message(self, message: str, history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """
+        Process a message in skill assessment mode.
+        
+        Args:
+            message: User message
+            history: Optional conversation history, uses full history if None
+            
+        Returns:
+            Agent response dictionary
+        """
+        return self.skill_assessor_agent.generate_response(
+            message, history or self.conversation_history
+        )
+    
+    def switch_mode(self, new_mode: OrchestratorMode) -> Dict[str, Any]:
+        """
+        Switch to a different orchestration mode.
+        
+        Args:
+            new_mode: New mode to switch to
+            
+        Returns:
+            Agent response after switching modes
+        """
+        start_time = time.time()
+        
+        # Don't do anything if already in this mode
+        if self.mode == new_mode:
+            return {
+                "role": "assistant",
+                "content": f"Already in {new_mode} mode.",
+                "agent": "system",
+                "timestamp": datetime.utcnow().isoformat(),
+                "metadata": {"mode": self.mode.value}
+            }
+        
+        # Update mode
+        old_mode = self.mode
+        self.mode = new_mode
+        
+        # Clear caches when switching modes
+        self._clear_response_cache()
+        self._summarized_history = None
+        
+        # Publish mode change event
+        self.event_bus.publish(Event(
+            event_type="mode_change",
+            data={
+                "session_id": self.session_id,
+                "old_mode": old_mode,
+                "new_mode": new_mode
+            }
+        ))
+        
+        # Get response for the new mode
+        if new_mode == OrchestratorMode.INTERVIEW:
+            agent_response = self.interviewer_agent.handle_mode_switch(old_mode)
+            self.current_agent_type = "interviewer"
+        elif new_mode == OrchestratorMode.SKILL_ASSESSMENT:
+            agent_response = self.skill_assessor_agent.handle_mode_switch(old_mode)
+            self.current_agent_type = "skill_assessor"
+        elif new_mode == OrchestratorMode.FEEDBACK:
+            agent_response = self.feedback_agent.handle_mode_switch(old_mode)
+            self.current_agent_type = "feedback"
+        else:
+            raise ValueError(f"Unknown orchestrator mode: {new_mode}")
+        
+        # Add response to history
+        response_data = {
+            "role": "assistant",
+            "content": agent_response["message"],
+            "agent": agent_response.get("agent_type", self.current_agent_type),
+            "timestamp": datetime.utcnow().isoformat(),
+            "metadata": {"mode": self.mode.value}
+        }
+        self.conversation_history.append(response_data)
+        
+        # Track token usage
+        if "tokens_used" in agent_response:
+            self.total_tokens_used += agent_response["tokens_used"]
+            self.api_call_count += 1
+        
+        # Track response time
+        elapsed = time.time() - start_time
+        self._update_response_time_stats(elapsed)
+        
+        # Log mode switch
+        self.logger.info(
+            f"Switched mode in session {self.session_id} from {old_mode} to {new_mode}, "
+            f"response generated in {elapsed:.2f}s"
+        )
+        
+        return response_data
+    
+    def end_interview(self) -> Dict[str, Any]:
+        """
+        End the interview session.
+        
+        Returns:
+            Final summary message
+        """
+        start_time = time.time()
+        
+        # Generate summary based on current mode
+        if self.mode == OrchestratorMode.INTERVIEW:
+            agent_response = self.interviewer_agent.end_interview(self.conversation_history)
+            self.current_agent_type = "interviewer"
+        elif self.mode == OrchestratorMode.SKILL_ASSESSMENT:
+            agent_response = self.skill_assessor_agent.end_assessment(self.conversation_history)
+            self.current_agent_type = "skill_assessor"
+        elif self.mode == OrchestratorMode.FEEDBACK:
+            agent_response = self.feedback_agent.end_feedback(self.conversation_history)
+            self.current_agent_type = "feedback"
+        else:
+            raise ValueError(f"Unknown orchestrator mode: {self.mode}")
+        
+        # Add summary to history
+        response_data = {
+            "role": "assistant",
+            "content": agent_response["message"],
+            "agent": agent_response.get("agent_type", self.current_agent_type),
+            "timestamp": datetime.utcnow().isoformat(),
+            "metadata": {"mode": self.mode.value, "is_summary": True}
+        }
+        self.conversation_history.append(response_data)
+        
+        # Track token usage
+        if "tokens_used" in agent_response:
+            self.total_tokens_used += agent_response["tokens_used"]
+            self.api_call_count += 1
+        
+        # Publish event for session end
+        self.event_bus.publish(Event(
+            event_type="interview_end",
+            data={
+                "session_id": self.session_id,
+                "summary": agent_response["message"],
+                "total_messages": len(self.conversation_history),
+                "total_tokens": self.total_tokens_used,
+                "total_api_calls": self.api_call_count,
+                "avg_response_time": self.avg_response_time
+            }
+        ))
+        
+        # Track response time
+        elapsed = time.time() - start_time
+        self._update_response_time_stats(elapsed)
+        
+        # Clear all caches after session ends
+        self._clear_response_cache()
+        self._agent_cache = {}
+        self._message_hash_cache = {}
+        
+        # Log session end
+        self.logger.info(
+            f"Ended interview session {self.session_id} in {self.mode} mode, "
+            f"summary generated in {elapsed:.2f}s, "
+            f"total messages: {len(self.conversation_history)}, "
+            f"total tokens: {self.total_tokens_used}"
+        )
+        
+        return response_data
+    
+    def get_agent_instance(self, agent_type: str) -> Optional[BaseAgent]:
+        """
+        Get an agent instance by type, using cache if available.
+        
+        Args:
+            agent_type: Type of agent to retrieve
+            
+        Returns:
+            Agent instance or None if type is unknown
+        """
+        # Check cache first
+        if agent_type in self._agent_cache:
+            return self._agent_cache[agent_type]
+        
+        # Get appropriate agent
+        agent = None
+        if agent_type == "interviewer":
+            agent = self.interviewer_agent
+        elif agent_type == "feedback":
+            agent = self.feedback_agent
+        elif agent_type == "skill_assessor":
+            agent = self.skill_assessor_agent
+        
+        # Cache the agent if found
+        if agent:
+            self._agent_cache[agent_type] = agent
+        
+        return agent
+    
+    def _clear_response_cache(self) -> None:
+        """Clear the response cache."""
+        self._response_cache = {}
+        self._response_cache_timestamps = {}
+    
+    def _update_response_time_stats(self, elapsed_time: float) -> None:
+        """
+        Update response time statistics.
+        
+        Args:
+            elapsed_time: Time taken for the last response
+        """
+        self.last_response_time = elapsed_time
+        self.response_time_samples += 1
+        
+        # Update running average
+        self.avg_response_time = (
+            (self.avg_response_time * (self.response_time_samples - 1) + elapsed_time) 
+            / self.response_time_samples
+        )
+    
+    def _handle_interview_start(self, event: Event) -> None:
+        """
+        Handle interview start events.
+        
+        Args:
+            event: The interview start event
+        """
+        self.logger.debug(f"Orchestrator received interview_start event for session {event.data.get('session_id')}")
+    
+    def _handle_interview_end(self, event: Event) -> None:
+        """
+        Handle interview end events.
+        
+        Args:
+            event: The interview end event
+        """
+        self.logger.debug(f"Orchestrator received interview_end event for session {event.data.get('session_id')}")
+    
+    def _handle_mode_change(self, event: Event) -> None:
+        """
+        Handle mode change events.
+        
+        Args:
+            event: The mode change event
+        """
+        session_id = event.data.get('session_id')
+        old_mode = event.data.get('old_mode')
+        new_mode = event.data.get('new_mode')
+        self.logger.debug(f"Orchestrator handled mode change for session {session_id} from {old_mode} to {new_mode}")
+    
+    def reset(self) -> None:
+        """Reset the orchestrator state."""
+        # Clear conversation history but keep configuration
+        self.conversation_history = []
+        self._last_processed_msg_index = -1
+        self._agent_cache = {}
+        self._response_cache = {}
+        self._response_cache_timestamps = {}
+        self._message_hash_cache = {}
+        self._summarized_history = None
+        
+        # Reset performance tracking
+        self.last_response_time = 0
+        self.avg_response_time = 0
+        self.response_time_samples = 0
+        self.total_tokens_used = 0
+        self.api_call_count = 0
+        
+        # Reset or reinitialize agents if needed
+        if self._interviewer_agent:
+            self._interviewer_agent.reset()
+        
+        if self._feedback_agent:
+            self._feedback_agent.reset()
+        
+        if self._skill_assessor_agent:
+            self._skill_assessor_agent.reset()
+        
+        self.logger.info(f"Reset orchestrator state for session {self.session_id}")
+    
+    def get_agent_for_message(self, user_message: str) -> Tuple[str, BaseAgent]:
+        """
+        Determine which agent should handle a user message.
+        This is a simplified implementation that always returns the current agent.
+        A more advanced implementation could analyze the message content
+        to dynamically select the most appropriate agent.
+        
+        Args:
+            user_message: User's message
+            
+        Returns:
+            Tuple of (agent_type, agent_instance)
+        """
+        # For now, just use the agent for the current mode
+        if self.mode == OrchestratorMode.INTERVIEW:
+            return "interviewer", self.interviewer_agent
+        elif self.mode == OrchestratorMode.SKILL_ASSESSMENT:
+            return "skill_assessor", self.skill_assessor_agent
+        elif self.mode == OrchestratorMode.FEEDBACK:
+            return "feedback", self.feedback_agent
+        else:
+            # Default to interviewer if mode is unknown
+            return "interviewer", self.interviewer_agent 
