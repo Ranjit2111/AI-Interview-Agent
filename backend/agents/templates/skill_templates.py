@@ -1,135 +1,163 @@
 """
-Skill assessor agent templates.
-This module contains prompt templates for the skill assessor agent including skill extraction,
-proficiency assessment, resource suggestion, and skill profile generation.
+Templates for the Skill Assessor Agent.
+
+This module contains prompts for skill extraction, assessment, and resource suggestion.
 """
 
-# System prompt for skill assessor agent
-SYSTEM_PROMPT = """
-You are an AI skill assessor specialized in evaluating skills for {job_role} positions. 
-Your role is to identify skills mentioned or demonstrated in interview responses, 
-assess proficiency levels, and provide resources for skill improvement. 
-Be observant, analytical, and helpful in your evaluations.
+# System prompt for the Skill Assessor Agent
+SKILL_SYSTEM_PROMPT = """
+You are a Skill Assessor AI specialized in evaluating technical competencies for {job_role} positions.
+Your task is to analyze a candidate's responses during an interview to:
+1. Identify technical and soft skills mentioned or demonstrated
+2. Assess the candidate's proficiency level in each skill
+3. Provide feedback on skill strengths and areas for improvement
+4. Suggest relevant resources for skill development
+
+Be objective and evidence-based in your assessments. Focus on specific statements, examples, and demonstrations
+of knowledge rather than making assumptions. Consider both explicit mentions of skills and implicit demonstrations
+of competency.
 """
 
-# Skill extraction template
+# Template for extracting skills from text
 SKILL_EXTRACTION_TEMPLATE = """
-You are an expert skill assessor analyzing a candidate's response to identify skills.
+Analyze the following response from a job candidate for the {job_role} position.
+Identify all technical and soft skills mentioned or demonstrated in the response.
 
-The candidate is applying for a {job_role} position.
+For each skill:
+1. Determine the skill name
+2. Categorize it (technical, language, framework, soft, etc.)
+3. Assess the confidence that this skill was actually demonstrated (0.0-1.0)
 
-Response to analyze: {response}
+Response:
+{response}
 
-Identify all skills mentioned or demonstrated in the response. Focus on both:
-1. Technical skills (languages, frameworks, tools, methodologies)
-2. Soft skills (communication, problem-solving, teamwork, etc.)
-
-For each skill, identify:
-- The skill name
-- The skill category (technical, soft, domain, tool, process, language, framework)
-- A confidence score (0.0-1.0) representing how confident you are the skill was demonstrated
-
-Format your response as a JSON list of skills.
+Output a JSON object with an array of extracted skills:
+```json
+{{
+  "extracted_skills": [
+    {{
+      "skill_name": "skill_name",
+      "category": "skill_category",
+      "confidence": confidence_score
+    }},
+    ...
+  ]
+}}
+```
 """
 
-# Proficiency assessment template
+# Template for assessing proficiency level
 PROFICIENCY_ASSESSMENT_TEMPLATE = """
-You are an expert skill assessor determining a candidate's proficiency level in a specific skill.
+Assess the candidate's proficiency level in {skill} based on the following context:
 
-Skill: {skill}
+Context:
+{context}
+
 Job role: {job_role}
-Context from the candidate's response: {context}
 
-Based on the context, determine the candidate's proficiency level in this skill.
-Consider:
-1. How they describe their experience with the skill
-2. The depth of understanding demonstrated
-3. Examples or projects mentioned
-4. The sophistication of their language when discussing the skill
+Proficiency should be categorized as:
+- beginner: Basic understanding, needs significant guidance
+- basic: Fundamental knowledge, can use with support
+- intermediate: Solid practical experience, works independently on routine tasks
+- advanced: Deep knowledge, handles complex problems, can mentor others
+- expert: Comprehensive mastery, thought leadership, creates novel solutions
 
-Choose one of these proficiency levels:
-- Novice: Basic awareness but little practical experience
-- Basic: Some practical experience but limited depth
-- Intermediate: Solid practical experience and understanding
-- Advanced: Deep knowledge and extensive experience
-- Expert: Mastery of the skill including nuanced understanding
-
-Return just the proficiency level as a single word in lowercase.
+Output your assessment as a JSON object with proficiency level and feedback:
+```json
+{{
+  "proficiency_level": "proficiency_level",
+  "feedback": "Detailed feedback explaining the assessment, with evidence from the context",
+  "confidence": confidence_score
+}}
+```
 """
 
-# Resource suggestion template
+# Template for suggesting resources
 RESOURCE_SUGGESTION_TEMPLATE = """
-You are an expert skill development advisor recommending resources to improve a specific skill.
+The candidate has demonstrated a {proficiency_level} level in {skill} for the {job_role} position.
 
-Skill to improve: {skill}
-Current proficiency level: {proficiency_level}
-Job role: {job_role}
+Suggest high-quality learning resources to help improve this skill. Consider:
+1. Online courses or tutorials
+2. Books or documentation
+3. Practice exercises or projects
+4. Communities or forums
 
-Recommend 3 high-quality, specific resources to help improve this skill. For each resource, provide:
-1. Type of resource (book, online course, practice platform, etc.)
-2. Name of the resource (be specific)
-3. A brief description of why it's valuable
+Tailor your suggestions to the candidate's current proficiency level, focusing on resources that will help them advance to the next level.
 
-Focus on resources appropriate for someone at {proficiency_level} level who wants to progress further.
-Format your response as a JSON list of resources.
+Output your suggestions as a JSON object with an array of resources:
+```json
+{{
+  "resources": [
+    {{
+      "type": "resource_type",
+      "title": "resource_title",
+      "url": "resource_url",
+      "description": "Brief description of the resource and why it's relevant"
+    }},
+    ...
+  ]
+}}
+```
 """
 
-# Skill profile template
+# Template for generating a skill profile
 SKILL_PROFILE_TEMPLATE = """
-You are an expert skill assessor creating a comprehensive skill profile for a candidate.
+Generate a comprehensive skill profile based on the following skills assessment data:
+
+Skills data:
+{skills}
 
 Job role: {job_role}
-Skills identified: {skills_json}
 
-Create a comprehensive skill profile that includes:
-1. A summary of the candidate's skill strengths
-2. Skills grouped by category and proficiency level
-3. Key strengths to highlight in interviews
-4. Suggested areas for improvement
-5. Overall assessment of skill match for the job role
+Consider:
+1. Overall profile strengths and gaps relative to the job role
+2. Key technical competencies demonstrated and their levels
+3. Soft skills demonstrated and their relevance
+4. Areas for improvement and growth
 
-Provide actionable insights that would help the candidate understand their skill profile in relation to the job role.
+Output a comprehensive skill profile as a JSON object:
+```json
+{{
+  "overall_assessment": "Overall assessment of the candidate's skills relative to the job role",
+  "strengths": [
+    "Key strength 1",
+    "Key strength 2",
+    ...
+  ],
+  "areas_for_improvement": [
+    "Area for improvement 1",
+    "Area for improvement 2",
+    ...
+  ],
+  "recommended_learning_path": "Suggested learning path to improve job readiness"
+}}
+```
 """
 
-# Assessment response template
+# Template for assessment response
 ASSESSMENT_RESPONSE_TEMPLATE = """
-I've analyzed your response for skills relevant to a {job_role} position.
+Based on your interview responses, I've identified the following skills:
 
-Skills identified:
-{skill_list}
+{skills_list}
 
-Proficiency assessment:
-{proficiency_assessment}
-
-Would you like:
-1. A detailed skill profile
-2. Resources to improve specific skills
-3. More detailed assessment of a particular skill
+Would you like me to:
+1. Provide a detailed assessment of a specific skill?
+2. Suggest resources to improve any of these skills?
+3. Generate a comprehensive skill profile based on our conversation?
 """
 
-# Recent answer assessment template
+# Template for recent answer assessment
 RECENT_ANSWER_ASSESSMENT_TEMPLATE = """
-You are an expert skill assessor evaluating a candidate's recent interview answer.
+Based on your recent answer, I've identified and assessed these skills:
 
-Question: {question}
-Answer: {answer}
-Job role: {job_role}
+{skills_list}
 
-Identify all skills demonstrated in this answer and assess proficiency levels.
-For each identified skill:
-1. Determine the proficiency level shown (novice, basic, intermediate, advanced, expert)
-2. Provide specific evidence from the answer that demonstrates this skill level
-3. Suggest one way the candidate could demonstrate higher proficiency 
-
-Format your response in a clear, structured way that helps the candidate understand their skill demonstration.
+This assessment is based on specific examples and statements in your response.
+For the {job_role} position, I'd recommend focusing on strengthening the skills marked at a basic level.
 """
 
-# Skill update notification template
+# Template for skill update notification
 SKILL_UPDATE_NOTIFICATION_TEMPLATE = """
-I noticed you mentioned skills in {skills_list}. I'll include these in your skill profile.
-
-Based on your response, your strongest skills appear to be:
-{top_skills}
-
-Would you like specific feedback on any of these skills?
+I've identified these skills in your response: {skills}. 
+I'll continue to update your skill assessment as we proceed with the interview.
 """ 
