@@ -2,10 +2,12 @@
 Interview models for the interview preparation system.
 """
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, JSON, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Enum, JSON, Float, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
+from typing import Dict, Any, List, Optional
+import json
 
 from backend.database.connection import Base
 
@@ -59,19 +61,22 @@ class InterviewSession(Base):
     __tablename__ = "interview_sessions"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    job_role = Column(String, nullable=False)
+    session_id = Column(String(255), unique=True, index=True)
+    user_id = Column(String(255), nullable=True, index=True)
+    job_role = Column(String(255))
     job_description = Column(Text, nullable=True)
     resume_text = Column(Text, nullable=True)
     style = Column(Enum(InterviewStyle), default=InterviewStyle.FORMAL)
     mode = Column(Enum(SessionMode), default=SessionMode.INTERVIEW)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
     
     # Relationships
     user = relationship("User", back_populates="interview_sessions")
     questions = relationship("Question", back_populates="interview_session", cascade="all, delete-orphan")
     skill_assessments = relationship("SkillAssessment", back_populates="interview_session", cascade="all, delete-orphan")
+    messages = relationship("Message", back_populates="session", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<InterviewSession(id={self.id}, job_role='{self.job_role}', mode='{self.mode.value}')>"
@@ -126,12 +131,12 @@ class SkillAssessment(Base):
     __tablename__ = "skill_assessments"
     
     id = Column(Integer, primary_key=True, index=True)
-    interview_session_id = Column(Integer, ForeignKey("interview_sessions.id"))
-    skill_name = Column(String, nullable=False)
-    category = Column(Enum(SkillCategory), nullable=False)
+    interview_session_id = Column(String(255), ForeignKey("interview_sessions.session_id"))
+    skill_name = Column(String(255))
+    category = Column(String(50))
     proficiency_level = Column(Enum(ProficiencyLevel), nullable=False)
     confidence = Column(Float, default=0.0)  # Confidence score of the assessment (0.0 - 1.0)
-    feedback = Column(Text, nullable=True)
+    feedback = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -151,15 +156,91 @@ class Resource(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     skill_assessment_id = Column(Integer, ForeignKey("skill_assessments.id"))
-    title = Column(String, nullable=False)
-    url = Column(String, nullable=False)
-    description = Column(Text, nullable=True)
-    resource_type = Column(String, nullable=False)  # Article, Course, Video, etc.
-    relevance_score = Column(Float, default=0.0)  # Relevance score (0.0 - 1.0)
+    title = Column(String(255))
+    url = Column(String(255))
+    description = Column(Text)
+    resource_type = Column(String(50))
+    relevance_score = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
     skill_assessment = relationship("SkillAssessment", back_populates="resources")
     
     def __repr__(self):
-        return f"<Resource(id={self.id}, title='{self.title}', resource_type='{self.resource_type}')>" 
+        return f"<Resource(id={self.id}, title='{self.title}', resource_type='{self.resource_type}')>"
+
+
+class Message(Base):
+    """Model for interview messages."""
+    __tablename__ = "messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(255), ForeignKey("interview_sessions.session_id"))
+    role = Column(String(50))  # user or assistant
+    agent = Column(String(50), nullable=True)  # for assistant messages
+    content = Column(Text)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    session = relationship("InterviewSession", back_populates="messages")
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "id": self.id,
+            "session_id": self.session_id,
+            "role": self.role,
+            "agent": self.agent,
+            "content": self.content,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None
+        }
+
+
+class ResourceTracking(Base):
+    """Model for tracking resource usage."""
+    __tablename__ = "resource_tracking"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(255), index=True)
+    resource_id = Column(String(255), index=True)  # Could be database ID or URL
+    action = Column(String(50))  # click, bookmark, etc.
+    skill_name = Column(String(255), index=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    metadata = Column(JSON, nullable=True)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "id": self.id,
+            "session_id": self.session_id,
+            "resource_id": self.resource_id,
+            "action": self.action,
+            "skill_name": self.skill_name,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+            "metadata": self.metadata
+        }
+
+
+class ResourceFeedback(Base):
+    """Model for resource feedback."""
+    __tablename__ = "resource_feedback"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(255), index=True)
+    resource_id = Column(String(255), index=True)  # Could be database ID or URL
+    feedback = Column(String(50))  # helpful, not_helpful
+    skill_name = Column(String(255), index=True)
+    comments = Column(Text, nullable=True)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "id": self.id,
+            "session_id": self.session_id,
+            "resource_id": self.resource_id,
+            "feedback": self.feedback,
+            "skill_name": self.skill_name,
+            "comments": self.comments,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None
+        } 

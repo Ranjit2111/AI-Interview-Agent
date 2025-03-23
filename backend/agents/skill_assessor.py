@@ -7,6 +7,7 @@ import logging
 import re
 import json
 import random
+import asyncio
 from typing import Dict, Any, List, Optional, Set, Tuple
 from datetime import datetime
 from enum import Enum
@@ -22,6 +23,7 @@ try:
     from backend.agents.base import BaseAgent, AgentContext
     from backend.utils.event_bus import Event, EventBus, EventType
     from backend.models.interview import SkillAssessment, Resource, ProficiencyLevel as DBProficiencyLevel, SkillCategory as DBSkillCategory
+    from backend.services import get_search_service
     from backend.agents.templates.skill_templates import (
         SKILL_SYSTEM_PROMPT,
         SKILL_EXTRACTION_TEMPLATE,
@@ -37,6 +39,7 @@ except ImportError:
     from .base import BaseAgent, AgentContext
     from ..utils.event_bus import Event, EventBus, EventType
     from ..models.interview import SkillAssessment, Resource, ProficiencyLevel as DBProficiencyLevel, SkillCategory as DBSkillCategory
+    from ..services import get_search_service
     from .templates.skill_templates import (
         SKILL_SYSTEM_PROMPT,
         SKILL_EXTRACTION_TEMPLATE,
@@ -322,7 +325,29 @@ class SkillAssessorAgent(BaseAgent):
             # Check if resources are already cached
             if skill in self.resource_cache:
                 return {"resources": self.resource_cache[skill]}
+            
+            # Try to get resources using the search service first
+            search_resources = self._get_resources_using_search(skill, proficiency_level)
+            
+            # If search service returns resources, use them
+            if search_resources and len(search_resources) > 0:
+                # Cache the resources
+                self.resource_cache[skill] = search_resources
                 
+                # Emit event with resource suggestions
+                if self.event_bus:
+                    self.event_bus.emit(Event(
+                        event_type=EventType.RESOURCES_SUGGESTED,
+                        data={
+                            "skill": skill,
+                            "resources": search_resources
+                        },
+                        source="skill_assessor"
+                    ))
+                    
+                return {"resources": search_resources}
+            
+            # Fallback to LLM-based resource generation
             result = self.resource_chain.invoke({
                 "skill": skill,
                 "proficiency_level": proficiency_level,
@@ -347,7 +372,7 @@ class SkillAssessorAgent(BaseAgent):
         except Exception as e:
             self.logger.error(f"Error suggesting resources: {e}")
             # Fallback to simpler resource generation
-            resources_json = self._get_resources_for_skill(skill)
+            resources_json = self._get_resources_for_skill(skill, proficiency_level)
             resources = json.loads(resources_json)
             return resources
     
@@ -520,12 +545,13 @@ class SkillAssessorAgent(BaseAgent):
         
         self.last_assessment_time = datetime.now()
     
-    def _get_resources_for_skill(self, skill: str) -> str:
+    def _get_resources_for_skill(self, skill: str, proficiency_level: str = "intermediate") -> str:
         """
         Get learning resources for a specific skill.
         
         Args:
             skill: The skill to get resources for
+            proficiency_level: Proficiency level for appropriate resources
             
         Returns:
             JSON string with resources
@@ -534,6 +560,16 @@ class SkillAssessorAgent(BaseAgent):
         if skill in self.resource_cache:
             return json.dumps({"resources": self.resource_cache[skill]})
             
+        # Try to get resources using the search service first
+        search_resources = self._get_resources_using_search(skill, proficiency_level)
+        
+        # If search service returns resources, use them
+        if search_resources and len(search_resources) > 0:
+            # Cache the resources
+            self.resource_cache[skill] = search_resources
+            return json.dumps({"resources": search_resources})
+            
+        # Fallback to generating mock resources
         # Construct resource types
         resource_types = ["online_course", "book", "article", "tutorial"]
         
@@ -581,41 +617,63 @@ class SkillAssessorAgent(BaseAgent):
         
         return json.dumps({"resources": resources})
     
-    def _calculate_relevance(self, result, skill: str) -> float:
+    def _get_resources_using_search(self, skill: str, proficiency_level: str) -> List[Dict[str, Any]]:
         """
-        Calculate the relevance score of a search result for a skill.
+        Get resources for a skill using the search service.
         
         Args:
-            result: The search result object
-            skill: The skill to calculate relevance for
+            skill: The skill to get resources for
+            proficiency_level: Current proficiency level
             
         Returns:
-            Relevance score between 0.0 and 1.0
+            List of resource dictionaries
         """
-        relevance_score = 0.0
-        skill_lower = skill.lower()
-        
-        # Check if skill is in title (highest weight)
-        if skill_lower in result.title.lower():
-            relevance_score += 0.4
-        
-        # Check if skill is in snippet
-        if skill_lower in result.snippet.lower():
-            relevance_score += 0.3
-        
-        # Check if skill is in URL
-        if skill_lower in result.url.lower():
-            relevance_score += 0.2
-        
-        # Educational domains get a bonus
-        edu_domains = ["coursera", "udemy", "edx", "pluralsight", "linkedin", 
-                       "github", "stackoverflow", "medium", "dev.to", 
-                       "w3schools", "mdn", "freecodecamp"]
-        
-        if any(domain in result.url.lower() for domain in edu_domains):
-            relevance_score += 0.1
-        
-        return min(relevance_score, 1.0)  # Cap at 1.0
+        try:
+            # Get the search service instance
+            search_service = get_search_service()
+            
+            # Use asyncio to run the async search method
+            loop = asyncio.get_event_loop()
+            resources = loop.run_until_complete(
+                search_service.search_resources(
+                    skill=skill,
+                    proficiency_level=proficiency_level,
+                    job_role=self.job_role,
+                    num_results=5
+                )
+            )
+            
+            # Convert Resource objects to dictionaries
+            resource_dicts = []
+            for resource in resources:
+                # Map resource_type to type expected by the system
+                resource_type_mapping = {
+                    "article": "article",
+                    "course": "online_course",
+                    "video": "video",
+                    "tutorial": "tutorial",
+                    "documentation": "documentation",
+                    "book": "book",
+                    "tool": "tool",
+                    "community": "community",
+                    "unknown": "article"
+                }
+                
+                resource_dict = {
+                    "type": resource_type_mapping.get(resource.resource_type, "article"),
+                    "title": resource.title,
+                    "url": resource.url,
+                    "description": resource.description,
+                    "relevance_score": resource.relevance_score
+                }
+                resource_dicts.append(resource_dict)
+            
+            self.logger.info(f"Found {len(resource_dicts)} resources for {skill} using search service")
+            return resource_dicts
+            
+        except Exception as e:
+            self.logger.error(f"Error getting resources from search service: {e}")
+            return []
     
     def process_input(self, user_input: str, context: AgentContext) -> str:
         """
