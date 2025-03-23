@@ -30,6 +30,7 @@ from backend.services import initialize_services
 from backend.utils.docs_generator import generate_static_docs
 from backend.api.agent_api import create_agent_api
 from backend.api.resource_api import create_resource_api
+from backend.api.transcript_api import router as transcript_router
 
 
 # Load environment variables
@@ -71,6 +72,8 @@ logger.info("Services initialized")
 # Create API routes
 create_agent_api(app)
 create_resource_api(app)
+# Register transcript API routes
+app.include_router(transcript_router, prefix="/api/transcripts", tags=["transcripts"])
 logger.info("API routes registered")
 
 # Mount static files (if needed)
@@ -182,14 +185,24 @@ async def generate_interview(request: InterviewRequest):
         raise HTTPException(status_code=500, detail=f"Error generating interview question: {str(e)}")
 
 @app.on_event("startup")
-async def generate_api_docs():
-    """Generate API documentation when the application starts."""
+async def startup_event():
+    """Initialize services when the application starts."""
+    # Initialize database
+    init_db()
+    
+    # Initialize services
+    global service_provider
+    service_provider = initialize_services()
+    
+    # Generate API documentation
     docs_dir = os.path.join(os.getcwd(), "..", "docs", "api")
     try:
         generate_static_docs(app, docs_dir)
-        print(f"API documentation generated in {os.path.join(docs_dir, 'api_docs')}")
+        logger.info(f"API documentation generated in {docs_dir}")
     except Exception as e:
-        print(f"Error generating API documentation: {str(e)}")
+        logger.error(f"Error generating API documentation: {str(e)}")
+    
+    logger.info("Application startup complete")
 
 # Run the application if executed directly
 if __name__ == "__main__":

@@ -204,44 +204,82 @@ class SessionManager:
         
         return sessions
     
-    def end_session(self, session_id: str) -> bool:
+    async def end_session(self, session_id: str) -> bool:
         """
-        End an active session.
+        End an active session by marking it as inactive and publishing an event.
         
         Args:
-            session_id: Session identifier
+            session_id: The ID of the session to end
             
         Returns:
-            True if session was found and ended, False otherwise
+            bool: True if the session was ended successfully, False otherwise
         """
-        orchestrator = self.active_sessions.get(session_id)
+        # Check if session exists
+        orchestrator = self.get_session(session_id)
         if not orchestrator:
+            self.logger.warning(f"Attempt to end non-existent session: {session_id}")
             return False
-        
-        # Publish event to notify components
-        self.event_bus.publish(Event(
-            event_type="interview_end",
-            source="session_manager",
-            data={
+            
+        # Get session info before ending
+        session_info = self.get_session_info(session_id)
+            
+        # Mark session as inactive and publish event
+        if self.active_sessions.get(session_id):
+            self.logger.info(f"Ending session: {session_id}")
+            
+            # Publish event for ending the interview
+            await self.event_bus.publish("interview_end", {
                 "session_id": session_id,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        ))
-        
-        # Remove from active sessions
-        del self.active_sessions[session_id]
-        
-        # Keep metadata for historical reference
-        # but mark as inactive
-        if session_id in self.session_metadata:
-            self.session_metadata[session_id]["active"] = False
-            self.session_metadata[session_id]["ended_at"] = datetime.utcnow().isoformat()
-        
-        # Clear caches
-        self._clear_caches_for_session(session_id)
-        self._clear_session_list_cache()
-        
-        return True
+                "timestamp": datetime.now().isoformat()
+            })
+            
+            # Actually end the session in the orchestrator
+            result = orchestrator.end_interview()
+            
+            # Attempt to create a transcript if the TranscriptService is available
+            try:
+                from backend.services import get_transcript_service
+                
+                transcript_service = get_transcript_service()
+                if transcript_service:
+                    # Get an SQLAlchemy session
+                    from backend.database.connection import SessionLocal
+                    db = SessionLocal()
+                    try:
+                        # Generate a default title from the job role
+                        job_role = session_info.get("job_role", "Interview")
+                        title = f"{job_role} Interview - {datetime.now().strftime('%Y-%m-%d')}"
+                        
+                        # Create transcript from the session
+                        transcript = transcript_service.create_transcript_from_session(
+                            db=db,
+                            session_id=session_id,
+                            title=title,
+                            is_public=False,
+                            generate_embeddings=True
+                        )
+                        
+                        if transcript:
+                            self.logger.info(f"Created transcript {transcript.id} for session {session_id}")
+                        else:
+                            self.logger.warning(f"Failed to create transcript for session {session_id}")
+                    finally:
+                        db.close()
+            except ImportError:
+                self.logger.warning("TranscriptService not available, skipping transcript creation")
+            except Exception as e:
+                self.logger.error(f"Error creating transcript for session {session_id}: {str(e)}")
+            
+            # Update the cache for this session
+            self._clear_caches_for_session(session_id)
+            self._clear_session_list_cache()
+            
+            # Set session as inactive
+            self.active_sessions[session_id]["is_active"] = False
+            return True
+        else:
+            self.logger.warning(f"Attempt to end inactive session: {session_id}")
+            return False
     
     def persist_session(self, db: DBSession, session_id: str) -> bool:
         """
