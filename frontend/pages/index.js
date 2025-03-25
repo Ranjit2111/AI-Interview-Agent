@@ -3,58 +3,66 @@ import Head from 'next/head';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 
+// Dynamic imports for client-only components
+const DynamicCameraView = dynamic(() => import('../components/CameraView'), { ssr: false });
+const DynamicSpeechInput = dynamic(() => import('../components/SpeechInput'), { ssr: false });
+const DynamicSpeechOutput = dynamic(() => import('../components/SpeechOutput'), { ssr: false });
+const DynamicChatWindow = dynamic(() => import('../components/ChatWindow'), { ssr: false });
+const DynamicUserContextForm = dynamic(() => import('../components/UserContextForm'), { ssr: false });
+const DynamicCoachFeedback = dynamic(() => import('../components/CoachFeedback'), { ssr: false });
+const DynamicTranscriptManager = dynamic(() => import('../components/TranscriptManager'), { ssr: false });
+
 // Set default to localhost if not specified in environment variables
-// IMPORTANT: This ensures we ALWAYS use localhost for this local project
-const BACKEND_URL = "http://localhost:8000";
-console.log("Using backend URL:", BACKEND_URL);
-
-// Dynamically import client-only components with no SSR
-const DynamicCameraView = dynamic(
-  () => import('../components/CameraView'),
-  { ssr: false }
-);
-
-const DynamicSpeechInput = dynamic(
-  () => import('../components/SpeechInput'),
-  { ssr: false }
-);
-
-const DynamicSpeechOutput = dynamic(
-  () => import('../components/SpeechOutput'),
-  { ssr: false }
-);
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
 
 export default function Home() {
-  const [userInput, setUserInput] = useState('');
-  const [response, setResponse] = useState('');
-  const [jobRole, setJobRole] = useState('');
-  const [jobDescription, setJobDescription] = useState('');
-  const [resume, setResume] = useState(null);
-  const [audioFeedback, setAudioFeedback] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [activeSection, setActiveSection] = useState('home');
-  const [fileName, setFileName] = useState('');
+  // App state
+  const [activeSection, setActiveSection] = useState('user-context');
   const [navbarVisible, setNavbarVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isClient, setIsClient] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
   
-  // New state for speech features
-  const [useSpeechInput, setUseSpeechInput] = useState(false);
-  const [useSpeechOutput, setUseSpeechOutput] = useState(false);
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  // Session state
+  const [sessionId, setSessionId] = useState(null);
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   
-  const audioRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  // Interview state
+  const [messages, setMessages] = useState([]);
+  const [isMessageLoading, setIsMessageLoading] = useState(false);
+  
+  // Media settings
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [microphoneEnabled, setMicrophoneEnabled] = useState(false);
+  const [speakerEnabled, setSpeakerEnabled] = useState(true);
+  
+  // Coach feedback
+  const [feedback, setFeedback] = useState([]);
+  const [transcript, setTranscript] = useState([]);
+  
+  // Skill assessment
+  const [skills, setSkills] = useState([]);
+  const [selectedSkill, setSelectedSkill] = useState(null);
+  
+  // Refs for section scrolling
   const sectionsRef = useRef({});
 
   // Set isClient to true when component mounts
   useEffect(() => {
     setIsClient(true);
+    
+    // Check user preference for dark mode
+    if (typeof window !== 'undefined') {
+      const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+      setDarkMode(savedDarkMode);
+      if (savedDarkMode) {
+        document.documentElement.classList.add('dark');
+      }
+    }
   }, []);
 
-  // Handle scroll events for parallax and navbar visibility
+  // Handle scroll events for navbar visibility and active section
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -68,7 +76,7 @@ export default function Home() {
       
       setLastScrollY(currentScrollY);
       
-      // Handle active section
+      // Handle active section based on scroll position
       Object.entries(sectionsRef.current).forEach(([key, section]) => {
         if (section) {
           const rect = section.getBoundingClientRect();
@@ -83,523 +91,548 @@ export default function Home() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
 
-  const handleSubmitContext = async (e) => {
-    e.preventDefault();
+  // Toggle dark mode
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('darkMode', (!darkMode).toString());
+      if (!darkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+  };
+
+  // Scroll to a specific section
+  const scrollToSection = (sectionId) => {
+    sectionsRef.current[sectionId]?.scrollIntoView({ behavior: 'smooth' });
+    setActiveSection(sectionId);
+  };
+
+  // Start a new interview session with context data
+  const handleStartSession = async (contextData) => {
     setIsLoading(true);
     
-    const formData = new FormData();
-    formData.append('job_role', jobRole);
-    formData.append('job_description', jobDescription);
-    if (resume) {
-      formData.append('resume_file', resume);
-    }
-
     try {
-      const res = await fetch(`${BACKEND_URL}/submit-context`, {
+      const response = await fetch(`${BACKEND_URL}/api/sessions/start`, {
         method: 'POST',
-        body: formData,
+        body: contextData, // FormData object with job title, description, resume, etc.
       });
-
-      if (!res.ok) {
-        console.error("Error submitting job context:", res.statusText);
-        alert(`Error submitting job context: ${res.statusText}`);
-      } else {
-        // Scroll to interview section
-        sectionsRef.current.interview?.scrollIntoView({ behavior: 'smooth' });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to start session: ${response.statusText}`);
       }
+      
+      const data = await response.json();
+      setSessionId(data.sessionId);
+      setIsSessionActive(true);
+      
+      // Add initial system message
+      setMessages([{
+        type: 'system',
+        text: 'Interview session started. The interviewer will begin shortly.',
+        timestamp: new Date().toISOString()
+      }]);
+      
+      // Scroll to interview section
+      scrollToSection('interview');
+      
     } catch (error) {
-      console.error("Error submitting job context:", error);
-      alert(`Network error: ${error.message}. Make sure the backend server is running.`);
+      console.error('Error starting interview session:', error);
+      alert(`Error: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSubmitInterview = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
+  // Send a message to the interviewer
+  const handleSendMessage = async (messageText) => {
+    if (!sessionId || !messageText.trim()) return;
+    
+    // Add user message to the chat
+    const userMessage = {
+      type: 'user',
+      text: messageText,
+      timestamp: new Date().toISOString()
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setIsMessageLoading(true);
     
     try {
-      const res = await fetch(`${BACKEND_URL}/generate-interview`, {
+      const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ user_input: userInput, job_role: jobRole, job_description: jobDescription }),
+        body: JSON.stringify({ message: messageText }),
       });
-
-      if (!res.ok) {
-        console.error("Error generating interview:", res.statusText);
-        alert(`Error generating interview: ${res.statusText}`);
-        return;
+      
+      if (!response.ok) {
+        throw new Error(`Failed to send message: ${response.statusText}`);
       }
-
-      const data = await res.json();
-      setResponse(data.generated_text);
-    } catch (error) {
-      console.error("Error generating interview:", error);
-      alert(`Network error: ${error.message}. Make sure the backend server is running.`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAudioSubmit = async (audioBlob) => {
-    setIsLoading(true);
-    
-    try {
-      const formData = new FormData();
-      formData.append('audio_file', audioBlob);
-
-      const res = await fetch(`${BACKEND_URL}/process-audio`, {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        console.error("Error processing audio:", res.statusText);
-        alert(`Error processing audio: ${res.statusText}`);
-        return;
+      
+      const data = await response.json();
+      
+      // Add interviewer message to the chat
+      const interviewerMessage = {
+        type: 'interviewer',
+        text: data.response,
+        timestamp: new Date().toISOString()
+      };
+      
+      setMessages(prev => [...prev, interviewerMessage]);
+      
+      // Update transcript for coach to analyze
+      setTranscript(prev => [...prev, 
+        { id: userMessage.timestamp, speaker: 'user', text: userMessage.text },
+        { id: interviewerMessage.timestamp, speaker: 'interviewer', text: interviewerMessage.text }
+      ]);
+      
+      // Check for new feedback from coach
+      if (data.feedback) {
+        setFeedback(prev => [...prev, ...data.feedback]);
       }
-
-      const data = await res.json();
-      setAudioFeedback(`${BACKEND_URL}${data.audio_url}`);
+      
+      // Update skills assessment if provided
+      if (data.skills) {
+        setSkills(data.skills);
+      }
+      
     } catch (error) {
-      console.error("Error processing audio:", error);
-      alert(`Network error: ${error.message}. Make sure the backend server is running.`);
+      console.error('Error sending message:', error);
+      // Add error message to chat
+      setMessages(prev => [...prev, {
+        type: 'system',
+        text: `Error: ${error.message}. Please try again.`,
+        timestamp: new Date().toISOString()
+      }]);
     } finally {
-      setIsLoading(false);
+      setIsMessageLoading(false);
     }
-  };
-
-  const startRecording = async () => {
-    if (isRecording) return;
-
-    setIsRecording(true);
-    audioChunksRef.current = [];
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
-      };
-
-      mediaRecorderRef.current.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        await handleAudioSubmit(audioBlob);
-      };
-
-      mediaRecorderRef.current.start();
-    } catch (error) {
-      console.error("Error starting recording:", error);
-      setIsRecording(false);
-    }
-  };
-
-  const stopRecording = () => {
-    if (!isRecording) return;
-
-    mediaRecorderRef.current.stop();
-    setIsRecording(false);
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setResume(file);
-      setFileName(file.name);
-    }
-  };
-
-  const scrollToSection = (sectionId) => {
-    sectionsRef.current[sectionId]?.scrollIntoView({ behavior: 'smooth' });
   };
 
   // Speech input handler
   const handleSpeechInput = (transcript) => {
-    setUserInput(transcript);
     if (transcript.trim()) {
-      // Auto-submit the form when speech input is received
-      const fakeEvent = { preventDefault: () => {} };
-      handleSubmitInterview(fakeEvent);
+      handleSendMessage(transcript);
     }
   };
 
+  // Handle microphone toggle
+  const handleMicrophoneToggle = (isEnabled) => {
+    setMicrophoneEnabled(isEnabled);
+  };
+
+  // End the current interview session
+  const handleEndSession = async () => {
+    if (!sessionId) return;
+    
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/sessions/${sessionId}/end`, {
+        method: 'POST'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to end session: ${response.statusText}`);
+      }
+      
+      // Add system message about session ending
+      setMessages(prev => [...prev, {
+        type: 'system',
+        text: 'Interview session ended. You can view your feedback and skill assessment below.',
+        timestamp: new Date().toISOString()
+      }]);
+      
+      setIsSessionActive(false);
+      
+      // Scroll to feedback section
+      scrollToSection('feedback');
+      
+    } catch (error) {
+      console.error('Error ending session:', error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Select a skill to view details
+  const handleSkillSelect = (skill) => {
+    setSelectedSkill(skill);
+    scrollToSection('skills');
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
+    <div className={`min-h-screen flex flex-col ${darkMode ? 'dark' : ''}`}>
       <Head>
         <title>AI Interview Agent</title>
-        <meta name="description" content="Practice interviews with AI coaching" />
+        <meta name="description" content="Practice job interviews with AI coaching and skill assessment" />
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
       {/* Navigation Bar */}
-      <header className={`bg-white shadow transition-all duration-300 ease-in-out ${navbarVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+      <header className={`bg-white dark:bg-gray-900 shadow-md transition-all duration-300 ease-in-out fixed w-full z-50 ${navbarVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center">
-            <span className="text-xl font-bold text-gray-900">AI Interview Agent</span>
+            <span className="text-xl font-bold text-gray-900 dark:text-white">AI Interview Agent</span>
           </div>
-          <nav className="flex space-x-6">
-            <Link href="/">
-              <a className="text-blue-600 font-medium">Home</a>
-            </Link>
-            <Link href="/transcripts">
-              <a className="text-gray-600 hover:text-blue-600 transition">Transcripts</a>
-            </Link>
+          
+          <nav className="hidden md:flex items-center space-x-6">
+            <button
+              onClick={() => scrollToSection('user-context')}
+              className={`px-3 py-2 rounded-md transition-colors ${activeSection === 'user-context' ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+            >
+              Job Context
+            </button>
+            
+            <button
+              onClick={() => scrollToSection('interview')}
+              className={`px-3 py-2 rounded-md transition-colors ${activeSection === 'interview' ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+              disabled={!isSessionActive && !sessionId}
+            >
+              Interview
+            </button>
+            
+            <button
+              onClick={() => scrollToSection('feedback')}
+              className={`px-3 py-2 rounded-md transition-colors ${activeSection === 'feedback' ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+              disabled={!sessionId}
+            >
+              Coach Feedback
+            </button>
+            
+            <button
+              onClick={() => scrollToSection('skills')}
+              className={`px-3 py-2 rounded-md transition-colors ${activeSection === 'skills' ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+              disabled={!sessionId}
+            >
+              Skill Assessment
+            </button>
+            
+            <button
+              onClick={() => scrollToSection('transcript')}
+              className={`px-3 py-2 rounded-md transition-colors ${activeSection === 'transcript' ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+              disabled={!sessionId}
+            >
+              Transcript
+            </button>
           </nav>
+          
+          <div className="flex items-center">
+            <button
+              onClick={toggleDarkMode}
+              className="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none"
+              aria-label="Toggle dark mode"
+            >
+              {darkMode ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Hero Section */}
+      {/* Main Content */}
+      <main className="flex-grow pt-16 bg-gray-50 dark:bg-gray-900">
+        {/* User Context Section */}
       <section 
-        ref={el => sectionsRef.current.home = el}
-        className="section min-h-screen flex items-center relative overflow-hidden"
-        style={{ paddingTop: '80px' }}
-      >
-        <div className="container-custom relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="fade-in">
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
-                <span className="text-accent-yellow">AI</span> Interview
-                <br />Coach
+          id="user-context-section" 
+          className="min-h-screen py-16 px-4"
+          ref={el => sectionsRef.current['user-context'] = el}
+        >
+          <div className="container mx-auto max-w-4xl">
+            <h1 className="text-3xl font-bold text-center mb-12 text-gray-900 dark:text-white">
+              Prepare for Your Interview
               </h1>
-              <p className="text-shaga-secondary text-lg mb-8 max-w-lg">
-                Advanced interview training powered by AI. Practice with real-time feedback and analysis to ace your next interview.
-              </p>
-              <div className="flex flex-wrap gap-4">
-                <button 
-                  onClick={() => scrollToSection('setup')} 
-                  className="btn-accent"
-                >
-                  Start Training
-                </button>
-                <button 
-                  onClick={() => scrollToSection('feedback')} 
-                  className="btn-outline"
-                >
-                  View Feedback
-                </button>
-              </div>
-            </div>
-            <div className="camera-container fade-in animation-delay-200">
-              {isClient ? <DynamicCameraView /> : 
-                <div className="w-full h-full flex items-center justify-center bg-dark-800">
-                  <p className="text-shaga-secondary">Camera loading...</p>
-                </div>
-              }
-              <div className="absolute inset-0 border border-accent-yellow pointer-events-none"></div>
-              <div className="absolute top-4 left-4 flex items-center">
-                <div className="w-2 h-2 rounded-full bg-accent-green mr-2 animate-pulse"></div>
-                <span className="text-xs text-shaga-secondary uppercase tracking-wider">Live Camera</span>
-              </div>
-              <div className="absolute bottom-4 left-4">
-                <div className="text-xs text-shaga-secondary uppercase tracking-wider">
-                  Compatible with<br />all devices
-                </div>
-              </div>
-              <div className="absolute bottom-4 right-4">
-                <div className="text-xs text-shaga-secondary uppercase tracking-wider">
-                  AI·COACH
-                </div>
-              </div>
-            </div>
+            
+            {isClient && (
+              <DynamicUserContextForm 
+                onSubmit={handleStartSession} 
+                isLoading={isLoading}
+              />
+            )}
           </div>
-        </div>
+        </section>
         
-        {/* Parallax background elements */}
-        <div 
-          className="parallax-layer" 
-          style={{ 
-            transform: `translateY(${typeof window !== 'undefined' ? window.scrollY * 0.1 : 0}px)`,
-            backgroundImage: 'radial-gradient(circle at 20% 30%, rgba(255, 204, 0, 0.05) 0%, transparent 50%)'
-          }}
-        ></div>
-        <div 
-          className="parallax-layer" 
-          style={{ 
-            transform: `translateY(${typeof window !== 'undefined' ? window.scrollY * 0.2 : 0}px)`,
-            backgroundImage: 'radial-gradient(circle at 80% 70%, rgba(0, 204, 255, 0.05) 0%, transparent 50%)'
-          }}
-        ></div>
-      </section>
-
-      {/* Setup Section */}
-      <section 
-        ref={el => sectionsRef.current.setup = el}
-        className="section bg-dark-800"
-      >
-        <div className="container-custom">
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-12 slide-up">
-              <h2 className="text-3xl font-bold mb-4">Interview Setup</h2>
-              <p className="text-shaga-secondary">Configure your interview parameters</p>
-            </div>
+        {/* Interview Section */}
+        <section 
+          id="interview-section" 
+          className="min-h-screen py-16 px-4 bg-gray-100 dark:bg-gray-800"
+          ref={el => sectionsRef.current['interview'] = el}
+        >
+          <div className="container mx-auto max-w-5xl">
+            <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-white">
+              Interview Session
+            </h2>
             
-            <form onSubmit={handleSubmitContext} className="card p-6 slide-up animation-delay-200">
-              <div className="space-y-6">
-                <div>
-                  <label htmlFor="jobRole" className="block text-sm font-medium text-shaga-secondary mb-1">
-                    Job Role <span className="text-accent-yellow">*</span>
-                  </label>
-                  <input 
-                    id="jobRole"
-                    type="text" 
-                    value={jobRole} 
-                    onChange={(e) => setJobRole(e.target.value)} 
-                    placeholder="e.g. Software Engineer, Product Manager" 
-                    className="input-field" 
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label htmlFor="jobDescription" className="block text-sm font-medium text-shaga-secondary mb-1">
-                    Job Description
-                  </label>
-                  <textarea 
-                    id="jobDescription"
-                    value={jobDescription} 
-                    onChange={(e) => setJobDescription(e.target.value)} 
-                    placeholder="Paste the job description here..." 
-                    className="input-field min-h-[120px]"
-                    rows={4}
-                  />
-                </div>
-                
-                <div>
-                  <label htmlFor="resume" className="block text-sm font-medium text-shaga-secondary mb-1">
-                    Upload Resume (PDF or DOCX)
-                  </label>
-                  <input 
-                    id="resume"
-                    type="file" 
-                    onChange={handleFileChange} 
-                    accept="application/pdf, .docx" 
-                    className="file-input"
-                  />
-                  {fileName && (
-                    <p className="mt-2 text-sm text-accent-yellow">
-                      Selected file: {fileName}
-                    </p>
-                  )}
-                </div>
-                
-                <div className="pt-4">
-                  <button 
-                    type="submit" 
-                    className="btn-accent w-full"
-                    disabled={isLoading || !jobRole}
-                  >
-                    {isLoading ? (
-                      <span className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Processing...
-                      </span>
-                    ) : (
-                      'Start Interview'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      {/* Interview Section */}
-      <section 
-        id="interview" 
-        ref={(el) => (sectionsRef.current.interview = el)}
-        className="min-h-screen flex flex-col items-center justify-center py-12"
-      >
-        <h2 className="text-3xl font-bold mb-8">Interview Session</h2>
-        
-        <div className="w-full max-w-4xl bg-gray-800 rounded-lg shadow-xl p-6">
-          <div className="flex flex-col md:flex-row gap-6">
-            {/* Video feed */}
-            <div className="w-full md:w-1/3 h-64 md:h-auto bg-gray-700 rounded-lg overflow-hidden">
-              {isClient && <DynamicCameraView />}
-            </div>
-            
-            {/* Interview content */}
-            <div className="w-full md:w-2/3 flex flex-col">
-              {/* Response area */}
-              <div className="flex-grow mb-6 bg-gray-700 rounded-lg p-4 overflow-y-auto max-h-64 md:max-h-96">
-                {isLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-                  </div>
-                ) : response ? (
-                  <div className="space-y-4">
-                    <p className="whitespace-pre-line">{response}</p>
-                    
-                    {/* Add speech output component */}
-                    {isClient && useSpeechOutput && (
-                      <div className="mt-4 pt-4 border-t border-gray-600">
-                        <DynamicSpeechOutput
-                          text={response}
-                          onPlay={() => setIsAudioPlaying(true)}
-                          onEnd={() => setIsAudioPlaying(false)}
-                          backendUrl={BACKEND_URL}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-gray-500 italic">
-                    Your interview responses will appear here. Start by entering your response below.
-                  </p>
-                )}
-              </div>
-              
-              {/* Input area with speech options */}
-              <div className="bg-gray-700 rounded-lg p-4">
-                <form onSubmit={handleSubmitInterview} className="space-y-4">
-                  {/* Speech input toggle */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <label className="text-sm cursor-pointer flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={useSpeechInput}
-                          onChange={() => setUseSpeechInput(!useSpeechInput)}
-                          className="mr-2"
-                        />
-                        Voice Input
-                      </label>
-                      
-                      <label className="text-sm cursor-pointer flex items-center ml-4">
-                        <input
-                          type="checkbox"
-                          checked={useSpeechOutput}
-                          onChange={() => setUseSpeechOutput(!useSpeechOutput)}
-                          className="mr-2"
-                        />
-                        Voice Output
-                      </label>
-                    </div>
-                  </div>
-                  
-                  {/* Speech input component */}
-                  {isClient && useSpeechInput ? (
-                    <DynamicSpeechInput
-                      onSpeechInput={handleSpeechInput}
-                      language="en-US"
-                      autoStart={false}
-                    />
-                  ) : (
-                    <textarea
-                      className="w-full p-3 bg-gray-600 text-white rounded-lg"
-                      rows="4"
-                      placeholder="Type your response here..."
-                      value={userInput}
-                      onChange={(e) => setUserInput(e.target.value)}
-                      disabled={isLoading || isAudioPlaying}
-                    ></textarea>
-                  )}
-                  
-                  <button
-                    type="submit"
-                    className={`px-4 py-2 bg-blue-600 text-white rounded-lg ${
-                      isLoading || isAudioPlaying ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
-                    }`}
-                    disabled={isLoading || isAudioPlaying}
-                  >
-                    {isLoading ? 'Processing...' : 'Submit Response'}
-                  </button>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Feedback Section */}
-      <section 
-        ref={el => sectionsRef.current.feedback = el}
-        className="section bg-dark-800"
-      >
-        <div className="container-custom">
-          <div className="max-w-3xl mx-auto">
-            <div className="text-center mb-12 slide-up">
-              <h2 className="text-3xl font-bold mb-4">Interview Feedback</h2>
-              <p className="text-shaga-secondary">Review your performance and get AI-powered insights</p>
-            </div>
-            
-            {audioFeedback ? (
-              <div className="card p-6 slide-up animation-delay-200">
-                <h3 className="text-lg font-medium text-accent-yellow mb-4">Audio Analysis</h3>
-                <audio ref={audioRef} controls src={audioFeedback} className="w-full mb-6" />
-                <div className="space-y-4">
-                  <div className="p-4 bg-dark-600 rounded-md">
-                    <h4 className="text-sm font-medium text-shaga-secondary mb-2">Confidence Score</h4>
-                    <div className="w-full bg-dark-400 rounded-full h-2.5">
-                      <div className="bg-accent-yellow h-2.5 rounded-full" style={{ width: '85%' }}></div>
-                    </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-xs text-shaga-muted">0%</span>
-                      <span className="text-xs text-shaga-muted">100%</span>
-                    </div>
-                  </div>
-                  
-                  <div className="p-4 bg-dark-600 rounded-md">
-                    <h4 className="text-sm font-medium text-shaga-secondary mb-2">Clarity of Speech</h4>
-                    <div className="w-full bg-dark-400 rounded-full h-2.5">
-                      <div className="bg-accent-green h-2.5 rounded-full" style={{ width: '75%' }}></div>
-                    </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-xs text-shaga-muted">0%</span>
-                      <span className="text-xs text-shaga-muted">100%</span>
-                    </div>
-                  </div>
-                  
-                  <div className="p-4 bg-dark-600 rounded-md">
-                    <h4 className="text-sm font-medium text-shaga-secondary mb-2">Content Relevance</h4>
-                    <div className="w-full bg-dark-400 rounded-full h-2.5">
-                      <div className="bg-accent-blue h-2.5 rounded-full" style={{ width: '90%' }}></div>
-                    </div>
-                    <div className="flex justify-between mt-1">
-                      <span className="text-xs text-shaga-muted">0%</span>
-                      <span className="text-xs text-shaga-muted">100%</span>
-                    </div>
-                  </div>
-                </div>
+            {!sessionId ? (
+              <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md p-8 text-center">
+                <p className="text-gray-600 dark:text-gray-300 mb-4">
+                  Please set up your job details first before starting the interview.
+                </p>
+                <button 
+                  onClick={() => scrollToSection('user-context')}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  Go to Job Setup
+                </button>
               </div>
             ) : (
-              <div className="card p-6 text-center slide-up animation-delay-200">
-                <p className="text-shaga-secondary mb-4">No feedback available yet. Complete an interview session to get feedback.</p>
-                <button 
-                  onClick={() => scrollToSection('interview')} 
-                  className="btn-accent"
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[70vh]">
+                {/* Camera View */}
+                <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md overflow-hidden lg:col-span-1">
+                  <div className="h-full flex flex-col">
+                    <div className="p-3 border-b border-gray-200 dark:border-gray-600 flex justify-between items-center">
+                      <h3 className="font-medium text-gray-900 dark:text-white">Camera</h3>
+                    </div>
+                    <div className="flex-grow relative">
+                      {isClient && (
+                        <DynamicCameraView autoStart={false} />
+                      )}
+                    </div>
+                    <div className="p-3 border-t border-gray-200 dark:border-gray-600 flex justify-center items-center space-x-4">
+                      {isClient && (
+                        <DynamicSpeechInput
+                          onSpeechResult={handleSpeechInput}
+                          onListeningChange={handleMicrophoneToggle}
+                          autoStart={false}
+                        />
+                      )}
+              </div>
+            </div>
+                </div>
+                
+                {/* Chat Window */}
+                <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md overflow-hidden lg:col-span-2">
+                  <div className="h-full">
+                    {isClient && (
+                      <DynamicChatWindow
+                        messages={messages}
+                        onSendMessage={handleSendMessage}
+                        isLoading={isMessageLoading}
+                      />
+                    )}
+              </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Interview Controls */}
+            {sessionId && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  onClick={handleEndSession}
+                  disabled={isLoading || !isSessionActive}
+                  className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Go to Interview
+                  End Interview
                 </button>
               </div>
             )}
           </div>
+        </section>
+        
+        {/* Coach Feedback Section */}
+      <section 
+          id="feedback-section" 
+          className="min-h-screen py-16 px-4"
+          ref={el => sectionsRef.current['feedback'] = el}
+        >
+          <div className="container mx-auto max-w-4xl">
+            <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-white">
+              Coach Feedback
+            </h2>
+            
+            {!sessionId ? (
+              <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md p-8 text-center">
+                <p className="text-gray-600 dark:text-gray-300">
+                  Complete an interview session to receive coach feedback.
+                </p>
+                </div>
+            ) : (
+              <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md p-6 h-[70vh]">
+                {isClient && (
+                  <DynamicCoachFeedback
+                    feedback={feedback}
+                    transcript={transcript}
+                    isLoading={false}
+                  />
+                )}
+              </div>
+            )}
         </div>
       </section>
 
+        {/* Skill Assessment Section */}
+      <section 
+          id="skills-section" 
+          className="min-h-screen py-16 px-4 bg-gray-100 dark:bg-gray-800"
+          ref={el => sectionsRef.current['skills'] = el}
+        >
+          <div className="container mx-auto max-w-4xl">
+            <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-white">
+              Skill Assessment
+            </h2>
+            
+            {!sessionId ? (
+              <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md p-8 text-center">
+                <p className="text-gray-600 dark:text-gray-300">
+                  Complete an interview session to receive skill assessments.
+                </p>
+              </div>
+            ) : skills.length === 0 ? (
+              <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md p-8 text-center">
+                <p className="text-gray-600 dark:text-gray-300">
+                  No skill assessments available yet. Continue with the interview to receive feedback.
+                </p>
+                  </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {skills.map((skill, index) => (
+                  <div 
+                    key={index}
+                    className="bg-white dark:bg-gray-700 rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer"
+                    onClick={() => handleSkillSelect(skill)}
+                  >
+                    <h3 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">{skill.name}</h3>
+                    <div className="mb-3">
+                      <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
+                        <div 
+                          className="bg-blue-600 h-2.5 rounded-full" 
+                          style={{ width: `${(skill.proficiency / 5) * 100}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex justify-between mt-1 text-sm text-gray-600 dark:text-gray-400">
+                        <span>Beginner</span>
+                        <span>Expert</span>
+              </div>
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm line-clamp-3">{skill.summary}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Selected Skill Details */}
+            {selectedSkill && (
+              <div className="mt-8 bg-white dark:bg-gray-700 rounded-lg shadow-md p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{selectedSkill.name}</h3>
+                  <button
+                    onClick={() => setSelectedSkill(null)}
+                    className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                  </button>
+            </div>
+            
+                <div className="mb-4">
+                  <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5 mb-1">
+                    <div 
+                      className="bg-blue-600 h-2.5 rounded-full" 
+                      style={{ width: `${(selectedSkill.proficiency / 5) * 100}%` }}
+                    ></div>
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                    <span>Level: {selectedSkill.proficiency}/5</span>
+                    <span>{selectedSkill.proficiency < 3 ? 'Needs Improvement' : selectedSkill.proficiency < 4 ? 'Competent' : 'Excellent'}</span>
+                    </div>
+                  </div>
+                  
+                <div className="mb-6">
+                  <h4 className="font-medium mb-2 text-gray-800 dark:text-gray-200">Assessment</h4>
+                  <p className="text-gray-600 dark:text-gray-300">{selectedSkill.assessment}</p>
+                    </div>
+                
+                {selectedSkill.resources && selectedSkill.resources.length > 0 && (
+                  <div>
+                    <h4 className="font-medium mb-2 text-gray-800 dark:text-gray-200">Learning Resources</h4>
+                    <ul className="space-y-2">
+                      {selectedSkill.resources.map((resource, index) => (
+                        <li key={index} className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
+                          <a 
+                            href={resource.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 dark:text-blue-400 hover:underline flex items-start"
+                          >
+                            <svg className="w-5 h-5 mr-2 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                            </svg>
+                            <div>
+                              <span className="font-medium">{resource.title}</span>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">{resource.description}</p>
+                    </div>
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+                </div>
+        </section>
+        
+        {/* Transcript Section */}
+        <section 
+          id="transcript-section" 
+          className="min-h-screen py-16 px-4"
+          ref={el => sectionsRef.current['transcript'] = el}
+        >
+          <div className="container mx-auto max-w-5xl">
+            <h2 className="text-2xl font-bold mb-8 text-gray-900 dark:text-white">
+              Interview Transcript
+            </h2>
+            
+            {!sessionId ? (
+              <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md p-8 text-center">
+                <p className="text-gray-600 dark:text-gray-300">
+                  Complete an interview session to access and manage transcripts.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-gray-700 rounded-lg shadow-md overflow-hidden">
+                {isClient && (
+                  <DynamicTranscriptManager />
+                )}
+              </div>
+            )}
+        </div>
+      </section>
+      </main>
+
       {/* Footer */}
-      <footer className="py-8 bg-dark-900 border-t border-dark-700">
-        <div className="container-custom">
+      <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-6">
+        <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <div className="mb-4 md:mb-0">
-              <h1 className="text-xl font-bold tracking-wider text-accent-yellow">:AI·COACH</h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                © {new Date().getFullYear()} AI Interview Agent. All rights reserved.
+              </p>
             </div>
-            <div className="flex space-x-6">
-              <button onClick={() => scrollToSection('home')} className="nav-link">:HOME</button>
-              <button onClick={() => scrollToSection('setup')} className="nav-link">:SETUP</button>
-              <button onClick={() => scrollToSection('interview')} className="nav-link">:INTERVIEW</button>
-              <button onClick={() => scrollToSection('feedback')} className="nav-link">:FEEDBACK</button>
-            </div>
-            <div className="mt-4 md:mt-0">
-              <span className="text-xs text-shaga-muted tracking-widest">© {new Date().getFullYear()} AI·COACH</span>
+            <div className="flex space-x-4">
+              <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                Privacy Policy
+              </a>
+              <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                Terms of Service
+              </a>
+              <a href="#" className="text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400">
+                Contact
+              </a>
             </div>
           </div>
         </div>

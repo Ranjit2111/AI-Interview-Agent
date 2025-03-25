@@ -28,8 +28,12 @@ class TranscriptTagResponse(TranscriptTagBase):
     id: int = Field(..., description="Tag ID")
     
     class Config:
-        orm_mode = True
-        from_attributes = True
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 # Transcript schemas
 class TranscriptBase(BaseModel):
@@ -37,7 +41,7 @@ class TranscriptBase(BaseModel):
     title: str = Field(..., description="Transcript title")
     content: List[Dict[str, Any]] = Field(..., description="Transcript content as list of message dictionaries")
     summary: Optional[str] = Field(None, description="Transcript summary")
-    metadata: Optional[Dict[str, Any]] = Field({}, description="Transcript metadata")
+    transcript_metadata: Optional[Dict[str, Any]] = Field({}, description="Transcript metadata")
 
 class TranscriptCreate(TranscriptBase):
     """Schema for creating a transcript."""
@@ -53,7 +57,7 @@ class TranscriptUpdate(BaseModel):
     title: Optional[str] = Field(None, description="Transcript title")
     content: Optional[List[Dict[str, Any]]] = Field(None, description="Transcript content")
     summary: Optional[str] = Field(None, description="Transcript summary")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Transcript metadata")
+    transcript_metadata: Optional[Dict[str, Any]] = Field(None, description="Transcript metadata")
     tags: Optional[List[str]] = Field(None, description="List of tag names")
     is_public: Optional[bool] = Field(None, description="Whether this transcript is publicly accessible")
     regenerate_embeddings: bool = Field(False, description="Whether to regenerate embeddings")
@@ -71,8 +75,12 @@ class TranscriptResponse(TranscriptBase):
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
     
     class Config:
-        orm_mode = True
-        from_attributes = True
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 class TranscriptList(BaseModel):
     """Schema for list of transcripts."""
@@ -96,8 +104,12 @@ class TranscriptFragmentResponse(TranscriptFragmentBase):
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     
     class Config:
-        orm_mode = True
-        from_attributes = True
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 # Embedding schemas
 class TranscriptEmbeddingBase(BaseModel):
@@ -113,8 +125,12 @@ class TranscriptEmbeddingResponse(TranscriptEmbeddingBase):
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     
     class Config:
-        orm_mode = True
-        from_attributes = True
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 # Search schemas
 class TranscriptSearch(BaseModel):

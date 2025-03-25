@@ -72,10 +72,17 @@ class SessionManager:
             Dictionary with session information
         """
         try:
-            from backend.agents import AgentOrchestrator
-        except ImportError:
-            self.logger.error("Failed to import AgentOrchestrator")
-            raise ImportError("AgentOrchestrator not found")
+            from backend.agents import AgentOrchestrator, OrchestratorMode
+            # Convert string mode to enum if needed
+            if isinstance(mode, str):
+                try:
+                    mode = OrchestratorMode(mode)
+                except ValueError:
+                    self.logger.warning(f"Invalid orchestrator mode: {mode}, using INTERVIEW")
+                    mode = OrchestratorMode.INTERVIEW
+        except ImportError as e:
+            self.logger.error(f"Failed to import AgentOrchestrator: {e}")
+            raise ImportError(f"Failed to import necessary components: {e}")
         
         # Convert string interview style to enum if needed
         if isinstance(interview_style, str):
@@ -129,7 +136,7 @@ class SessionManager:
         # Return session info
         return self.session_metadata[session_id]
     
-    def get_session(self, session_id: str) -> Optional["AgentOrchestrator"]:
+    def get_session(self, session_id: str):
         """
         Get the orchestrator for a session.
         

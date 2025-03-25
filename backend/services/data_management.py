@@ -83,7 +83,7 @@ class DataManagementService:
                     interview_session_id=session_id,
                     text=question_text,
                     difficulty=3,  # Default medium difficulty
-                    metadata={"position": i + 1},
+                    question_metadata={"position": i + 1},
                     created_at=datetime.utcnow()
                 )
                 questions_to_add.append(question)

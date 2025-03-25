@@ -204,7 +204,10 @@ const TranscriptManager = () => {
       const blob = new Blob([data.content], { 
         type: exportFormat === 'json' ? 'application/json' : 
               exportFormat === 'csv' ? 'text/csv' : 
-              exportFormat === 'markdown' ? 'text/markdown' : 'text/plain' 
+              exportFormat === 'markdown' ? 'text/markdown' : 
+              exportFormat === 'pdf' ? 'application/pdf' :
+              exportFormat === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
+              'text/plain' 
       });
       
       const url = URL.createObjectURL(blob);
@@ -220,12 +223,26 @@ const TranscriptManager = () => {
         URL.revokeObjectURL(url);
       }, 100);
       
+      // Success notification
+      showNotification('Transcript exported successfully!', 'success');
+      
     } catch (err) {
       setError(err.message);
       console.error("Failed to export transcript:", err);
+      showNotification(`Export failed: ${err.message}`, 'error');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Show notification
+  const [notification, setNotification] = useState({ message: '', type: '', visible: false });
+  
+  const showNotification = (message, type = 'info') => {
+    setNotification({ message, type, visible: true });
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, visible: false }));
+    }, 3000);
   };
 
   // Import transcript
@@ -352,113 +369,60 @@ const TranscriptManager = () => {
   // Render transcript detail view
   const renderTranscriptDetail = () => {
     if (!selectedTranscript) return null;
-
+    
     return (
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">{selectedTranscript.title || 'Interview Transcript'}</h2>
           <button
-            className="text-blue-600 hover:underline"
-            onClick={() => {
-              setSelectedTranscript(null);
-              setViewMode('list');
-            }}
+            onClick={() => setViewMode('list')}
+            className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
           >
-            &larr; Back to List
+            Back to List
           </button>
-          
-          <div className="flex items-center gap-2">
-            <select
-              className="p-2 border rounded"
-              value={exportFormat}
-              onChange={(e) => setExportFormat(e.target.value)}
-            >
-              <option value="json">JSON</option>
-              <option value="csv">CSV</option>
-              <option value="markdown">Markdown</option>
-              <option value="text">Plain Text</option>
-            </select>
-            <button
-              className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
-              onClick={() => exportTranscript(selectedTranscript.id)}
-              disabled={isLoading}
-            >
-              {isLoading ? 'Exporting...' : 'Export'}
-            </button>
-          </div>
         </div>
-
-        <div className="p-6 border rounded-lg">
-          <h2 className="text-2xl font-bold">{selectedTranscript.title}</h2>
-          
-          <div className="flex flex-wrap gap-2 mt-3">
+        
+        <div className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          <span>Date: {new Date(selectedTranscript.timestamp).toLocaleString()}</span>
+          {selectedTranscript.duration && (
+            <span className="ml-4">Duration: {formatDuration(selectedTranscript.duration)}</span>
+          )}
+        </div>
+        
+        {selectedTranscript.tags && selectedTranscript.tags.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2">
             {selectedTranscript.tags.map(tag => (
-              <span 
-                key={tag.id}
-                className="px-2 py-1 text-xs rounded-full"
-                style={{ backgroundColor: tag.color || '#e6f2ff' }}
-              >
-                {tag.name}
+              <span key={tag} className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded-full">
+                {tag}
               </span>
             ))}
           </div>
-          
-          {selectedTranscript.summary && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-medium">Summary</h3>
-              <p className="text-gray-700 mt-1">{selectedTranscript.summary}</p>
-            </div>
-          )}
-          
-          <div className="mt-6">
-            <h3 className="font-medium mb-4">Conversation</h3>
-            <div className="space-y-4">
-              {selectedTranscript.content.map((message, index) => {
-                const isUser = message.role === 'user';
-                
-                return (
-                  <div 
-                    key={index} 
-                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div 
-                      className={`max-w-3/4 p-3 rounded-lg ${
-                        isUser 
-                          ? 'bg-blue-600 text-white rounded-br-none' 
-                          : 'bg-gray-200 text-gray-800 rounded-bl-none'
-                      }`}
-                    >
-                      {!isUser && message.agent && (
-                        <div className="font-medium text-sm mb-1">
-                          {message.agent}
-                        </div>
-                      )}
-                      <div>{message.content}</div>
-                      {message.timestamp && (
-                        <div className="text-xs mt-1 opacity-70">
-                          {new Date(message.timestamp).toLocaleTimeString()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+        )}
+        
+        {selectedTranscript.summary && (
+          <div className="mb-6 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+            <h3 className="font-medium mb-2">Summary</h3>
+            <p className="text-gray-700 dark:text-gray-300">{selectedTranscript.summary}</p>
+          </div>
+        )}
+        
+        <div className="mb-6">
+          <h3 className="font-medium mb-2">Transcript</h3>
+          <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg">
+            {renderMessages(selectedTranscript.messages)}
+          </div>
+        </div>
+        
+        {selectedTranscript.feedback && (
+          <div className="mb-6">
+            <h3 className="font-medium mb-2">Feedback</h3>
+            <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+              {selectedTranscript.feedback}
             </div>
           </div>
-          
-          {selectedTranscript.metadata && Object.keys(selectedTranscript.metadata).length > 0 && (
-            <div className="mt-6 border-t pt-4">
-              <h3 className="font-medium mb-2">Metadata</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(selectedTranscript.metadata).map(([key, value]) => (
-                  <div key={key} className="text-sm">
-                    <span className="font-medium">{key}: </span>
-                    <span className="text-gray-700">{typeof value === 'string' ? value : JSON.stringify(value)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        )}
+        
+        {renderExportOptions()}
       </div>
     );
   };
@@ -515,89 +479,148 @@ const TranscriptManager = () => {
     return text.replace(regex, '<mark class="bg-yellow-300">$1</mark>');
   };
 
+  // Render export options in the transcript detail view
+  const renderExportOptions = () => (
+    <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+      <h3 className="text-md font-medium mb-3">Export Options</h3>
+      <div className="flex flex-wrap gap-3 mb-3">
+        {['json', 'csv', 'markdown', 'pdf', 'docx', 'txt'].map(format => (
+          <button
+            key={format}
+            onClick={() => setExportFormat(format)}
+            className={`px-3 py-1.5 rounded-lg text-sm ${
+              exportFormat === format
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
+            }`}
+          >
+            {format.toUpperCase()}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => exportTranscript(selectedTranscript.id)}
+        disabled={isLoading}
+        className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isLoading ? (
+          <>
+            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Exporting...
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            </svg>
+            Export as {exportFormat.toUpperCase()}
+          </>
+        )}
+      </button>
+    </div>
+  );
+
   return (
-    <div className="container mx-auto p-4">
-      {error && (
-        <div className="p-4 mb-4 bg-red-100 text-red-700 rounded-lg">
-          {error}
-        </div>
-      )}
-      
-      <div className="mb-6">
-        <div className="flex flex-col md:flex-row gap-4 mb-4">
-          <div className="flex-1">
-            <div className="relative">
-              <input
-                type="text"
-                className="w-full p-3 border rounded-lg pl-10"
-                placeholder="Search transcripts..."
-                value={searchQuery}
-                onChange={handleSearchChange}
-              />
-              <svg
-                className="absolute left-3 top-3.5 h-5 w-5 text-gray-400"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+    <div className="relative">
+      {/* Main content */}
+      <div className="space-y-6">
+        {error && (
+          <div className="p-4 mb-4 bg-red-100 text-red-700 rounded-lg">
+            {error}
+          </div>
+        )}
+        
+        <div className="mb-6">
+          <div className="flex flex-col md:flex-row gap-4 mb-4">
+            <div className="flex-1">
+              <div className="relative">
+                <input
+                  type="text"
+                  className="w-full p-3 border rounded-lg pl-10"
+                  placeholder="Search transcripts..."
+                  value={searchQuery}
+                  onChange={handleSearchChange}
                 />
-              </svg>
+                <svg
+                  className="absolute left-3 top-3.5 h-5 w-5 text-gray-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+            </div>
+            
+            <div>
+              <label className="inline-block w-full md:w-auto">
+                <span className="sr-only">Import Transcript</span>
+                <input
+                  type="file"
+                  accept=".json,.csv,.md,.txt"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <span className="inline-block px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition w-full md:w-auto text-center">
+                  Import Transcript
+                </span>
+              </label>
             </div>
           </div>
           
-          <div>
-            <label className="inline-block w-full md:w-auto">
-              <span className="sr-only">Import Transcript</span>
-              <input
-                type="file"
-                accept=".json,.csv,.md,.txt"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-              <span className="inline-block px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition w-full md:w-auto text-center">
-                Import Transcript
-              </span>
-            </label>
-          </div>
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {tags.map(tag => (
+                <button
+                  key={tag.id}
+                  className={`px-3 py-1 rounded-full text-sm transition ${
+                    selectedTags.includes(tag.name)
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                  }`}
+                  style={selectedTags.includes(tag.name) ? {} : { backgroundColor: tag.color || '#f3f4f6' }}
+                  onClick={() => handleTagSelect(tag.name)}
+                >
+                  {tag.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {tags.map(tag => (
-              <button
-                key={tag.id}
-                className={`px-3 py-1 rounded-full text-sm transition ${
-                  selectedTags.includes(tag.name)
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                }`}
-                style={selectedTags.includes(tag.name) ? {} : { backgroundColor: tag.color || '#f3f4f6' }}
-                onClick={() => handleTagSelect(tag.name)}
-              >
-                {tag.name}
-              </button>
-            ))}
-          </div>
-        )}
+        {viewMode === 'list' && renderTranscriptList()}
+        {viewMode === 'detail' && renderTranscriptDetail()}
+        {viewMode === 'search' && renderSearchResults()}
       </div>
       
-      {viewMode === 'list' && renderTranscriptList()}
-      {viewMode === 'detail' && renderTranscriptDetail()}
-      {viewMode === 'search' && renderSearchResults()}
-      
-      {isLoading && (
-        <div className="fixed inset-0 bg-black bg-opacity-20 flex items-center justify-center z-50">
-          <div className="bg-white p-4 rounded-lg shadow-lg">
-            <div className="flex items-center space-x-3">
-              <div className="w-6 h-6 border-4 border-t-blue-600 border-r-transparent border-b-blue-600 border-l-transparent rounded-full animate-spin"></div>
-              <p>Loading...</p>
-            </div>
+      {/* Notification */}
+      {notification.visible && (
+        <div className={`fixed bottom-4 right-4 py-2 px-4 rounded-md shadow-lg transition-opacity ${
+          notification.type === 'success' ? 'bg-green-500 text-white' :
+          notification.type === 'error' ? 'bg-red-500 text-white' :
+          'bg-blue-500 text-white'
+        }`}>
+          <div className="flex items-center">
+            {notification.type === 'success' && (
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {notification.type === 'error' && (
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            {notification.message}
           </div>
         </div>
       )}

@@ -189,16 +189,34 @@ def main():
     logger.info(f"The server will be available at: http://localhost:{args.port}")
     
     # Update the .env file
-    env_path = Path(__file__).parent / ".env"
-    if env_path.exists():
-        with open(env_path, "r") as f:
+    # Ensure we use absolute paths for consistency and avoid Windows path issues
+    current_dir = Path(__file__).parent.resolve()
+    project_root = current_dir.parent.resolve()
+    
+    # Define possible .env locations
+    env_paths = [
+        current_dir / ".env",  # Backend directory
+        project_root / ".env"  # Project root
+    ]
+    
+    # Use the first existing .env file, or create one in backend
+    env_file = next((path for path in env_paths if path.exists()), current_dir / ".env")
+    
+    # Update or create the .env file
+    if env_file.exists():
+        with open(env_file, "r", encoding="utf-8") as f:
             env_content = f.read()
         
         # Check if KOKORO_API_URL is already set
         if "KOKORO_API_URL" not in env_content:
-            with open(env_path, "a") as f:
+            with open(env_file, "a", encoding="utf-8") as f:
                 f.write(f"\n# TTS Configuration\nKOKORO_API_URL=http://localhost:{args.port}\n")
-            logger.info(f"Updated .env file with KOKORO_API_URL=http://localhost:{args.port}")
+            logger.info(f"Updated .env file at {env_file} with KOKORO_API_URL")
+    else:
+        # Create a new .env file
+        with open(env_file, "w", encoding="utf-8") as f:
+            f.write(f"# TTS Configuration\nKOKORO_API_URL=http://localhost:{args.port}\n")
+        logger.info(f"Created new .env file at {env_file} with KOKORO_API_URL")
     
     logger.info("Don't forget to obtain an AssemblyAI API key for the Speech-to-Text functionality.")
     logger.info("You can sign up at: https://www.assemblyai.com/")

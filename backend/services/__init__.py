@@ -7,12 +7,14 @@ import logging
 import os
 from typing import Dict, Any, Optional
 
+# Local imports
+from backend.database.connection import init_db
 from backend.utils.event_bus import EventBus
+from backend.utils.vector_store import VectorStore
 from backend.services.data_management import DataManagementService
 from backend.services.session_manager import SessionManager
 from backend.services.search_service import SearchService
 from backend.services.transcript_service import TranscriptService
-from backend.utils.vector_store import VectorStore
 
 
 class ServiceProvider:
@@ -38,28 +40,22 @@ class ServiceProvider:
             self.services = {}
             
             # Initialize event bus
-            from backend.utils.event_bus import EventBus
             self.event_bus = EventBus()
             self.services["event_bus"] = self.event_bus
             
             # Initialize session manager
-            from backend.services.session_manager import SessionManager
             self.session_manager = SessionManager(event_bus=self.event_bus)
             self.services["session_manager"] = self.session_manager
             
             # Initialize data management service
-            from backend.services.data_management import DataManagementService
             self.data_service = DataManagementService(event_bus=self.event_bus)
             self.services["data_service"] = self.data_service
             
             # Initialize search service
-            from backend.services.search_service import SearchService
             self.search_service = SearchService()
             self.services["search_service"] = self.search_service
             
             # Initialize transcript service
-            from backend.services.transcript_service import TranscriptService
-            from backend.utils.vector_store import VectorStore
             
             # Configure vector store for transcript embeddings
             vector_store_dir = os.environ.get("VECTOR_DB_PATH", "./data/vector_store")

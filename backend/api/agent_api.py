@@ -28,14 +28,30 @@ class UserMessage(BaseModel):
     user_id: Optional[str] = Field(None, description="User identifier")
     session_id: Optional[str] = Field(None, description="Session identifier")
 
+    class Config:
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
+
 
 class InterviewConfig(BaseModel):
     """Model for configuring a new interview session."""
     job_role: str = Field(..., description="Target job role for the interview")
     job_description: str = Field("", description="Detailed job description")
     interview_style: str = Field("FORMAL", description="Style of interview (FORMAL, CASUAL, AGGRESSIVE, TECHNICAL)")
-    mode: str = Field(OrchestratorMode.INTERVIEW_WITH_COACHING, description="Operating mode for the orchestrator")
+    mode: str = Field(OrchestratorMode.INTERVIEW, description="Operating mode for the orchestrator")
     user_id: Optional[str] = Field(None, description="User identifier")
+    
+    class Config:
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 
 class SessionInfo(BaseModel):
@@ -46,6 +62,14 @@ class SessionInfo(BaseModel):
     mode: str = Field(..., description="Current orchestrator mode")
     created_at: str = Field(..., description="ISO timestamp of when the session was created")
     active_agent: str = Field(..., description="Currently active agent")
+    
+    class Config:
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 
 class SessionMetrics(BaseModel):
@@ -57,6 +81,14 @@ class SessionMetrics(BaseModel):
     average_assistant_message_length: float = Field(..., description="Average length of assistant messages")
     average_response_time_seconds: Optional[float] = Field(None, description="Average time between messages in seconds")
     conversation_duration_seconds: Optional[float] = Field(None, description="Total conversation duration in seconds")
+    
+    class Config:
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 
 class AgentResponse(BaseModel):
@@ -66,6 +98,14 @@ class AgentResponse(BaseModel):
     agent: str = Field(..., description="Agent that provided the response")
     timestamp: str = Field(..., description="ISO timestamp of the response")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional response metadata")
+    
+    class Config:
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 
 class SkillResource(BaseModel):
@@ -75,6 +115,14 @@ class SkillResource(BaseModel):
     description: str = Field(..., description="Resource description")
     resource_type: str = Field(..., description="Type of resource (article, course, video, etc.)")
     relevance_score: int = Field(..., description="Relevance score (1-5)")
+    
+    class Config:
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 
 class SkillAssessment(BaseModel):
@@ -84,6 +132,14 @@ class SkillAssessment(BaseModel):
     proficiency: int = Field(..., description="Proficiency level (1-5)")
     feedback: str = Field(..., description="Assessment feedback")
     resources: Optional[List[SkillResource]] = Field(None, description="Recommended resources")
+    
+    class Config:
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 
 class SkillProfile(BaseModel):
@@ -95,6 +151,14 @@ class SkillProfile(BaseModel):
     improvement_areas: List[str] = Field(..., description="Areas for improvement")
     overall_match: int = Field(..., description="Overall job match score (0-100)")
     created_at: str = Field(..., description="ISO timestamp of creation")
+    
+    class Config:
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 
 def get_session(session_id: str) -> AgentOrchestrator:

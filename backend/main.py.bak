@@ -9,19 +9,11 @@ import shutil
 import tempfile
 import uuid
 from typing import Optional, List, Dict, Any
-from datetime import datetime
-from pathlib import Path
-
-# FastAPI imports
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-
-# Pydantic imports
-from pydantic import BaseModel, Field
-
-# Third-party imports
+from pydantic import BaseModel
 import numpy as np
 import scipy.io.wavfile as wav
 import fitz  # PyMuPDF
@@ -32,7 +24,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 
-# Local imports
+from api import create_app
 from backend.database.connection import init_db
 from backend.services import initialize_services
 from backend.utils.docs_generator import generate_static_docs
@@ -40,58 +32,6 @@ from backend.api.agent_api import create_agent_api
 from backend.api.resource_api import create_resource_api
 from backend.api.transcript_api import router as transcript_router
 
-
-# Define Pydantic models for API responses
-class AudioResponse(BaseModel):
-    """Response model for audio processing."""
-    audio_url: str = Field(..., description="URL to the processed audio file")
-    transcription: str = Field(..., description="Transcription of the audio")
-    
-    class Config:
-        try:
-            # Pydantic v1 compatibility
-            orm_mode = True
-        except:
-            # Pydantic v2 compatibility
-            from_attributes = True
-
-class ContextResponse(BaseModel):
-    """Response model for context submission."""
-    message: str = Field(..., description="Status message")
-    
-    class Config:
-        try:
-            # Pydantic v1 compatibility
-            orm_mode = True
-        except:
-            # Pydantic v2 compatibility
-            from_attributes = True
-
-class InterviewRequest(BaseModel):
-    """Request model for generating interview questions."""
-    user_input: str = Field(..., description="User's input or context")
-    job_role: str = Field(..., description="Target job role")
-    job_description: Optional[str] = Field("", description="Job description")
-    
-    class Config:
-        try:
-            # Pydantic v1 compatibility
-            orm_mode = True
-        except:
-            # Pydantic v2 compatibility
-            from_attributes = True
-
-class InterviewResponse(BaseModel):
-    """Response model for generated interview content."""
-    generated_text: str = Field(..., description="Generated interview content")
-    
-    class Config:
-        try:
-            # Pydantic v1 compatibility
-            orm_mode = True
-        except:
-            # Pydantic v2 compatibility
-            from_attributes = True
 
 # Load environment variables
 load_dotenv()
@@ -120,6 +60,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Import API routes
+from backend.api.agent_api import create_agent_api
+from backend.api.resource_api import create_resource_api
+from backend.services import initialize_services
+
 # Initialize services
 service_provider = initialize_services()
 logger.info("Services initialized")
@@ -133,55 +78,6 @@ logger.info("API routes registered")
 
 # Mount static files (if needed)
 # app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# Define temporary directory for file uploads
-TEMP_DIR = tempfile.gettempdir()
-
-# Initialize API key for Gemini
-api_key = os.environ.get("GOOGLE_API_KEY", "MISSING_API_KEY")
-
-# Create LLM chain for interview question generation
-def setup_llm_chain():
-    """Set up the LLM chain for interview question generation."""
-    if api_key != "MISSING_API_KEY":
-        llm = ChatGoogleGenerativeAI(model="gemini-pro", google_api_key=api_key, temperature=0.7)
-        prompt = PromptTemplate.from_template(
-            """You are an AI interview coach helping prepare for job interviews.
-            Generate a relevant interview question for a {job_role} position.
-            
-            Additional context from the job description: {job_description}
-            
-            User input: {user_input}
-            
-            Give me a challenging but realistic interview question based on this information.
-            """
-        )
-        chain = (
-            {"user_input": RunnablePassthrough(), 
-             "job_role": RunnablePassthrough(), 
-             "job_description": RunnablePassthrough()}
-            | prompt
-            | llm
-            | StrOutputParser()
-        )
-        return chain
-    return None
-
-# Setup the chain
-chain = setup_llm_chain()
-
-# Define helper functions
-def transcribe_audio(audio_path):
-    """Transcribe audio file using local processing."""
-    # This is a stub implementation - in production, use a proper STT service
-    return "This is a placeholder transcription. In production, use a proper speech-to-text service."
-
-def synthesize_speech(text, output_path):
-    """Synthesize speech from text."""
-    # This is a stub implementation - in production, use a proper TTS service
-    sample_rate = 22050
-    silence = np.zeros(int(sample_rate * 3))  # 3 seconds of silence
-    wav.write(output_path, sample_rate, silence.astype(np.int16))
 
 @app.get("/")
 async def root():
