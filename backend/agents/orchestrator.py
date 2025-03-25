@@ -21,7 +21,6 @@ from backend.agents.skill_assessor import SkillAssessorAgent
 from backend.agents.feedback_agent import FeedbackAgent
 from backend.utils.event_bus import Event, EventBus, EventType
 from backend.models.interview import InterviewStyle, SessionMode, InterviewSession, SkillAssessment, Resource
-from backend.config import settings
 
 import backoff
 import httpx
@@ -42,7 +41,7 @@ class OrchestratorMode(str, Enum):
 # Cache expiration time in seconds
 RESPONSE_CACHE_TTL = 120  # 2 minutes
 
-class Orchestrator:
+class AgentOrchestrator:
     """
     Orchestrator that coordinates multiple agents in the interview system.
     

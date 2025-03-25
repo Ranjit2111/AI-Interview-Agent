@@ -10,6 +10,7 @@ try:
     from backend.agents.coach import CoachAgent, CoachingFocus
     from backend.agents.skill_assessor import SkillAssessorAgent, ProficiencyLevel, SkillCategory
     from backend.agents.orchestrator import AgentOrchestrator, OrchestratorMode
+    from backend.agents.feedback_agent import FeedbackAgent
 except ImportError:
     # Use relative imports for development/testing
     from .base import BaseAgent, AgentContext
@@ -17,6 +18,7 @@ except ImportError:
     from .coach import CoachAgent, CoachingFocus
     from .skill_assessor import SkillAssessorAgent, ProficiencyLevel, SkillCategory
     from .orchestrator import AgentOrchestrator, OrchestratorMode
+    from .feedback_agent import FeedbackAgent
 
 __all__ = [
     'BaseAgent',
@@ -29,5 +31,6 @@ __all__ = [
     'ProficiencyLevel',
     'SkillCategory',
     'AgentOrchestrator',
-    'OrchestratorMode'
+    'OrchestratorMode',
+    'FeedbackAgent'
 ] 

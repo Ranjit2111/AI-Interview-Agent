@@ -13,9 +13,16 @@ import asyncio
 import json
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Form, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 import httpx
-from kokoro_tts_fastapi_client import KokoroClient, Voice
+
+# Optional TTS dependency - Install with backend/setup_kokoro_tts.py
+# If missing, TTS features will be disabled but the API will still work
+try:
+    from kokoro_tts_fastapi_client import KokoroClient, Voice
+except ImportError:
+    KokoroClient = None
+    Voice = None
 
 logger = logging.getLogger(__name__)
 
@@ -216,27 +223,36 @@ async def get_available_voices():
     Get a list of available TTS voices.
     
     Returns:
-        JSON response with available voices
+        JSON response with voice list
     """
     if not kokoro_client:
-        raise HTTPException(status_code=503, detail="Text-to-speech service is not available")
+        return JSONResponse({
+            "error": "TTS service is not available",
+            "message": "To enable TTS functionality, run the setup script: python backend/setup_kokoro_tts.py",
+            "voices": []
+        })
     
     try:
-        voices = await kokoro_client.list_voices()
+        voices = await kokoro_client.get_voices()
         return JSONResponse({
             "voices": [
                 {
                     "id": voice.id,
                     "name": voice.name,
+                    "gender": voice.gender,
                     "language": voice.language,
-                    "gender": voice.gender
+                    "description": voice.description
                 }
                 for voice in voices
             ]
         })
     except Exception as e:
-        logger.exception("Failed to get TTS voices")
-        raise HTTPException(status_code=500, detail=f"Failed to get voices: {str(e)}")
+        logger.error(f"Error getting voices: {e}")
+        return JSONResponse({
+            "error": "Failed to get voices",
+            "message": str(e),
+            "voices": []
+        }, status_code=500)
 
 
 @router.post("/api/text-to-speech")
@@ -248,48 +264,48 @@ async def text_to_speech(
     format: str = Form("mp3")
 ):
     """
-    Convert text to speech using Kokoro TTS.
+    Convert text to speech.
     
     Args:
         text: Text to convert to speech
-        voice_id: Voice ID to use
-        speed: Speech speed (0.5-2.0)
-        pitch: Speech pitch (0.5-2.0)
-        format: Audio format (mp3, wav)
+        voice_id: ID of the voice to use
+        speed: Speed factor (0.5-2.0)
+        pitch: Pitch factor (0.5-2.0)
+        format: Output format (mp3 or wav)
         
     Returns:
-        Streaming response with audio data
+        Audio file as binary response
     """
     if not kokoro_client:
-        raise HTTPException(status_code=503, detail="Text-to-speech service is not available")
+        return JSONResponse({
+            "error": "TTS service is not available",
+            "message": "To enable TTS functionality, run the setup script: python backend/setup_kokoro_tts.py"
+        }, status_code=503)
     
     try:
-        # Get voice by ID
-        voices = await kokoro_client.list_voices()
-        voice = next((v for v in voices if v.id == voice_id), None)
-        
-        if not voice:
-            raise HTTPException(status_code=404, detail=f"Voice '{voice_id}' not found")
-        
-        # Generate audio
-        audio_bytes = await kokoro_client.generate_speech(
+        # Convert text to speech
+        audio_data = await kokoro_client.synthesize(
             text=text,
-            voice=voice,
+            voice_id=voice_id,
             speed=speed,
-            pitch=pitch
+            pitch=pitch,
+            audio_format=format
         )
         
-        # Return audio as streaming response
-        return StreamingResponse(
-            content=iter([audio_bytes]),
+        # Return audio data
+        return Response(
+            content=audio_data,
             media_type=f"audio/{format}",
             headers={
-                "Content-Disposition": f"attachment; filename=speech_{uuid.uuid4()}.{format}"
+                "Content-Disposition": f"attachment; filename=speech.{format}"
             }
         )
     except Exception as e:
-        logger.exception("Failed to generate speech")
-        raise HTTPException(status_code=500, detail=f"Failed to generate speech: {str(e)}")
+        logger.error(f"Error synthesizing speech: {e}")
+        return JSONResponse({
+            "error": "Failed to synthesize speech",
+            "message": str(e)
+        }, status_code=500)
 
 
 @router.post("/api/text-to-speech/stream")

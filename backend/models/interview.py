@@ -93,7 +93,7 @@ class Question(Base):
     interview_session_id = Column(Integer, ForeignKey("interview_sessions.id"))
     text = Column(Text, nullable=False)
     difficulty = Column(Integer, default=1)  # 1-5 scale
-    metadata = Column(JSON, nullable=True)
+    question_metadata = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -207,7 +207,7 @@ class ResourceTracking(Base):
     action = Column(String(50))  # click, bookmark, etc.
     skill_name = Column(String(255), index=True)
     timestamp = Column(DateTime, default=datetime.utcnow)
-    metadata = Column(JSON, nullable=True)
+    tracking_metadata = Column(JSON, nullable=True)
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary."""
@@ -218,7 +218,7 @@ class ResourceTracking(Base):
             "action": self.action,
             "skill_name": self.skill_name,
             "timestamp": self.timestamp.isoformat() if self.timestamp else None,
-            "metadata": self.metadata
+            "tracking_metadata": self.tracking_metadata
         }
 
 

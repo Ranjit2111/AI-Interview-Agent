@@ -7,7 +7,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Depends, Body
+from fastapi import APIRouter, HTTPException, Depends, Body, FastAPI
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -22,7 +22,15 @@ class ResourceAction(BaseModel):
     resource_id: str = Field(..., description="Resource identifier or URL")
     action: str = Field(..., description="Action taken (click, bookmark, etc.)")
     skill_name: str = Field(..., description="Skill name the resource is for")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+    tracking_metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+    
+    class Config:
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 
 class ResourceFeedbackModel(BaseModel):
@@ -32,20 +40,31 @@ class ResourceFeedbackModel(BaseModel):
     feedback: str = Field(..., description="Feedback (helpful, not_helpful)")
     skill_name: str = Field(..., description="Skill name the resource is for")
     comments: Optional[str] = Field(None, description="User comments about the resource")
+    
+    class Config:
+        try:
+            # Pydantic v1 compatibility
+            orm_mode = True
+        except:
+            # Pydantic v2 compatibility
+            from_attributes = True
 
 
-def create_resource_api(router: APIRouter):
+def create_resource_api(app: FastAPI):
     """
     Create API endpoints for resource tracking and feedback.
     
     Args:
-        router: APIRouter instance
+        app: FastAPI application instance
     """
     data_service = get_data_service()
     search_service = get_search_service()
     logger = logging.getLogger(__name__)
     
-    @router.post("/api/interview/resource-tracking", response_model=Dict[str, Any])
+    # Create a router for resource endpoints
+    router = APIRouter(tags=["resources"])
+    
+    @router.post("/api/resources/tracking", response_model=Dict[str, Any])
     async def track_resource_action(
         action: ResourceAction,
         db: Session = Depends(get_db)
@@ -68,7 +87,7 @@ def create_resource_api(router: APIRouter):
                 action=action.action,
                 skill_name=action.skill_name,
                 timestamp=datetime.utcnow(),
-                metadata=action.metadata
+                tracking_metadata=action.tracking_metadata
             )
             
             # Add to database
@@ -91,7 +110,7 @@ def create_resource_api(router: APIRouter):
                 detail=f"Error tracking resource action: {str(e)}"
             )
     
-    @router.post("/api/interview/resource-feedback", response_model=Dict[str, Any])
+    @router.post("/api/resources/feedback", response_model=Dict[str, Any])
     async def record_resource_feedback(
         feedback: ResourceFeedbackModel,
         db: Session = Depends(get_db)
@@ -145,7 +164,7 @@ def create_resource_api(router: APIRouter):
                 detail=f"Error recording resource feedback: {str(e)}"
             )
     
-    @router.get("/api/interview/resource-effectiveness", response_model=Dict[str, Any])
+    @router.get("/api/resources/effectiveness", response_model=Dict[str, Any])
     async def get_resource_effectiveness(
         session_id: str,
         skill_name: Optional[str] = None,
@@ -205,7 +224,7 @@ def create_resource_api(router: APIRouter):
             resource_types = {}
             for record in tracking_records:
                 # Extract resource type from metadata
-                resource_type = record.metadata.get("resource_type", "unknown") if record.metadata else "unknown"
+                resource_type = record.tracking_metadata.get("resource_type", "unknown") if record.tracking_metadata else "unknown"
                 
                 if resource_type not in resource_types:
                     resource_types[resource_type] = {
@@ -222,7 +241,7 @@ def create_resource_api(router: APIRouter):
                 # Find the resource in tracking records to get the type
                 matching_records = [r for r in tracking_records if r.resource_id == record.resource_id]
                 if matching_records:
-                    resource_type = matching_records[0].metadata.get("resource_type", "unknown") if matching_records[0].metadata else "unknown"
+                    resource_type = matching_records[0].tracking_metadata.get("resource_type", "unknown") if matching_records[0].tracking_metadata else "unknown"
                     
                     if resource_type not in resource_types:
                         resource_types[resource_type] = {
@@ -252,4 +271,5 @@ def create_resource_api(router: APIRouter):
                 detail=f"Error getting resource effectiveness: {str(e)}"
             )
     
-    return router 
+    # Include the router in the app
+    app.include_router(router) 

@@ -66,7 +66,7 @@ class Transcript(Base):
     user_id = Column(String(255), nullable=True, index=True)
     content = Column(JSON, nullable=False)  # JSON array of conversation messages
     summary = Column(Text, nullable=True)
-    metadata = Column(JSON, nullable=True)  # Additional metadata
+    transcript_metadata = Column(JSON, nullable=True)  # Additional metadata (renamed from metadata)
     is_imported = Column(Boolean, default=False)  # Whether this was imported or generated
     is_public = Column(Boolean, default=False)  # Whether this transcript is publicly accessible
     vector_id = Column(String(255), nullable=True)  # ID in the vector store
@@ -94,7 +94,7 @@ class Transcript(Base):
             "interview_session_id": self.interview_session_id,
             "user_id": self.user_id,
             "summary": self.summary,
-            "metadata": self.metadata,
+            "transcript_metadata": self.transcript_metadata,
             "is_imported": self.is_imported,
             "is_public": self.is_public,
             "created_at": self.created_at.isoformat() if self.created_at else None,

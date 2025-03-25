@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import SpeechRecognition from './SpeechRecognition';
 
 /**
@@ -20,34 +20,99 @@ const SpeechInput = ({
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+  const [isListening, setIsListening] = useState(autoStart);
+  const [muted, setMuted] = useState(!autoStart);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [recognition, setRecognition] = useState(null);
   
   // Initialize speech recognition
-  const {
-    transcript,
-    isListening,
-    error,
-    isSupported,
-    startListening,
-    stopListening
-  } = SpeechRecognition({
-    onTranscriptChange: (text) => {
-      // We'll show live transcription in the UI
-    },
-    onTranscriptComplete: (text) => {
-      if (text.trim()) {
-        onSpeechInput(text);
-      }
-    },
-    language
-  });
-  
-  // Auto-start if configured
   useEffect(() => {
-    if (autoStart && initialLoad && isSupported) {
-      startListening();
-      setInitialLoad(false);
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        setErrorMessage('Speech recognition not supported in this browser');
+        return;
+      }
+
+      const recognitionInstance = new SpeechRecognition();
+      recognitionInstance.continuous = true;
+      recognitionInstance.interimResults = true;
+      recognitionInstance.lang = language;
+
+      recognitionInstance.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0])
+          .map(result => result.transcript)
+          .join('');
+        
+        const isFinal = event.results[event.results.length - 1].isFinal;
+        
+        if (isFinal && onSpeechInput) {
+          onSpeechInput(transcript);
+        }
+      };
+
+      recognitionInstance.onerror = (event) => {
+        if (event.error === 'no-speech') {
+          console.log('No speech detected');
+        } else {
+          setErrorMessage(`Error: ${event.error}`);
+          console.error('Speech recognition error', event.error);
+          setIsListening(false);
+        }
+      };
+
+      recognitionInstance.onend = () => {
+        // If we're still supposed to be listening, restart
+        if (isListening && !muted) {
+          recognitionInstance.start();
+        } else {
+          setIsListening(false);
+        }
+      };
+
+      setRecognition(recognitionInstance);
+      
+      // Start recognition automatically if autoStart is true
+      if (autoStart) {
+        try {
+          recognitionInstance.start();
+        } catch (err) {
+          console.error('Error starting speech recognition:', err);
+        }
+      }
+
+      // Clean up
+      return () => {
+        try {
+          recognitionInstance.stop();
+        } catch (err) {
+          // Ignore errors on cleanup
+        }
+      };
     }
-  }, [autoStart, initialLoad, isSupported, startListening]);
+  }, [language, onSpeechInput, autoStart]);
+  
+  // Handle toggling listening state
+  const toggleListening = useCallback(() => {
+    if (!recognition) return;
+    
+    try {
+      if (isListening) {
+        recognition.stop();
+        setIsListening(false);
+        setMuted(true);
+      } else {
+        recognition.start();
+        setIsListening(true);
+        setMuted(false);
+      }
+    } catch (err) {
+      console.error('Error toggling speech recognition:', err);
+      setErrorMessage(`Error: ${err.message}`);
+    }
+  }, [isListening, recognition]);
   
   // Handle file upload for AssemblyAI fallback
   const handleFileChange = (e) => {
@@ -95,30 +160,34 @@ const SpeechInput = ({
   return (
     <div className="flex flex-col space-y-4 w-full">
       {/* Speech Recognition UI */}
-      {isSupported ? (
+      {isListening ? (
         <div className="flex flex-col space-y-2">
           <div className="flex items-center space-x-2">
             <button
-              onClick={isListening ? stopListening : startListening}
-              className={`p-3 rounded-full ${
-                isListening 
+              onClick={toggleListening}
+              className={`p-3 rounded-full flex items-center justify-center transition-colors ${
+                isListening && !muted 
                   ? 'bg-red-600 hover:bg-red-700' 
-                  : 'bg-blue-600 hover:bg-blue-700'
-              } text-white transition-colors`}
-              aria-label={isListening ? 'Stop listening' : 'Start listening'}
+                  : 'bg-gray-600 hover:bg-gray-700'
+              }`}
+              aria-label={isListening && !muted ? 'Mute microphone' : 'Unmute microphone'}
             >
-              {isListening ? (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <rect x="6" y="6" width="12" height="12" strokeWidth="2" />
-                </svg>
+              {isListening && !muted ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                  <span className="w-2 h-2 bg-red-400 rounded-full ml-2 animate-pulse"></span>
+                </>
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  <line x1="1" y1="1" x2="23" y2="23" strokeWidth="2" stroke="currentColor" />
                 </svg>
               )}
             </button>
             <span className="text-sm font-medium">
-              {isListening ? 'Listening...' : 'Click to speak'}
+              {isListening ? 'Listening...' : 'Microphone off'}
             </span>
           </div>
           
@@ -140,8 +209,8 @@ const SpeechInput = ({
             </div>
           )}
           
-          {error && (
-            <div className="text-red-500 text-sm">{error}</div>
+          {errorMessage && (
+            <div className="text-red-500 text-sm">{errorMessage}</div>
           )}
         </div>
       ) : (

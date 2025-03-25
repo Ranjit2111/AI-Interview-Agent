@@ -8,6 +8,31 @@ import json
 from typing import Dict, List, Any, Callable, Set
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
+import enum
+
+
+class EventType(str, enum.Enum):
+    """
+    Enumeration of event types used in the application.
+    """
+    # Interview events
+    INTERVIEW_START = "interview_start"
+    INTERVIEW_END = "interview_end"
+    INTERVIEWER_RESPONSE = "interviewer_response"
+    USER_RESPONSE = "user_response"
+    INTERVIEW_SUMMARY = "interview_summary"
+    
+    # Coaching events
+    COACHING_REQUEST = "coaching_request"
+    COACHING_RESPONSE = "coaching_response"
+    
+    # Skill assessment events
+    SKILL_IDENTIFIED = "skill_identified"
+    SKILL_ASSESSED = "skill_assessed"
+    
+    # Generic events
+    ERROR = "error"
+    STATUS_UPDATE = "status_update"
 
 
 @dataclass

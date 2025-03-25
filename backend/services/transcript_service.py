@@ -107,7 +107,7 @@ class TranscriptService:
                 user_id=user_id,
                 content=content,
                 summary=summary,
-                metadata=metadata or {},
+                transcript_metadata=metadata or {},
                 is_imported=is_imported,
                 is_public=is_public,
                 created_at=datetime.utcnow(),
@@ -274,7 +274,7 @@ class TranscriptService:
             if summary is not None:
                 transcript.summary = summary
             if metadata is not None:
-                transcript.metadata = metadata
+                transcript.transcript_metadata = metadata
             if is_public is not None:
                 transcript.is_public = is_public
                 
@@ -477,7 +477,7 @@ class TranscriptService:
                     "title": transcript.title,
                     "content": transcript.content,
                     "summary": transcript.summary,
-                    "metadata": transcript.metadata,
+                    "metadata": transcript.transcript_metadata,
                     "tags": [tag.name for tag in transcript.tags],
                     "created_at": transcript.created_at.isoformat() if transcript.created_at else None,
                     "updated_at": transcript.updated_at.isoformat() if transcript.updated_at else None
@@ -512,9 +512,9 @@ class TranscriptService:
                 # Convert to markdown format
                 lines = [f"# {transcript.title}"]
                 
-                if transcript.metadata:
+                if transcript.transcript_metadata:
                     lines.append("\n## Metadata")
-                    for key, value in transcript.metadata.items():
+                    for key, value in transcript.transcript_metadata.items():
                         lines.append(f"- **{key}**: {value}")
                 
                 if transcript.summary:

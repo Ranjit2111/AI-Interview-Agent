@@ -1,0 +1,35 @@
+# AI Interviewer Agent - Sample .env file
+# Copy this file to backend/.env and update with your own values
+
+# API Keys
+GOOGLE_API_KEY=your_google_api_key_here  # Required for Google Gemini AI models
+OPENAI_API_KEY=your_openai_api_key_here  # Optional - only needed if using OpenAI models
+ASSEMBLYAI_API_KEY=your_assembly_ai_key  # Optional - only needed for advanced speech transcription
+
+# Database settings
+DATABASE_URL=sqlite:///./backend/app.db  # Default SQLite database location
+
+# Server settings
+HOST=0.0.0.0
+PORT=8000
+DEBUG=true
+ENVIRONMENT=development  # development, testing, or production
+
+# Security
+SECRET_KEY=generate_a_secure_random_key_here  # For JWT token generation
+TOKEN_EXPIRE_MINUTES=60  # JWT token expiration time in minutes
+
+# Logging
+LOG_LEVEL=INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+# Feature flags
+ENABLE_TTS=false  # Enable text-to-speech synthesis
+ENABLE_STT=true   # Enable speech-to-text transcription
+
+# Model settings
+LLM_MODEL=gemini-pro  # Default model to use for the interviewer agent
+COACH_MODEL=gemini-pro  # Default model for the coach agent
+MAX_TOKENS=8192  # Maximum tokens for model responses
+
+# TTS Service
+TTS_SERVICE_URL=http://localhost:8008  # URL for Kokoro TTS server if enabled 
