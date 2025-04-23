@@ -23,6 +23,8 @@ TTS_DEPENDENCIES = [
 # Additional required packages
 ADDITIONAL_PACKAGES = [
     "backoff>=2.0.0",
+    "tenacity>=8.0.0",
+    "httpx>=0.24.0",
 ]
 
 def check_installed_packages():
