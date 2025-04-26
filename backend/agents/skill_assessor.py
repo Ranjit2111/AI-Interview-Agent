@@ -8,48 +8,43 @@ import re
 import json
 import random
 import asyncio
-from typing import Dict, Any, List, Optional, Set, Tuple
+from typing import Dict, Any, List, Optional, Set, Tuple, Union
 from datetime import datetime
 from enum import Enum
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import Tool
-from langchain.prompts import PromptTemplate, ChatPromptTemplate
-from langchain.chains import LLMChain, SequentialChain
-from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
 
 try:
     # Try standard import in production
     from backend.agents.base import BaseAgent, AgentContext
     from backend.utils.event_bus import Event, EventBus, EventType
-    from backend.models.interview import SkillAssessment, Resource, ProficiencyLevel as DBProficiencyLevel, SkillCategory as DBSkillCategory
     from backend.services import get_search_service
+    from backend.services.llm_service import LLMService
+    from backend.models.interview import SkillAssessment, Resource, ProficiencyLevel as DBProficiencyLevel, SkillCategory as DBSkillCategory
     from backend.agents.templates.skill_templates import (
         SKILL_SYSTEM_PROMPT,
         SKILL_EXTRACTION_TEMPLATE,
         PROFICIENCY_ASSESSMENT_TEMPLATE,
         RESOURCE_SUGGESTION_TEMPLATE,
-        SKILL_PROFILE_TEMPLATE,
-        ASSESSMENT_RESPONSE_TEMPLATE,
-        RECENT_ANSWER_ASSESSMENT_TEMPLATE,
-        SKILL_UPDATE_NOTIFICATION_TEMPLATE
+        SKILL_PROFILE_TEMPLATE
     )
+    from backend.agents.utils.llm_utils import invoke_chain_with_error_handling, parse_json_with_fallback
 except ImportError:
     # Use relative imports for development/testing
     from .base import BaseAgent, AgentContext
     from ..utils.event_bus import Event, EventBus, EventType
-    from ..models.interview import SkillAssessment, Resource, ProficiencyLevel as DBProficiencyLevel, SkillCategory as DBSkillCategory
     from ..services import get_search_service
+    from ..services.llm_service import LLMService
+    from ..models.interview import SkillAssessment, Resource, ProficiencyLevel as DBProficiencyLevel, SkillCategory as DBSkillCategory
     from .templates.skill_templates import (
         SKILL_SYSTEM_PROMPT,
         SKILL_EXTRACTION_TEMPLATE,
         PROFICIENCY_ASSESSMENT_TEMPLATE,
         RESOURCE_SUGGESTION_TEMPLATE,
-        SKILL_PROFILE_TEMPLATE,
-        ASSESSMENT_RESPONSE_TEMPLATE,
-        RECENT_ANSWER_ASSESSMENT_TEMPLATE,
-        SKILL_UPDATE_NOTIFICATION_TEMPLATE
+        SKILL_PROFILE_TEMPLATE
     )
+    from .utils.llm_utils import invoke_chain_with_error_handling, parse_json_with_fallback
 
 
 class ProficiencyLevel(str, Enum):
@@ -86,9 +81,7 @@ class SkillAssessorAgent(BaseAgent):
     
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        model_name: str = "gemini-1.5-pro",
-        planning_interval: int = 3,
+        llm_service: LLMService,
         event_bus: Optional[EventBus] = None,
         logger: Optional[logging.Logger] = None,
         job_role: str = "",
@@ -98,27 +91,25 @@ class SkillAssessorAgent(BaseAgent):
         Initialize the skill assessor agent.
         
         Args:
-            api_key: API key for the language model
-            model_name: Name of the language model to use
-            planning_interval: Number of interactions before planning
+            llm_service: Language model service
             event_bus: Event bus for inter-agent communication
             logger: Logger for recording agent activity
             job_role: Target job role for skill relevance
             technical_focus: Whether to focus on technical skills
         """
-        super().__init__(api_key, model_name, planning_interval, event_bus, logger)
+        super().__init__(llm_service=llm_service, event_bus=event_bus, logger=logger)
         
         self.job_role = job_role
         self.technical_focus = technical_focus
         self.interview_session_id = None
         self.current_question = None
         self.current_answer = None
-        self.identified_skills = {}  # Dictionary mapping skill names to assessment data
-        self.skill_mentions = {}     # Count of how many times each skill is mentioned
+        self.identified_skills: Dict[str, Dict[str, Any]] = {}  # Store assessment data per skill
+        self.skill_mentions: Dict[str, int] = {} # Count mentions per skill
+        self.resource_cache: Dict[str, List[Dict[str, Any]]] = {}  # Cache resources per skill
         self.last_assessment_time = None
-        self.resource_cache = {}  # Cache for skill resources
         
-        # Set up LLM chains
+        # Setup LLM chains using self.llm from llm_service
         self._setup_llm_chains()
         
         # Pre-defined skills for various roles
@@ -145,7 +136,6 @@ class SkillAssessorAgent(BaseAgent):
             }
         }
         
-        # Skill keywords to look for in responses
         self.skill_keywords = self._initialize_skill_keywords()
         
         # Subscribe to relevant events
@@ -153,6 +143,8 @@ class SkillAssessorAgent(BaseAgent):
             self.event_bus.subscribe(EventType.INTERVIEWER_RESPONSE, self._handle_interviewer_response)
             self.event_bus.subscribe(EventType.USER_RESPONSE, self._handle_user_response)
             self.event_bus.subscribe(EventType.INTERVIEW_SUMMARY, self._handle_interview_summary)
+            self.event_bus.subscribe(EventType.SESSION_START, self._handle_session_start)
+            self.event_bus.subscribe(EventType.SESSION_RESET, self._handle_session_reset)
     
     def _get_system_prompt(self) -> str:
         """
@@ -161,256 +153,35 @@ class SkillAssessorAgent(BaseAgent):
         Returns:
             System prompt string
         """
-        return SKILL_SYSTEM_PROMPT.format(job_role=self.job_role)
-    
-    def _initialize_tools(self) -> List[Tool]:
-        """
-        Initialize tools for the skill assessor agent.
-        
-        Returns:
-            List of LangChain tools
-        """
-        return [
-            Tool(
-                name="extract_skills",
-                func=self._extract_skills_tool,
-                description="Extract skills mentioned in interview responses"
-            ),
-            Tool(
-                name="assess_proficiency",
-                func=self._assess_proficiency_tool,
-                description="Assess the proficiency level for a mentioned skill"
-            ),
-            Tool(
-                name="suggest_resources",
-                func=self._suggest_resources_tool,
-                description="Suggest resources for improving a specific skill"
-            ),
-            Tool(
-                name="create_skill_profile",
-                func=self._create_skill_profile_tool,
-                description="Create a comprehensive skill profile based on interview responses"
-            )
-        ]
+        return SKILL_SYSTEM_PROMPT.format(job_role=self.job_role or "[Not Specified]")
     
     def _setup_llm_chains(self) -> None:
         """
-        Set up LangChain chains for the agent's tasks.
+        Set up LangChain chains using self.llm.
         """
         # Skill extraction chain
         self.skill_extraction_chain = LLMChain(
             llm=self.llm,
-            prompt=PromptTemplate.from_template(SKILL_EXTRACTION_TEMPLATE),
-            output_parser=JsonOutputParser(),
-            output_key="extracted_skills"
+            prompt=PromptTemplate.from_template(SKILL_EXTRACTION_TEMPLATE)
         )
         
         # Proficiency assessment chain
         self.proficiency_chain = LLMChain(
             llm=self.llm,
-            prompt=PromptTemplate.from_template(PROFICIENCY_ASSESSMENT_TEMPLATE),
-            output_parser=JsonOutputParser(),
-            output_key="proficiency_assessment"
+            prompt=PromptTemplate.from_template(PROFICIENCY_ASSESSMENT_TEMPLATE)
         )
         
-        # Resource suggestion chain
+        # Resource suggestion chain (fallback if search fails)
         self.resource_chain = LLMChain(
             llm=self.llm,
-            prompt=PromptTemplate.from_template(RESOURCE_SUGGESTION_TEMPLATE),
-            output_parser=JsonOutputParser(),
-            output_key="resources"
+            prompt=PromptTemplate.from_template(RESOURCE_SUGGESTION_TEMPLATE)
         )
         
-        # Skill profile chain
+        # Skill profile chain (for generating the final profile)
         self.profile_chain = LLMChain(
             llm=self.llm,
-            prompt=PromptTemplate.from_template(SKILL_PROFILE_TEMPLATE),
-            output_parser=JsonOutputParser(),
-            output_key="skill_profile"
+            prompt=PromptTemplate.from_template(SKILL_PROFILE_TEMPLATE)
         )
-    
-    def _extract_skills_tool(self, response: str) -> List[Dict[str, Any]]:
-        """
-        Tool function to extract skills from a response.
-        
-        Args:
-            response: The response to analyze
-            
-        Returns:
-            List of extracted skills with metadata
-        """
-        try:
-            result = self.skill_extraction_chain.invoke({
-                "job_role": self.job_role,
-                "response": response
-            })
-            
-            # Emit event with extracted skills
-            if self.event_bus:
-                self.event_bus.emit(Event(
-                    event_type=EventType.SKILL_EXTRACTED,
-                    data={"skills": result["extracted_skills"]},
-                    source="skill_assessor"
-                ))
-                
-            return result["extracted_skills"]
-        except Exception as e:
-            self.logger.error(f"Error extracting skills: {e}")
-            # Fallback to simpler extraction method
-            skills = self._identify_skills_in_text(response)
-            
-            # Format skills for consistency
-            formatted_skills = [
-                {
-                    "skill_name": skill[0], 
-                    "category": skill[1], 
-                    "confidence": 0.7
-                } 
-                for skill in skills
-            ]
-            
-            return formatted_skills
-    
-    def _assess_proficiency_tool(self, skill: str, context: str) -> Dict[str, Any]:
-        """
-        Tool function to assess proficiency level for a skill.
-        
-        Args:
-            skill: The skill to assess
-            context: The context to use for assessment
-            
-        Returns:
-            Dictionary with proficiency assessment
-        """
-        try:
-            result = self.proficiency_chain.invoke({
-                "skill": skill,
-                "job_role": self.job_role,
-                "context": context
-            })
-            
-            # Emit event with proficiency assessment
-            if self.event_bus:
-                self.event_bus.emit(Event(
-                    event_type=EventType.SKILL_ASSESSED,
-                    data={
-                        "skill": skill,
-                        "proficiency": result["proficiency_level"],
-                        "feedback": result.get("feedback", "")
-                    },
-                    source="skill_assessor"
-                ))
-                
-            return result
-        except Exception as e:
-            self.logger.error(f"Error assessing proficiency: {e}")
-            return {
-                "proficiency_level": "intermediate",
-                "feedback": "Unable to assess proficiency accurately.",
-                "confidence": 0.5
-            }
-    
-    def _suggest_resources_tool(self, skill: str, proficiency_level: str) -> Dict[str, Any]:
-        """
-        Tool function to suggest resources for improving a skill.
-        
-        Args:
-            skill: The skill to suggest resources for
-            proficiency_level: Current proficiency level
-            
-        Returns:
-            Dictionary with suggested resources
-        """
-        try:
-            # Check if resources are already cached
-            if skill in self.resource_cache:
-                return {"resources": self.resource_cache[skill]}
-            
-            # Try to get resources using the search service first
-            search_resources = self._get_resources_using_search(skill, proficiency_level)
-            
-            # If search service returns resources, use them
-            if search_resources and len(search_resources) > 0:
-                # Cache the resources
-                self.resource_cache[skill] = search_resources
-                
-                # Emit event with resource suggestions
-                if self.event_bus:
-                    self.event_bus.emit(Event(
-                        event_type=EventType.RESOURCES_SUGGESTED,
-                        data={
-                            "skill": skill,
-                            "resources": search_resources
-                        },
-                        source="skill_assessor"
-                    ))
-                    
-                return {"resources": search_resources}
-            
-            # Fallback to LLM-based resource generation
-            result = self.resource_chain.invoke({
-                "skill": skill,
-                "proficiency_level": proficiency_level,
-                "job_role": self.job_role
-            })
-            
-            # Cache the resources
-            self.resource_cache[skill] = result["resources"]
-            
-            # Emit event with resource suggestions
-            if self.event_bus:
-                self.event_bus.emit(Event(
-                    event_type=EventType.RESOURCES_SUGGESTED,
-                    data={
-                        "skill": skill,
-                        "resources": result["resources"]
-                    },
-                    source="skill_assessor"
-                ))
-                
-            return result
-        except Exception as e:
-            self.logger.error(f"Error suggesting resources: {e}")
-            # Fallback to simpler resource generation
-            resources_json = self._get_resources_for_skill(skill, proficiency_level)
-            resources = json.loads(resources_json)
-            return resources
-    
-    def _create_skill_profile_tool(self, skills_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Tool function to create a comprehensive skill profile.
-        
-        Args:
-            skills_data: List of skills with assessment data
-            
-        Returns:
-            Dictionary with skill profile
-        """
-        try:
-            skills_json = json.dumps(skills_data)
-            result = self.profile_chain.invoke({
-                "skills": skills_json,
-                "job_role": self.job_role
-            })
-            
-            # Emit event with skill profile
-            if self.event_bus:
-                self.event_bus.emit(Event(
-                    event_type=EventType.SKILL_PROFILE_GENERATED,
-                    data={"profile": result},
-                    source="skill_assessor"
-                ))
-                
-            return result
-        except Exception as e:
-            self.logger.error(f"Error creating skill profile: {e}")
-            # Return a simple profile
-            return {
-                "overall_assessment": "Profile generation encountered an error.",
-                "strengths": [],
-                "areas_for_improvement": [],
-                "recommended_learning_path": "Retry profile generation."
-            }
     
     def _initialize_skill_keywords(self) -> Dict[str, List[str]]:
         """
@@ -432,29 +203,6 @@ class SkillAssessorAgent(BaseAgent):
             all_skills[category] = skills
         
         return all_skills
-    
-    def _identify_skills_in_text(self, text: str) -> List[Tuple[str, str]]:
-        """
-        Identify skills mentioned in text using keyword matching.
-        
-        Args:
-            text: The text to analyze
-            
-        Returns:
-            List of (skill, category) tuples
-        """
-        text = text.lower()
-        found_skills = []
-        
-        # Check each category of skills
-        for category, skills in self.skill_keywords.items():
-            for skill in skills:
-                # Check if skill is mentioned as a whole word
-                pattern = r'\b' + re.escape(skill.lower()) + r'\b'
-                if re.search(pattern, text):
-                    found_skills.append((skill, category))
-        
-        return found_skills
     
     def _handle_interviewer_response(self, event: Event) -> None:
         """
@@ -510,7 +258,7 @@ class SkillAssessorAgent(BaseAgent):
             response: The response to analyze
         """
         # Extract skills from the response
-        extracted_skills = self._extract_skills_tool(response)
+        extracted_skills = self._extract_skills(response)
         
         # Update skill mention counts
         for skill_data in extracted_skills:
@@ -522,7 +270,7 @@ class SkillAssessorAgent(BaseAgent):
                 skill_data.get("confidence", 0) > self.identified_skills[skill_name].get("confidence", 0)):
                 
                 # Assess proficiency for the skill
-                assessment = self._assess_proficiency_tool(skill_name, response)
+                assessment = self._assess_proficiency(skill_name, response)
                 
                 # Store the assessment data
                 self.identified_skills[skill_name] = {
@@ -535,7 +283,7 @@ class SkillAssessorAgent(BaseAgent):
                 }
                 
                 # Get resources for skill improvement
-                resources = self._suggest_resources_tool(
+                resources = self._suggest_resources(
                     skill_name, 
                     assessment.get("proficiency_level", "intermediate")
                 )
@@ -545,81 +293,94 @@ class SkillAssessorAgent(BaseAgent):
         
         self.last_assessment_time = datetime.now()
     
-    def _get_resources_for_skill(self, skill: str, proficiency_level: str = "intermediate") -> str:
+    def _extract_skills(self, response: str) -> List[Dict[str, Any]]:
         """
-        Get learning resources for a specific skill.
+        Extracts skills from text using an LLM chain.
         
         Args:
-            skill: The skill to get resources for
-            proficiency_level: Proficiency level for appropriate resources
+            response: The text to extract skills from
             
         Returns:
-            JSON string with resources
+            List of skill dictionaries
         """
-        # Check cache first
-        if skill in self.resource_cache:
-            return json.dumps({"resources": self.resource_cache[skill]})
-            
-        # Try to get resources using the search service first
-        search_resources = self._get_resources_using_search(skill, proficiency_level)
-        
-        # If search service returns resources, use them
-        if search_resources and len(search_resources) > 0:
-            # Cache the resources
-            self.resource_cache[skill] = search_resources
-            return json.dumps({"resources": search_resources})
-            
-        # Fallback to generating mock resources
-        # Construct resource types
-        resource_types = ["online_course", "book", "article", "tutorial"]
-        
-        # Generate resources based on skill
-        resources = []
-        
-        for _ in range(4):  # Generate 4 resources
-            resource_type = random.choice(resource_types)
-            
-            # Create resource based on type
-            if resource_type == "online_course":
-                platforms = ["Coursera", "Udemy", "edX", "Pluralsight", "LinkedIn Learning"]
-                title = f"{random.choice(['Complete', 'Advanced', 'Comprehensive', 'Practical'])} {skill.title()} {random.choice(['Course', 'Masterclass', 'Bootcamp'])}"
-                url = f"https://www.{random.choice(platforms).lower().replace(' ', '')}.com/{skill.lower().replace(' ', '-')}"
-                description = f"Learn {skill} from experts with hands-on projects and exercises."
-                
-            elif resource_type == "book":
-                publishers = ["O'Reilly", "Packt", "Manning", "Apress", "Wiley"]
-                title = f"{random.choice(['Mastering', 'Learning', 'Professional', 'Practical'])} {skill.title()}"
-                url = f"https://www.amazon.com/books/{skill.lower().replace(' ', '-')}"
-                description = f"Comprehensive guide to {skill} with practical examples and best practices."
-                
-            elif resource_type == "article":
-                platforms = ["Medium", "Dev.to", "Towards Data Science", "HackerNoon"]
-                title = f"{random.choice(['Understanding', 'Mastering', 'Deep Dive into', 'Practical Guide to'])} {skill.title()}"
-                url = f"https://www.{random.choice(platforms).lower().replace(' ', '').replace('.', '')}.com/articles/{skill.lower().replace(' ', '-')}"
-                description = f"In-depth article explaining key concepts of {skill} with practical examples."
-                
-            else:  # tutorial
-                platforms = ["YouTube", "freeCodeCamp", "W3Schools", "TutorialsPoint"]
-                title = f"{skill.title()} {random.choice(['Tutorial', 'Guide', 'Walkthrough', 'Masterclass'])}"
-                url = f"https://www.{random.choice(platforms).lower().replace(' ', '')}.com/tutorials/{skill.lower().replace(' ', '-')}"
-                description = f"Step-by-step tutorial for learning {skill} from scratch."
-            
-            resources.append({
-                "type": resource_type,
-                "title": title,
-                "url": url,
-                "description": description,
-                "relevance_score": round(random.uniform(0.7, 0.95), 2)
-            })
-        
-        # Cache the resources
-        self.resource_cache[skill] = resources
-        
-        return json.dumps({"resources": resources})
+        default_skills = [] # Fallback value
+        extracted_data = invoke_chain_with_error_handling(
+            chain=self.skill_extraction_chain,
+            inputs={"job_role": self.job_role or "[Not Specified]", "response": response},
+            logger=self.logger,
+            chain_name="Skill Extraction Chain",
+            output_key="extracted_skills", # Expecting JSON output under this key
+            default_creator=lambda: default_skills
+        )
+
+        # Validate the structure (should be a list of dicts)
+        if isinstance(extracted_data, list) and all(isinstance(item, dict) for item in extracted_data):
+            # Emit event (consider adding session_id if available)
+            self.publish_event(EventType.SKILL_EXTRACTED, {"skills": extracted_data})
+            return extracted_data
+        else:
+            self.logger.warning(f"Skill extraction returned invalid data type: {type(extracted_data)}. Falling back.")
+            # Fallback to simpler keyword extraction
+            skills_tuples = self._identify_skills_in_text(response)
+            formatted_fallback = [
+                {"skill_name": skill[0], "category": skill[1], "confidence": 0.6} 
+                for skill in skills_tuples
+            ]
+            if formatted_fallback:
+                self.publish_event(EventType.SKILL_EXTRACTED, {"skills": formatted_fallback, "fallback_used": True})
+            return formatted_fallback
     
-    def _get_resources_using_search(self, skill: str, proficiency_level: str) -> List[Dict[str, Any]]:
+    def _assess_proficiency(self, skill: str, context: str) -> Dict[str, Any]:
         """
-        Get resources for a skill using the search service.
+        Assess proficiency level for a skill using an LLM chain.
+        
+        Args:
+            skill: The skill to assess
+            context: The context for the assessment
+            
+        Returns:
+            Dictionary with proficiency assessment data
+        """
+        default_assessment = {
+            "proficiency_level": ProficiencyLevel.INTERMEDIATE.value,
+            "confidence": 0.5,
+            "justification": "Default assessment due to processing error."
+        }
+        assessment_data = invoke_chain_with_error_handling(
+            chain=self.proficiency_chain,
+            inputs={"skill": skill, "job_role": self.job_role or "[Not Specified]", "context": context},
+            logger=self.logger,
+            chain_name="Proficiency Assessment Chain",
+            output_key="proficiency_assessment", # Expecting JSON output under this key
+            default_creator=lambda: default_assessment
+        )
+        
+        # Basic validation of the parsed dictionary
+        if isinstance(assessment_data, dict) and \
+           isinstance(assessment_data.get("proficiency_level"), str) and \
+           isinstance(assessment_data.get("confidence"), (int, float)):
+            # Validate enum value
+            try:
+                ProficiencyLevel(assessment_data["proficiency_level"])
+                assessment_data["confidence"] = float(assessment_data["confidence"])
+                # Emit event
+                self.publish_event(EventType.SKILL_ASSESSED, {
+                    "skill": skill,
+                    "proficiency": assessment_data["proficiency_level"],
+                    "confidence": assessment_data["confidence"],
+                    "justification": assessment_data.get("justification", "N/A")
+                })
+                return assessment_data
+            except ValueError:
+                self.logger.warning(f"Invalid proficiency level '{assessment_data['proficiency_level']}' received, using default.")
+                return default_assessment
+        else:
+            self.logger.error(f"Proficiency assessment returned invalid data: {assessment_data}")
+            return default_assessment
+    
+    def _suggest_resources(self, skill: str, proficiency_level: str) -> List[Dict[str, Any]]:
+        """
+        Suggest resources, trying search service first, then LLM fallback.
         
         Args:
             skill: The skill to get resources for
@@ -628,188 +389,339 @@ class SkillAssessorAgent(BaseAgent):
         Returns:
             List of resource dictionaries
         """
+        cache_key = f"{skill.lower()}_{proficiency_level.lower()}" # Cache per skill & level
+        if cache_key in self.resource_cache:
+            self.logger.debug(f"Returning cached resources for {skill} ({proficiency_level})")
+            return self.resource_cache[cache_key]
+        
+        resources = []
+        search_service_used = False
         try:
-            # Get the search service instance
             search_service = get_search_service()
-            
-            # Use asyncio to run the async search method
-            loop = asyncio.get_event_loop()
-            resources = loop.run_until_complete(
-                search_service.search_resources(
-                    skill=skill,
-                    proficiency_level=proficiency_level,
-                    job_role=self.job_role,
-                    num_results=5
-                )
-            )
-            
-            # Convert Resource objects to dictionaries
-            resource_dicts = []
-            for resource in resources:
-                # Map resource_type to type expected by the system
-                resource_type_mapping = {
-                    "article": "article",
-                    "course": "online_course",
-                    "video": "video",
-                    "tutorial": "tutorial",
-                    "documentation": "documentation",
-                    "book": "book",
-                    "tool": "tool",
-                    "community": "community",
-                    "unknown": "article"
-                }
-                
-                resource_dict = {
-                    "type": resource_type_mapping.get(resource.resource_type, "article"),
-                    "title": resource.title,
-                    "url": resource.url,
-                    "description": resource.description,
-                    "relevance_score": resource.relevance_score
-                }
-                resource_dicts.append(resource_dict)
-            
-            self.logger.info(f"Found {len(resource_dicts)} resources for {skill} using search service")
-            return resource_dicts
-            
-        except Exception as e:
-            self.logger.error(f"Error getting resources from search service: {e}")
-            return []
-    
-    def process_input(self, user_input: str, context: AgentContext) -> str:
-        """
-        Process user input and provide a response.
-        
-        Args:
-            user_input: The user's input message
-            context: The agent context
-            
-        Returns:
-            Response string
-        """
-        # Store context
-        self.interview_session_id = context.session_id
-        
-        # Process the input using the base class method or rule-based
-        try:
-            response = self._process_input_rule_based(user_input, context)
-            if response:
-                return response
-                
-            # Fallback to LLM-based processing
-            return super().process_input(user_input, context)
-        except Exception as e:
-            self.logger.error(f"Error processing input: {e}")
-            return "I'm analyzing your skills based on our conversation. Could you tell me more about your experience with specific technologies or methodologies?"
-    
-    def _process_input_rule_based(self, user_input: str, context: AgentContext) -> Optional[str]:
-        """
-        Process user input using rule-based approaches.
-        
-        Args:
-            user_input: The user's input message
-            context: The agent context
-            
-        Returns:
-            Response string or None
-        """
-        input_lower = user_input.lower()
-        
-        # Analyze the response for skills
-        self._analyze_response(user_input)
-        
-        # Check if the user is asking about their skills
-        if "what skills" in input_lower or "which skills" in input_lower or "my skills" in input_lower:
-            if not self.identified_skills:
-                return "I haven't identified any specific skills yet. Could you tell me more about your experience and the technologies you've worked with?"
-                
-            skills_list = ", ".join(self.identified_skills.keys())
-            return f"Based on our conversation, I've identified these skills: {skills_list}. Would you like me to provide a detailed assessment of any specific skill?"
-        
-        # Check if the user is asking about a specific skill
-        if "how is my" in input_lower and "skill" in input_lower:
-            # Extract the skill from the query
-            skill_match = re.search(r'how is my (\w+)', input_lower)
-            if skill_match:
-                skill = skill_match.group(1)
-                if skill in self.identified_skills:
-                    assessment = self.identified_skills[skill]
-                    return f"For {skill}, I assess your proficiency as {assessment['proficiency_level']}. {assessment.get('feedback', '')}"
+            if search_service:
+                self.logger.debug(f"Attempting to use search service for {skill} resources...")
+                try:
+                    # Run async search - simplified sync execution for now
+                    # In a real async app, this should be handled with await or run_in_executor
+                    resources = asyncio.run(search_service.search_resources(
+                         skill=skill,
+                         proficiency_level=proficiency_level,
+                         job_role=self.job_role or "[Not Specified]",
+                         num_results=3
+                    ))
+                    # Convert Resource model objects to simple dicts
+                    resource_dicts = [r.dict() for r in resources if hasattr(r, 'dict')]
+                    self.logger.info(f"Found {len(resource_dicts)} resources for '{skill}' via search service.")
+                    resources = resource_dicts # Assign converted dicts
+                    search_service_used = True
+                except RuntimeError as e:
+                    # Handle cases where asyncio.run cannot be used (e.g., already running loop)
+                    self.logger.warning(f"Could not execute async search directly: {e}. LLM fallback will be used.")
+                except Exception as e:
+                    self.logger.error(f"Error calling search service for '{skill}': {e}")
+            else:
+                self.logger.info("Search service not available, using LLM fallback for resources.")
+
+            # LLM fallback if search failed or returned no results
+            if not resources:
+                if search_service_used:
+                    self.logger.info(f"Search service found no resources for '{skill}'. Falling back to LLM.")
                 else:
-                    return f"I haven't been able to assess your {skill} skill yet. Could you tell me more about your experience with it?"
-        
-        # Check if the user wants resources for a skill
-        if "resources" in input_lower or "improve" in input_lower:
-            # Try to extract a skill from the query
-            for skill in self.identified_skills:
-                if skill in input_lower:
-                    resources = self.identified_skills[skill].get("resources", [])
-                    if resources:
-                        response = f"Here are some resources to improve your {skill} skills:\n"
-                        for i, resource in enumerate(resources[:3], 1):
-                            response += f"{i}. {resource['title']} - {resource['url']}\n"
-                        return response
-                    else:
-                        # Generate resources
-                        resources_json = self._get_resources_for_skill(skill)
-                        resources = json.loads(resources_json)["resources"]
-                        response = f"Here are some resources to improve your {skill} skills:\n"
-                        for i, resource in enumerate(resources[:3], 1):
-                            response += f"{i}. {resource['title']} - {resource['url']}\n"
-                        return response
-        
-        # No rule-based response
-        return None
-    
-    def generate_skill_profile(self, context: AgentContext) -> Dict[str, Any]:
-        """
-        Generate a comprehensive skill profile based on the identified skills.
-        
-        Args:
-            context: The agent context
+                    self.logger.info(f"Using LLM fallback for '{skill}' resources.")
+                    
+                llm_response = invoke_chain_with_error_handling(
+                    chain=self.resource_chain,
+                    inputs={"skill": skill, "proficiency_level": proficiency_level, "job_role": self.job_role or "[Not Specified]"},
+                    logger=self.logger,
+                    chain_name="Resource Suggestion Chain",
+                    output_key="resources", # Expecting JSON list output
+                    default_creator=lambda: []
+                )
+                if isinstance(llm_response, list):
+                    # Basic validation of resource structure
+                    validated_resources = []
+                    for r in llm_response:
+                        if isinstance(r, dict) and "title" in r and "url" in r:
+                            validated_resources.append({
+                                "type": r.get("type", "link"),
+                                "title": r["title"],
+                                "url": r["url"],
+                                "description": r.get("description", "")
+                            })
+                    resources = validated_resources
+                    if not resources:
+                        self.logger.warning(f"LLM resource suggestion for '{skill}' returned list with invalid structure.")
+                else:
+                    self.logger.warning(f"LLM resource suggestion for '{skill}' did not return a list. Got: {type(llm_response)}")
+                    resources = [] # Ensure empty list on failure
+
+            # Cache results (even if empty)
+            self.resource_cache[cache_key] = resources
             
-        Returns:
-            Dictionary with skill profile
+            # Publish event only if resources were actually found
+            if resources:
+                self.publish_event(EventType.RESOURCES_SUGGESTED, {"skill": skill, "resources": resources})
+                
+            return resources
+            
+        except Exception as e:
+            self.logger.exception(f"Unexpected error suggesting resources for '{skill}': {e}")
+            return [] # Return empty list on major error
+    
+    def generate_skill_profile(self) -> Dict[str, Any]:
         """
-        if not self.identified_skills:
-            return {
-                "overall_assessment": "Not enough information to generate a skill profile.",
-                "strengths": [],
-                "areas_for_improvement": [],
-                "recommended_learning_path": "Continue the conversation to allow for skill assessment."
-            }
+        Generates a comprehensive skill profile based on accumulated assessments.
         
-        # Prepare skills data
-        skills_data = []
+        Returns:
+            Dictionary with the structured skill profile (skills and levels)
+        """
+        self.logger.info("Generating skill profile...")
+        default_profile = {
+            "job_role": self.job_role or "[Not Specified]",
+            "assessed_skills": []
+            # Removed summary, recommendations etc. - template defines output structure
+        }
+        
+        if not self.identified_skills:
+            self.logger.warning("No skills identified to generate profile.")
+            return default_profile
+        
+        # Prepare skills data for the profile chain template
+        skills_data_for_prompt = []
         for skill_name, data in self.identified_skills.items():
-            skills_data.append({
+            skills_data_for_prompt.append({
                 "skill_name": skill_name,
                 "category": data.get("category", "unknown"),
-                "proficiency_level": data.get("proficiency_level", "intermediate"),
-                "feedback": data.get("feedback", ""),
-                "mentions": self.skill_mentions.get(skill_name, 1)
+                "assessed_proficiency": data.get("proficiency_level", "intermediate"),
+                "assessment_confidence": data.get("confidence", 0.5),
+                "assessment_justification": data.get("justification", "N/A"),
+                "evidence_mentions": self.skill_mentions.get(skill_name, 1)
             })
         
-        # Generate profile
-        return self._create_skill_profile_tool(skills_data)
+        profile_data = invoke_chain_with_error_handling(
+            chain=self.profile_chain,
+            inputs={
+                "skills_json": json.dumps(skills_data_for_prompt),
+                "job_role": self.job_role or "[Not Specified]"
+            },
+            logger=self.logger,
+            chain_name="Skill Profile Generation Chain",
+            output_key="skill_profile", # Expecting JSON output
+            default_creator=lambda: default_profile
+        )
+
+        # Basic validation
+        if isinstance(profile_data, dict) and "assessed_skills" in profile_data:
+            self.logger.info(f"Skill profile generated successfully for {len(profile_data['assessed_skills'])} skills.")
+            # Publish event
+            self.publish_event(EventType.SKILL_PROFILE_GENERATED, {"profile": profile_data})
+            return profile_data
+        else:
+            self.logger.error(f"Skill profile generation returned invalid data: {profile_data}")
+            return default_profile
     
-    def get_resources_for_skill(self, skill_name: str, context: AgentContext) -> List[Dict[str, Any]]:
+    def _initialize_skill_keywords(self) -> Dict[str, List[str]]:
         """
-        Get resources for improving a specific skill.
+        Initialize keywords for skill extraction.
+        
+        Returns:
+            Dictionary of skill categories to keywords
+        """
+        # Simplified for brevity, assumes self.role_skills is populated
+        role_key = (self.job_role or "").lower()
+        role_specific = self.role_skills.get(role_key, self.role_skills.get("software engineer"))
+        keywords = {}
+        for category, skills in role_specific.items():
+            keywords[category] = [s.lower() for s in skills]
+        return keywords
+    
+    def _identify_skills_in_text(self, text: str) -> List[Tuple[str, str]]:
+        """
+        Identify skills mentioned in text using keyword matching.
+        
+        Args:
+            text: The text to extract skills from
+            
+        Returns:
+            List of tuples (skill, category)
+        """
+        text_lower = text.lower()
+        found_skills = []
+        # Use the initialized keywords
+        for category, skills in self.skill_keywords.items():
+            for skill in skills:
+                # Use word boundaries to avoid partial matches
+                pattern = r'\b' + re.escape(skill) + r'\b'
+                if re.search(pattern, text_lower):
+                    # Return the original skill name casing if needed, but lowercase match is fine
+                    found_skills.append((skill, category))
+        # Remove duplicates while preserving order (if needed, though set is faster)
+        seen = set()
+        unique_found = []
+        for skill, cat in found_skills:
+            if skill not in seen:
+                unique_found.append((skill, cat))
+                seen.add(skill)
+        return unique_found
+    
+    def _handle_session_start(self, event: Event) -> None:
+        """
+        Handles session start to get config and reset state.
+        
+        Args:
+            event: The event with session start
+        """
+        self.logger.info("SkillAssessor handling session_start event.")
+        self._reset_state()
+        if event.data and isinstance(event.data.get("config"), dict):
+            config_data = event.data["config"]
+            self.interview_session_id = event.data.get("session_id")
+            self.job_role = config_data.get("job_role", self.job_role)
+            # Re-initialize keywords based on potentially updated job role
+            self.skill_keywords = self._initialize_skill_keywords()
+            # Set technical_focus based on job role or config if needed
+            self.logger.info(f"SkillAssessor configured for session {self.interview_session_id}, role: {self.job_role}")
+        else:
+            self.logger.warning("Session start event missing config data for SkillAssessor.")
+    
+    def _handle_session_reset(self, event: Event) -> None:
+        """
+        Handles session reset event.
+        
+        Args:
+            event: The event with session reset
+        """
+        self.logger.info("SkillAssessor handling session_reset event.")
+        self._reset_state()
+    
+    def _reset_state(self) -> None:
+        """
+        Resets the internal state of the SkillAssessor.
+        """
+        self.interview_session_id = None
+        self.current_question = None
+        self.current_answer = None
+        self.identified_skills = {}
+        self.skill_mentions = {}
+        self.resource_cache = {}
+        self.logger.debug("SkillAssessor state reset.")
+    
+    def _handle_interviewer_response(self, event: Event) -> None:
+        """
+        Stores the current question for context.
+        
+        Args:
+            event: The event with interviewer response
+        """
+        if event.data and isinstance(event.data.get("response"), dict):
+            response_data = event.data["response"]
+            question_content = response_data.get("content")
+            if question_content:
+                self.current_question = question_content
+                self.current_answer = None # Reset answer context
+                self.logger.debug(f"SkillAssessor stored current question: {self.current_question[:100]}...")
+            # No warning if content missing, might be other response types
+        else:
+            self.logger.warning("Received interviewer event without expected 'response' dict for SkillAssessor.")
+    
+    def _handle_user_response(self, event: Event) -> None:
+        """
+        Handles user response: Stores answer and triggers passive analysis.
+        
+        Args:
+            event: The event with user response
+        """
+        if event.data and isinstance(event.data.get("message"), dict):
+            message_data = event.data["message"]
+            answer_content = message_data.get("content")
+            if answer_content:
+                self.current_answer = answer_content # Store answer context
+                self.logger.debug(f"SkillAssessor stored current answer: {self.current_answer[:100]}...")
+                # Trigger analysis of this specific answer
+                self._analyze_single_response(answer_content)
+            # No warning if content missing
+        else:
+            self.logger.warning("Received user event without expected 'message' dict for SkillAssessor.")
+    
+    def _analyze_single_response(self, response: str) -> None:
+        """
+        Analyzes a single user response to extract and assess skills.
+        
+        Args:
+            response: The response to analyze
+        """
+        self.logger.debug(f"Analyzing response for skills: {response[:100]}...")
+        extracted_skills = self._extract_skills(response)
+        
+        for skill_data in extracted_skills:
+            skill_name = skill_data.get("skill_name", "").lower()
+            if not skill_name:
+                continue
+            
+            category = skill_data.get("category", "unknown")
+            confidence = skill_data.get("confidence", 0.6) # Default confidence if missing
+            
+            # Update mention count
+            self.skill_mentions[skill_name] = self.skill_mentions.get(skill_name, 0) + 1
+            
+            # Assess proficiency (only if confidence is high enough or skill is new)
+            assessment_threshold = 0.7
+            if confidence >= assessment_threshold or skill_name not in self.identified_skills:
+                # Use question+answer as context if available
+                assessment_context = f"Question: {self.current_question}\nAnswer: {response}" \
+                                     if self.current_question else response
+                                    
+                assessment = self._assess_proficiency(skill_name, assessment_context)
+                
+                # Update stored skill data if assessment confidence is good
+                if assessment.get("confidence", 0) > 0.5:
+                    self.identified_skills[skill_name] = {
+                        "skill_name": skill_name,
+                        "category": category,
+                        "proficiency_level": assessment.get("proficiency_level", ProficiencyLevel.INTERMEDIATE.value),
+                        "justification": assessment.get("justification", "N/A"),
+                        "confidence": assessment.get("confidence"),
+                        "last_updated": datetime.now().isoformat()
+                    }
+                    self.logger.info(f"Assessed/Updated skill: '{skill_name}' to level '{self.identified_skills[skill_name]['proficiency_level']}'")
+                    # Suggest resources on demand via get_suggested_resources
+                else:
+                    self.logger.debug(f"Skipping proficiency update for '{skill_name}' due to low assessment confidence ({assessment.get('confidence'):.2f})")
+            else:
+                self.logger.debug(f"Skipping proficiency assessment for '{skill_name}' (confidence {confidence:.2f} < {assessment_threshold} or already assessed). Update mention count only.")
+    
+    def process(self, context: AgentContext) -> Any:
+        """
+        Default process method. SkillAssessor is primarily reactive via event handlers
+        or specific method calls from SessionManager (e.g., generate_skill_profile).
+        
+        Args:
+            context: The agent context
+            
+        Returns:
+            Any result from the process
+        """
+        self.logger.debug("SkillAssessor process method called (typically inactive). Context received.")
+        # Potential future use: Trigger analysis based on full context
+        # if context.conversation_history:
+        #     self._analyze_single_response(context.conversation_history[-1].get('content', ''))
+        return None # No direct response generation
+    
+    def get_suggested_resources(self, skill_name: str) -> List[Dict[str, Any]]:
+        """
+        Gets suggested resources for a specific skill, triggering generation if needed.
+        Called explicitly by SessionManager or potentially another agent.
         
         Args:
             skill_name: The skill to get resources for
-            context: The agent context
             
         Returns:
             List of resource dictionaries
         """
-        if skill_name in self.identified_skills and "resources" in self.identified_skills[skill_name]:
-            return self.identified_skills[skill_name]["resources"]
+        skill_name_lower = skill_name.lower()
+        proficiency = ProficiencyLevel.INTERMEDIATE.value # Default
+        if skill_name_lower in self.identified_skills:
+            proficiency = self.identified_skills[skill_name_lower].get("proficiency_level", proficiency)
         
-        # Generate resources
-        proficiency = "intermediate"  # Default
-        if skill_name in self.identified_skills:
-            proficiency = self.identified_skills[skill_name].get("proficiency_level", "intermediate")
-            
-        result = self._suggest_resources_tool(skill_name, proficiency)
-        return result.get("resources", []) 
+        # This now handles caching and generation logic
+        return self._suggest_resources(skill_name_lower, proficiency)

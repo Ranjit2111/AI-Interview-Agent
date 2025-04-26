@@ -24,13 +24,10 @@ from langchain.chains import LLMChain, SequentialChain
 from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 
 try:
-    # Try standard import in production
     from backend.agents.base import BaseAgent, AgentContext
     from backend.utils.event_bus import Event, EventBus
     from backend.agents.templates.coach_templates import (
-        ANALYSIS_TEMPLATE,
         TIPS_TEMPLATE,
-        SUMMARY_TEMPLATE,
         TEMPLATE_PROMPT,
         STAR_EVALUATION_TEMPLATE,
         PERFORMANCE_ANALYSIS_TEMPLATE,
@@ -53,13 +50,10 @@ try:
         calculate_average_scores
     )
 except ImportError:
-    # Use relative imports for development/testing
     from .base import BaseAgent, AgentContext
     from ..utils.event_bus import Event, EventBus
     from .templates.coach_templates import (
-        ANALYSIS_TEMPLATE,
         TIPS_TEMPLATE,
-        SUMMARY_TEMPLATE,
         TEMPLATE_PROMPT,
         STAR_EVALUATION_TEMPLATE,
         PERFORMANCE_ANALYSIS_TEMPLATE,
@@ -118,39 +112,37 @@ class CoachAgent(BaseAgent):
     - Suggesting resources for skill development
     """
     
+    DEFAULT_COACHING_FOCUS = [
+        CoachingFocus.COMMUNICATION,
+        CoachingFocus.CONTENT,
+        CoachingFocus.CONFIDENCE,
+        CoachingFocus.SPECIFICITY,
+        CoachingFocus.STORYTELLING
+    ]
+    
     def __init__(
         self,
         api_key: Optional[str] = None,
         model_name: str = "gemini-1.5-pro",
-        planning_interval: int = 5,
         event_bus: Optional[EventBus] = None,
         logger: Optional[logging.Logger] = None,
-        coaching_mode: CoachingMode = CoachingMode.REAL_TIME,
         coaching_focus: Optional[List[str]] = None,
         feedback_verbosity: str = "detailed"
     ):
         """
-        Initialize the coach agent.
+        Initialize the coach agent for post-interview feedback.
         
         Args:
             api_key: API key for the language model
             model_name: Name of the language model to use
-            planning_interval: Number of interactions before planning
             event_bus: Event bus for inter-agent communication
             logger: Logger for recording agent activity
-            coaching_mode: Mode of coaching (real_time, summary, targeted, passive)
-            coaching_focus: List of areas to focus coaching on (defaults to all areas)
+            coaching_focus: List of areas to focus coaching on (defaults defined in DEFAULT_COACHING_FOCUS)
             feedback_verbosity: Level of detail in feedback (brief, moderate, detailed)
         """
-        super().__init__(api_key, model_name, planning_interval, event_bus, logger)
+        super().__init__(api_key=api_key, model_name=model_name, planning_interval=0, event_bus=event_bus, logger=logger)
         
-        self.coaching_mode = coaching_mode
-        self.coaching_focus = coaching_focus or [
-            CoachingFocus.COMMUNICATION,
-            CoachingFocus.CONTENT,
-            CoachingFocus.CONFIDENCE,
-            CoachingFocus.SPECIFICITY
-        ]
+        self.coaching_focus = coaching_focus or self.DEFAULT_COACHING_FOCUS
         self.feedback_verbosity = feedback_verbosity
         self.interview_session_id = None
         self.current_question = None
@@ -176,10 +168,8 @@ class CoachAgent(BaseAgent):
         Returns:
             System prompt string
         """
-        return SYSTEM_PROMPT.format(
-            coaching_mode=self.coaching_mode,
-            coaching_focus=', '.join(self.coaching_focus)
-        )
+        # System prompt is now static as mode/focus are less dynamic
+        return SYSTEM_PROMPT
     
     def _initialize_tools(self) -> List[Tool]:
         """
@@ -190,29 +180,19 @@ class CoachAgent(BaseAgent):
         """
         return [
             Tool(
-                name="analyze_response",
-                func=self._analyze_response_tool,
-                description="Analyze a candidate's response to an interview question and provide feedback"
-            ),
-            Tool(
                 name="generate_improvement_tips",
                 func=self._generate_improvement_tips_tool,
-                description="Generate specific tips for improving in particular areas of interview performance"
-            ),
-            Tool(
-                name="create_coaching_summary",
-                func=self._create_coaching_summary_tool,
-                description="Create a comprehensive coaching summary based on the entire interview"
+                description="Generate specific tips for improving in particular areas of interview performance (e.g., STAR method, communication)"
             ),
             Tool(
                 name="generate_response_template",
                 func=self._generate_response_template_tool,
-                description="Generate a template for how to effectively answer a specific type of interview question"
+                description="Generate a template for how to effectively answer a specific type of interview question (e.g., behavioral, technical)"
             ),
             Tool(
                 name="generate_practice_question",
                 func=self._generate_practice_question_tool,
-                description="Generate a practice interview question based on specified parameters"
+                description="Generate a practice interview question based on specified parameters (e.g., type, role)"
             )
         ]
     
@@ -220,25 +200,11 @@ class CoachAgent(BaseAgent):
         """
         Set up LangChain chains for the agent's tasks.
         """
-        # Response analysis chain
-        self.analysis_chain = LLMChain(
-            llm=self.llm,
-            prompt=PromptTemplate.from_template(ANALYSIS_TEMPLATE),
-            output_key="analysis"
-        )
-        
         # Improvement tips chain
         self.tips_chain = LLMChain(
             llm=self.llm,
             prompt=PromptTemplate.from_template(TIPS_TEMPLATE),
             output_key="tips"
-        )
-        
-        # Coaching summary chain
-        self.summary_chain = LLMChain(
-            llm=self.llm,
-            prompt=PromptTemplate.from_template(SUMMARY_TEMPLATE),
-            output_key="coaching_summary"
         )
         
         # Response template chain
@@ -255,7 +221,7 @@ class CoachAgent(BaseAgent):
             output_key="star_evaluation"
         )
         
-        # Performance analysis chain
+        # Performance analysis chain (For overall structured analysis)
         self.performance_analysis_chain = LLMChain(
             llm=self.llm,
             prompt=PromptTemplate.from_template(PERFORMANCE_ANALYSIS_TEMPLATE),
@@ -290,25 +256,8 @@ class CoachAgent(BaseAgent):
             output_key="performance_metrics"
         )
         
-        # Create structured feedback templates
+        # Store structured feedback templates dictionary
         self.feedback_templates = FEEDBACK_TEMPLATES
-    
-    def _analyze_response_tool(self, question: str, response: str) -> str:
-        """
-        Tool function to analyze a candidate's response to an interview question.
-        
-        Args:
-            question: The interview question
-            response: The candidate's response
-            
-        Returns:
-            Analysis of the response
-        """
-        return self.analysis_chain.invoke({
-            "question": question,
-            "response": response,
-            "focus_areas": ", ".join(self.coaching_focus)
-        })["analysis"]
     
     def _generate_improvement_tips_tool(self, focus_area: str, context: str) -> str:
         """
@@ -325,25 +274,6 @@ class CoachAgent(BaseAgent):
             "focus_area": focus_area,
             "context": context
         })["tips"]
-    
-    def _create_coaching_summary_tool(self, interview_context: str, qa_pairs: List[Dict[str, str]]) -> str:
-        """
-        Tool function to create a comprehensive coaching summary.
-        
-        Args:
-            interview_context: Context about the interview
-            qa_pairs: List of question-answer pairs
-            
-        Returns:
-            Coaching summary
-        """
-        qa_text = "\n\n".join([f"Q: {pair['question']}\nA: {pair['answer']}" for pair in qa_pairs])
-        
-        return self.summary_chain.invoke({
-            "interview_context": interview_context,
-            "qa_pairs": qa_text,
-            "focus_areas": ", ".join(self.coaching_focus)
-        })["coaching_summary"]
     
     def _generate_response_template_tool(self, question_type: str, example_question: str, job_role: str) -> str:
         """
@@ -363,135 +293,6 @@ class CoachAgent(BaseAgent):
             "job_role": job_role
         })["response_template"]
     
-    def process_input(self, message: str, context: AgentContext = None) -> Union[str, Dict]:
-        """
-        Process input message and generate coaching feedback.
-        
-        This is the main method called by the agent framework.
-        
-        Args:
-            message: The input message from the user
-            context: The agent context
-            
-        Returns:
-            The response message or a structured response
-        """
-        if not context:
-            context = self._create_context()
-        
-        # Get the current state and metadata from context
-        current_state = context.get_state()
-        metadata = context.get_metadata()
-        
-        # Extract interview data if available
-        question = metadata.get("current_question", "")
-        previous_answer = metadata.get("previous_answer", "")
-        job_role = metadata.get("job_role", "the position")
-        candidate_info = metadata.get("candidate_profile", {})
-        
-        # Parse the input to determine what the user is asking for
-        user_intent = self._analyze_user_intent(message, current_state)
-        
-        # Handle different user intents
-        if user_intent["intent"] == "request_feedback":
-            # User is asking for feedback on their answer
-            if not previous_answer:
-                return "I don't have your previous answer to evaluate. Please provide an answer to receive feedback."
-            
-            # Store current feedback request for tracking
-            if "evaluation_history" not in metadata:
-                metadata["evaluation_history"] = []
-            
-            # Determine if we should use STAR method evaluation
-            requires_star = self._requires_star_evaluation(question, previous_answer)
-            
-            # Determine feedback type based on message content
-            feedback_type = self._determine_feedback_type(message, requires_star)
-            
-            # Generate evaluations based on feedback type
-            evaluations = {}
-            
-            if feedback_type == "comprehensive" or feedback_type == "star_method":
-                evaluations["star"] = self._evaluate_star_method(question, previous_answer)
-            
-            if feedback_type == "comprehensive" or feedback_type == "communication":
-                evaluations["communication"] = self._evaluate_communication_skills(question, previous_answer)
-            
-            if feedback_type == "comprehensive" or feedback_type == "completeness":
-                evaluations["completeness"] = self._evaluate_response_completeness(question, previous_answer, job_role)
-            
-            if feedback_type == "comprehensive" or feedback_type == "personalized":
-                evaluations["personalized"] = self._generate_personalized_feedback(
-                    job_role,
-                    "mid-level",
-                    ["technical knowledge", "communication"],
-                    ["structuring answers", "providing examples"],
-                    "visual and practical",
-                    question,
-                    previous_answer,
-                    evaluations["star"],
-                    evaluations["communication"],
-                    evaluations["completeness"]
-                )
-            
-            # Generate performance metrics if we have history
-            if len(metadata.get("evaluation_history", [])) > 0:
-                prev_evaluations = metadata.get("evaluation_history")
-                evaluations["performance"] = self.track_performance(question, previous_answer, prev_evaluations)
-            
-            # Store evaluation data in history
-            evaluation_record = {
-                "timestamp": datetime.now().isoformat(),
-                "question": question,
-                "answer": previous_answer,
-                "star_score": self._calculate_average_star_score(evaluations.get("star", {})),
-                "communication_score": evaluations.get("communication", {}).get("overall_score", 5),
-                "completeness_score": evaluations.get("completeness", {}).get("overall_score", 5)
-            }
-            metadata["evaluation_history"].append(evaluation_record)
-            
-            # Update context with feedback information
-            context.update_metadata({
-                "last_evaluations": evaluations,
-                "feedback_type": feedback_type,
-                "feedback_provided": True,
-                "feedback_timestamp": datetime.now().isoformat(),
-                "evaluation_history": metadata.get("evaluation_history", [])
-            })
-            
-            # Format and return feedback using appropriate template
-            return self._format_structured_feedback(evaluations, feedback_type)
-        
-        elif user_intent["intent"] == "ask_advice":
-            # User is asking for general interview advice
-            topic = user_intent.get("topic", "general")
-            return self._provide_interview_advice(topic, job_role)
-        
-        elif user_intent["intent"] == "track_progress":
-            # User wants to see their progress
-            if not metadata.get("evaluation_history") or len(metadata.get("evaluation_history", [])) < 2:
-                return "I don't have enough data to track your progress yet. Let's practice more interview questions first."
-            
-            # Generate progress report using performance metrics
-            prev_evaluations = metadata.get("evaluation_history")
-            performance_metrics = self.track_performance("", "", prev_evaluations)
-            
-            # Update context
-            context.update_metadata({
-                "last_progress_report": performance_metrics,
-                "progress_report_timestamp": datetime.now().isoformat()
-            })
-            
-            return self._format_progress_report(performance_metrics)
-        
-        elif user_intent["intent"] == "practice_question":
-            # User wants to practice with a specific question type
-            question_type = user_intent.get("question_type", "general")
-            return self._generate_practice_question(question_type, job_role)
-        
-        else:
-            # Default response for general conversation
-            return "I'm your interview coach. I can help you practice interviews, provide feedback on your answers using the STAR method, evaluate your communication skills, track your progress, or provide general interview advice. What would you like to focus on today?"
 
     def _calculate_average_star_score(self, star_evaluation: Dict[str, Any]) -> float:
         """
@@ -1341,185 +1142,279 @@ class CoachAgent(BaseAgent):
     
     def _handle_interviewer_message(self, event: Event) -> None:
         """
-        Handle messages from the interviewer agent.
+        Stores the current question asked by the interviewer.
         
         Args:
             event: The event containing the interviewer's message
         """
-        if not event.data or "message" not in event.data:
+        if not event.data or "question" not in event.data: # Assuming interviewer event sends 'question' key
+            self.logger.warning("Received interviewer event without 'question' data.")
             return
         
-        # Extract the message and check if it's a question
-        message = event.data.get("message", "")
-        is_question = event.data.get("is_question", False)
-        
-        if is_question:
-            # Store the current question for later use in feedback
-            self.current_question = message
+        # Store the current question for later analysis context
+        self.current_question = event.data.get("question", "")
+        self.logger.debug(f"Stored current question: {self.current_question[:100]}...")
             
             # Reset current answer since we have a new question
-            self.current_answer = None
+        self.current_answer = None
             
-            # If in real-time coaching mode, we could prepare initial guidance
-            if self.coaching_mode == CoachingMode.REAL_TIME:
-                # Analyze question to determine type and difficulty
-                question_analysis = self._analyze_question_type(message)
-                
-                # Store metadata for later use
-                if not hasattr(self, 'context'):
-                    self.context = {}
-                
-                self.context["current_question_analysis"] = question_analysis
-                
-                # For targeted coaching mode, we might send preliminary advice
-                if self.coaching_mode == CoachingMode.TARGETED:
-                    # Check if the question type matches our focus areas
-                    question_type = question_analysis.get("question_type", "")
-                    
-                    if any(focus in question_type.lower() for focus in self.coaching_focus):
-                        # Send preliminary advice if available
-                        self._send_preliminary_advice(message, question_analysis)
     
     def _handle_user_message(self, event: Event) -> None:
         """
-        Handle messages from the user.
-        
+        Stores the user's latest answer for later analysis.        
         Args:
             event: The event containing the user's message
         """
-        if not event.data or "message" not in event.data:
+        if not event.data or "message" not in event.data: # Assuming user event sends 'message'
+            self.logger.warning("Received user event without 'message' data.")
             return
         
-        # Extract the message
-        message = event.data.get("message", "")
-        
-        # Store the current answer for later use in feedback
-        self.current_answer = message
-        
-        # If in real-time coaching mode, provide immediate feedback
-        if self.coaching_mode == CoachingMode.REAL_TIME and self.current_question:
-            # Generate and send feedback
-            feedback = self._analyze_response_tool(self.current_question, message)
-                
-                # Publish feedback event
-            if self.event_bus:
-                self.event_bus.publish(Event(
-                    event_type="coach_feedback",
-                    source="coach_agent",
-        data={
-        "feedback": feedback,
-        "question": self.current_question,
-        "answer": message,
-        "timestamp": datetime.now().isoformat()
-        }
-                ))
+        # Store the current answer for later analysis context
+        self.current_answer = event.data.get("message", "")
+        self.logger.debug(f"Stored current answer: {self.current_answer[:100]}...")
     
     def _handle_interview_summary(self, event: Event) -> None:
         """
-        Handle interview summary events.
+        Handles the signal that the interview has concluded.
+        Triggers the generation and publishing of a comprehensive performance analysis.
         
         Args:
-            event: The event containing the interview summary
+            event: The event containing interview summary data (e.g., Q&A pairs)
         """
-        if not event.data or "summary" not in event.data:
+        self.logger.info("Received interview_summary event. Generating final coaching analysis.")
+        if not event.data:
+            self.logger.error("Interview summary event received with no data.")
             return
         
-        # Extract the summary
-        summary = event.data.get("summary", "")
-        qa_pairs = event.data.get("qa_pairs", [])
-        
-        # Generate coaching summary
-        if qa_pairs:
-            coaching_summary = self._create_coaching_summary_tool(summary, qa_pairs)
+        # Extract necessary data - requires clarity on what interviewer_summary event provides.
+        # Assuming it provides a list of qa_pairs like [{'question': q_text, 'answer': a_text}, ...]
+        # and potentially overall context/metrics from the InterviewerAgent (like job_role, style etc.)
+        # For now, let's assume we have access to stored Q&A or need to accumulate them.
+        # TODO: Refine based on actual event data structure.
+
+        # Placeholder: Accumulate Q&A pairs if not provided directly in the event
+        # This assumes handle_interviewer_message and handle_user_message are called consistently.
+        # A better approach might be to have the InterviewerAgent pass the full transcript.
+        if not hasattr(self, 'qa_pairs_history'):
+             self.qa_pairs_history = [] # Initialize if doesn't exist
+        if self.current_question and self.current_answer:
+             self.qa_pairs_history.append({"question": self.current_question, "answer": self.current_answer})
+             self.logger.debug(f"Added Q/A pair to history. Total pairs: {len(self.qa_pairs_history)}")
+
+        # Use accumulated history for analysis
+        qa_pairs_for_analysis = getattr(self, 'qa_pairs_history', [])
+
+        if not qa_pairs_for_analysis:
+             self.logger.warning("No Q&A pairs available to generate coaching summary.")
+             # Optionally publish an event indicating coaching couldn't be generated
+             return
+
+        try:
+            # Option 1: Generate comprehensive performance analysis using PERFORMANCE_ANALYSIS_TEMPLATE
+            # This requires preparing the input 'analyses_json' which means running individual evaluations first.
+            # This might be too complex/slow for a single event handler.
+
+            # Option 2: Generate personalized feedback based on the last Q&A (Simpler, but less comprehensive)
+            # last_qa = qa_pairs_for_analysis[-1]
+            # feedback = self._generate_personalized_feedback(...) # Needs profile info
+
+            # Option 3: Generate metrics tracking progress (requires previous sessions)
+            # performance_metrics = self.track_performance(...) # Needs history
+
+            # Let's choose a simpler approach for now: Perform STAR/Comm/Complete on the LAST answer
+            # and provide that structured feedback as the initial post-interview summary.
+            # A more advanced implementation could run evaluations iteratively or use PERFORMANCE_ANALYSIS.
+
+            last_q = qa_pairs_for_analysis[-1]["question"]
+            last_a = qa_pairs_for_analysis[-1]["answer"]
+
+            evaluations = {}
+            job_role = "[Not Provided]" # TODO: Get job role from context or event data
+            requires_star = self._requires_star_evaluation(last_q, last_a)
+
+            if requires_star:
+                evaluations["star"] = self._evaluate_star_method(last_q, last_a)
+            evaluations["communication"] = self._evaluate_communication_skills(last_q, last_a)
+            evaluations["completeness"] = self._evaluate_response_completeness(last_q, last_a, job_role)
+
+            # Format the feedback (using comprehensive to show all available evals for the last Q)
+            formatted_feedback = self._format_structured_feedback(evaluations, "comprehensive")
+            # Add a note that this is based on the last answer primarily
+            formatted_feedback["note"] = "This initial summary focuses on your last response. Further analysis can be requested."
             
             # Publish coaching summary event
             if self.event_bus:
                 self.event_bus.publish(Event(
-                    event_type="coaching_summary",
+                    event_type="coaching_summary_generated",
                     source="coach_agent",
                     data={
-                        "coaching_summary": coaching_summary,
+                        "coaching_results": formatted_feedback, # Send structured data
                         "timestamp": datetime.now().isoformat()
                     }
                 ))
+            self.logger.info("Published initial post-interview coaching summary based on last answer.")
+
+            # Reset history for next potential interview
+            self.qa_pairs_history = []
+
+        except Exception as e:
+            self.logger.exception(f"Error generating post-interview coaching summary: {e}")
+            # Publish error event?
     
     def _handle_coaching_request(self, event: Event) -> None:
         """
-        Handle explicit requests for coaching.
+        Handle explicit requests for coaching actions (post-interview).
+        Focuses on providing specific evaluation types or resources.
         
         Args:
             event: The event containing the coaching request
         """
         if not event.data:
+            self.logger.warning("Received coaching request event with no data.")
             return
         
-        # Extract the request type and related data
-        request_type = event.data.get("request_type", "")
-        
-        if request_type == "feedback":
-            # Handle feedback request
-            question = event.data.get("question", "")
-            answer = event.data.get("answer", "")
+        request_type = event.data.get("request_type", "").lower()
+        self.logger.info(f"Handling coaching request of type: {request_type}")
+
+        response_data = None
+        response_event_type = "coaching_response" # Default event type
+
+        try:
+            # Get common data potentially needed
+            question = event.data.get("question", self.current_question) # Use context if available
+            answer = event.data.get("answer", self.current_answer)
+            job_role = event.data.get("job_role", "[Not Provided]")
+            # Candidate profile would ideally come from context/event
+            candidate_profile = event.data.get("candidate_profile", {
+                "experience_level": "mid-level", 
+                "strengths": list(getattr(self, 'strength_areas', [])),
+                "areas_for_improvement": list(getattr(self, 'improvement_areas', [])),
+                "learning_style": "visual"
+            })
+
+            # --- Specific Feedback Requests --- 
+            if request_type in ["star", "star_method", "star_feedback"]:
+                if question and answer:
+                    response_data = self._evaluate_star_method(question, answer)
+                    response_event_type = "coach_feedback_response"
+                else:
+                    response_data = {"message": "Missing question or answer for STAR feedback request."}
             
-            if question and answer:
-                feedback = self._analyze_response_tool(question, answer)
-                
-                # Publish feedback event
-                if self.event_bus:
-                    self.event_bus.publish(Event(
-                        event_type="coach_feedback",
-                        source="coach_agent",
-                        data={
-                            "feedback": feedback,
-                            "question": question,
-                            "answer": answer,
-                            "timestamp": datetime.now().isoformat()
-                        }
-                    ))
+            elif request_type in ["communication", "comm_feedback"]:
+                if question and answer:
+                    response_data = self._evaluate_communication_skills(question, answer)
+                    response_event_type = "coach_feedback_response"
+                else:
+                    response_data = {"message": "Missing question or answer for Communication feedback request."}
+
+            elif request_type in ["completeness", "complete_feedback"]:
+                if question and answer:
+                    response_data = self._evaluate_response_completeness(question, answer, job_role)
+                    response_event_type = "coach_feedback_response"
+                else:
+                    response_data = {"message": "Missing question or answer for Completeness feedback request."}
+
+            elif request_type in ["personalized", "personal_feedback"]:
+                if question and answer:
+                     # Need to run dependent evals first
+                     star_eval = self._evaluate_star_method(question, answer) if self._requires_star_evaluation(question, answer) else {}
+                     comm_eval = self._evaluate_communication_skills(question, answer)
+                     comp_eval = self._evaluate_response_completeness(question, answer, job_role)
+                     response_data = self._generate_personalized_feedback(\
+                         job_role, candidate_profile["experience_level"], candidate_profile["strengths"], \
+                         candidate_profile["areas_for_improvement"], candidate_profile["learning_style"], \
+                         question, answer, star_eval, comm_eval, comp_eval\
+                     )
+                     response_event_type = "coach_feedback_response"
+                else:
+                     response_data = {"message": "Missing question or answer for Personalized feedback request."}
+
+            # --- Other Coaching Actions --- 
+            elif request_type == "tips":
+                focus_area = event.data.get("focus_area", random.choice(self.DEFAULT_COACHING_FOCUS))
+                context_summary = event.data.get("context", "Based on recent interview practice") # Need context
+                tips_text = self._generate_improvement_tips_tool(focus_area, context_summary)
+                response_data = {"tips": tips_text, "focus_area": focus_area}
+                response_event_type = "coaching_tips_response"
+
+            elif request_type == "template":
+                question_type = event.data.get("question_type", "behavioral")
+                example_question = event.data.get("example_question", "Tell me about a time you dealt with conflict.")
+                template_text = self._generate_response_template_tool(question_type, example_question, job_role)
+                response_data = {"template": template_text, "question_type": question_type}
+                response_event_type = "response_template_response"
         
-        elif request_type == "template":
-            # Handle template request
-            question_type = event.data.get("question_type", "")
-            example_question = event.data.get("example_question", "")
-            job_role = event.data.get("job_role", "")
+            elif request_type == "practice_question":
+                question_type = event.data.get("question_type", "behavioral")
+                difficulty = event.data.get("difficulty", "medium")
+                practice_question_data = self._generate_practice_question(question_type, job_role, difficulty)
+                practice_question_formatted = self._format_practice_question_response(practice_question_data)
+                response_data = {"practice_question": practice_question_formatted, "question_data": practice_question_data}
+                response_event_type = "practice_question_response"
+
+            elif request_type == "advice":
+                topic = event.data.get("topic", "general")
+                advice_text = self._provide_interview_advice(topic, job_role)
+                response_data = {"advice": advice_text, "topic": topic}
+                response_event_type = "coaching_advice_response"
             
-            if question_type and job_role:
-                template = self._generate_response_template_tool(question_type, example_question, job_role)
-                
-                # Publish template event
-                if self.event_bus:
-                    self.event_bus.publish(Event(
-                        event_type="response_template",
-                        source="coach_agent",
-                        data={
-                            "template": template,
-                            "question_type": question_type,
-                            "timestamp": datetime.now().isoformat()
-                        }
-                    ))
+            elif request_type == "progress":
+                # Assuming history is stored somewhere accessible 
+                prev_evals = getattr(self, 'evaluation_history', []) 
+                if len(prev_evals) > 0:
+                    # Note: track_performance needs Q/A - this might need redesign or fetch last Q/A
+                    metrics_data = self.track_performance("", "", prev_evals) 
+                    response_data = self._format_progress_report(metrics_data)
+                    response_event_type = "progress_report_response"
+                else:
+                    response_data = {"message": "Not enough history to generate a progress report."}
+
+            else:
+                self.logger.warning(f"Received unknown coaching request type: {request_type}")
+                response_data = {"message": f"Unknown coaching request type: {request_type}. Try: feedback, tips, template, practice_question, advice, progress.", "available_requests": ["feedback", "tips", "template", "practice_question", "advice", "progress"]}
+
+        except Exception as e:
+             self.logger.exception(f"Error handling coaching request '{request_type}': {e}")
+             response_data = {"error": f"Failed to handle request '{request_type}'.", "details": str(e)}
+
+        # Publish response event
+        if self.event_bus and response_data:
+            self.event_bus.publish(Event(\
+                event_type=response_event_type,\
+                source="coach_agent",\
+                data={\
+                    "response": response_data,\
+                    "original_request": event.data, # Echo request for context\
+                    "timestamp": datetime.now().isoformat()\
+                }\
+            ))
+            self.logger.info(f"Published response for coaching request type: {request_type}")
+
+    # Helper to format practice question response (internal use)
+    def _format_practice_question_response(self, question_data: Dict[str, Any]) -> str:
+        """ Formats the practice question JSON into a user-readable string. """
+        instructions = ""
+        question_type = question_data.get('question_type', 'general')
+        if question_type.lower() == "behavioral":
+            instructions = "Use the STAR method (Situation, Task, Action, Result) to structure your answer."
+        elif question_type.lower() == "technical":
+            instructions = "Explain your thought process clearly and consider different approaches."
+        else:
+            instructions = "Keep your answer concise, authentic, and relevant."
+
+        target_skills = ", ".join(question_data.get("target_skills", []))
+        ideal_points = "\n".join([f"- {point}" for point in question_data.get("ideal_answer_points", [])])
         
-        elif request_type == "practice_question":
-            # Handle practice question request
-            question_type = event.data.get("question_type", "")
-            job_role = event.data.get("job_role", "")
-            
-            if question_type:
-                practice_question = self._generate_practice_question_tool(question_type, job_role)
-                
-                # Publish practice question event
-                if self.event_bus:
-                    self.event_bus.publish(Event(
-                        event_type="practice_question",
-                        source="coach_agent",
-                        data={
-                            "practice_question": practice_question,
-                            "question_type": question_type,
-                            "timestamp": datetime.now().isoformat()
-                        }
-                    ))
+        return PRACTICE_QUESTION_RESPONSE_TEMPLATE.format(
+            question_type=question_data.get('question_type', '').title(),
+            question=question_data.get('question', 'No question generated'),
+            instructions=instructions,
+            target_skills=target_skills,
+            ideal_points=ideal_points
+        )
 
     def _analyze_question_type(self, question: str) -> Dict[str, Any]:
-        """
+        """ # Keep this helper as it might be useful for deciding which evaluation to run
         Analyze a question to determine its type and characteristics.
         
         Args:
@@ -1580,37 +1475,3 @@ class CoachAgent(BaseAgent):
         
         return analysis
 
-    def _send_preliminary_advice(self, question: str, question_analysis: Dict[str, Any]) -> None:
-        """
-        Send preliminary advice for a question before the user answers.
-        
-        Args:
-            question: The interview question
-            question_analysis: Analysis of the question
-        """
-        if not self.event_bus:
-            return
-        
-        question_type = question_analysis.get("question_type", "")
-        requires_star = question_analysis.get("requires_star", False)
-        
-        advice = ""
-        if requires_star:
-            advice = "This appears to be a behavioral question. Consider using the STAR method in your response."
-        elif question_type == "technical":
-            advice = "This is a technical question. Be specific and showcase both your knowledge and practical experience."
-        elif question_type == "hypothetical":
-            advice = "For this hypothetical scenario, explain your thought process and the steps you would take."
-        elif question_type == "self_assessment":
-            advice = "When discussing strengths or weaknesses, be honest but strategic. For weaknesses, show how you're working to improve."
-        
-        if advice:
-            self.event_bus.publish(Event(
-                event_type="preliminary_advice",
-                source="coach_agent",
-                data={
-                    "advice": advice,
-                    "question": question,
-                    "timestamp": datetime.now().isoformat()
-                }
-            ))    

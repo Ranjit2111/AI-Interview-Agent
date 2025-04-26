@@ -1,14 +1,18 @@
+# This __init__.py file can be intentionally left empty.
+# Agents import directly from the specific template files (e.g., coach_templates.py).
+
 """
 Template definitions for agent interactions.
 This module provides common templates for agent prompts, feedback formats, and responses.
 """
 
+# This __init__.py file primarily defines the __all__ list for easier imports,
+# but agents can also import directly from the specific template files.
+
 try:
     # Try standard import in production
     from backend.agents.templates.coach_templates import (
-        ANALYSIS_TEMPLATE,
         TIPS_TEMPLATE,
-        SUMMARY_TEMPLATE,
         TEMPLATE_PROMPT,
         STAR_EVALUATION_TEMPLATE,
         PERFORMANCE_ANALYSIS_TEMPLATE,
@@ -24,36 +28,23 @@ try:
         PRACTICE_QUESTION_RESPONSE_TEMPLATE
     )
     from backend.agents.templates.interviewer_templates import (
-        SYSTEM_PROMPT as INTERVIEWER_SYSTEM_PROMPT,
-        QUESTION_TEMPLATE,
-        EVALUATION_TEMPLATE,
-        SUMMARY_TEMPLATE,
-        QUALITY_ASSESSMENT_TEMPLATE,
-        FOLLOW_UP_TEMPLATE,
-        THINK_TEMPLATE,
-        REASON_TEMPLATE,
-        PLANNING_TEMPLATE,
+        INTERVIEWER_SYSTEM_PROMPT as INTERVIEWER_SYSTEM_PROMPT,
+        RESPONSE_FORMAT_TEMPLATE,
+        NEXT_ACTION_TEMPLATE,
         JOB_SPECIFIC_TEMPLATE,
-        INTRODUCTION_TEMPLATES,
-        ANSWER_EVALUATION_TEMPLATE,
-        RESPONSE_FORMAT_TEMPLATE
+        INTRODUCTION_TEMPLATES
     )
     from backend.agents.templates.skill_templates import (
-        SYSTEM_PROMPT as SKILL_SYSTEM_PROMPT,
+        SKILL_SYSTEM_PROMPT as SKILL_SYSTEM_PROMPT,
         SKILL_EXTRACTION_TEMPLATE,
         PROFICIENCY_ASSESSMENT_TEMPLATE,
         RESOURCE_SUGGESTION_TEMPLATE,
-        SKILL_PROFILE_TEMPLATE,
-        ASSESSMENT_RESPONSE_TEMPLATE,
-        RECENT_ANSWER_ASSESSMENT_TEMPLATE,
-        SKILL_UPDATE_NOTIFICATION_TEMPLATE
+        SKILL_PROFILE_TEMPLATE
     )
 except ImportError:
     # Use relative imports for development/testing
     from .coach_templates import (
-        ANALYSIS_TEMPLATE,
         TIPS_TEMPLATE,
-        SUMMARY_TEMPLATE,
         TEMPLATE_PROMPT,
         STAR_EVALUATION_TEMPLATE,
         PERFORMANCE_ANALYSIS_TEMPLATE,
@@ -69,36 +60,24 @@ except ImportError:
         PRACTICE_QUESTION_RESPONSE_TEMPLATE
     )
     from .interviewer_templates import (
-        SYSTEM_PROMPT as INTERVIEWER_SYSTEM_PROMPT,
-        QUESTION_TEMPLATE,
-        EVALUATION_TEMPLATE,
-        SUMMARY_TEMPLATE,
-        QUALITY_ASSESSMENT_TEMPLATE,
-        FOLLOW_UP_TEMPLATE,
-        THINK_TEMPLATE,
-        REASON_TEMPLATE,
-        PLANNING_TEMPLATE,
+        INTERVIEWER_SYSTEM_PROMPT as INTERVIEWER_SYSTEM_PROMPT,
+        RESPONSE_FORMAT_TEMPLATE,
+        NEXT_ACTION_TEMPLATE,
         JOB_SPECIFIC_TEMPLATE,
-        INTRODUCTION_TEMPLATES,
-        ANSWER_EVALUATION_TEMPLATE,
-        RESPONSE_FORMAT_TEMPLATE
+        INTRODUCTION_TEMPLATES
     )
     from .skill_templates import (
-        SYSTEM_PROMPT as SKILL_SYSTEM_PROMPT,
+        SKILL_SYSTEM_PROMPT as SKILL_SYSTEM_PROMPT,
         SKILL_EXTRACTION_TEMPLATE,
         PROFICIENCY_ASSESSMENT_TEMPLATE,
         RESOURCE_SUGGESTION_TEMPLATE,
-        SKILL_PROFILE_TEMPLATE,
-        ASSESSMENT_RESPONSE_TEMPLATE,
-        RECENT_ANSWER_ASSESSMENT_TEMPLATE,
-        SKILL_UPDATE_NOTIFICATION_TEMPLATE
+        SKILL_PROFILE_TEMPLATE
     )
 
+# Define __all__ based on the actual imported templates
 __all__ = [
     # Coach templates
-    'ANALYSIS_TEMPLATE',
     'TIPS_TEMPLATE',
-    'SUMMARY_TEMPLATE',
     'TEMPLATE_PROMPT',
     'STAR_EVALUATION_TEMPLATE',
     'PERFORMANCE_ANALYSIS_TEMPLATE',
@@ -115,26 +94,15 @@ __all__ = [
     
     # Interviewer templates
     'INTERVIEWER_SYSTEM_PROMPT',
-    'QUESTION_TEMPLATE',
-    'EVALUATION_TEMPLATE',
-    'SUMMARY_TEMPLATE',
-    'QUALITY_ASSESSMENT_TEMPLATE',
-    'FOLLOW_UP_TEMPLATE',
-    'THINK_TEMPLATE',
-    'REASON_TEMPLATE',
-    'PLANNING_TEMPLATE',
+    'RESPONSE_FORMAT_TEMPLATE',
+    'NEXT_ACTION_TEMPLATE',
     'JOB_SPECIFIC_TEMPLATE',
     'INTRODUCTION_TEMPLATES',
-    'ANSWER_EVALUATION_TEMPLATE',
-    'RESPONSE_FORMAT_TEMPLATE',
     
     # Skill assessor templates
     'SKILL_SYSTEM_PROMPT',
     'SKILL_EXTRACTION_TEMPLATE',
     'PROFICIENCY_ASSESSMENT_TEMPLATE',
     'RESOURCE_SUGGESTION_TEMPLATE',
-    'SKILL_PROFILE_TEMPLATE',
-    'ASSESSMENT_RESPONSE_TEMPLATE',
-    'RECENT_ANSWER_ASSESSMENT_TEMPLATE',
-    'SKILL_UPDATE_NOTIFICATION_TEMPLATE'
+    'SKILL_PROFILE_TEMPLATE'
 ] 

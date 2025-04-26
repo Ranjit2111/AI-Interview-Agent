@@ -1,190 +1,117 @@
 """
-Utility functions for working with Language Models.
-
-This module contains common utility functions for LLM operations,
-error handling, response parsing, and data formatting.
+Utility functions for agents, particularly for interacting with LLMs and processing data.
 """
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, Union, Callable
+from typing import List, Dict, Any, Optional, Callable, Union
+import re
+
+from langchain.chains.base import Chain
 
 
-def invoke_chain_with_error_handling(
-    chain: Any,
-    inputs: Dict[str, Any],
-    output_key: str,
-    default_creator: Callable[[], Dict[str, Any]],
-    logger: Optional[logging.Logger] = None
-) -> Dict[str, Any]:
-    """
-    Invoke an LLM chain with standardized error handling.
-    
-    Args:
-        chain: The LangChain chain to invoke
-        inputs: The inputs to pass to the chain
-        output_key: The key for the output in the response
-        default_creator: Function that creates a default response
-        logger: Optional logger for error messages
-        
-    Returns:
-        The parsed response or a default value on error
-    """
-    try:
-        # Call LLM chain
-        response = chain.invoke(inputs)
-        
-        # Parse the response
-        if isinstance(response, dict) and output_key in response:
-            result = response[output_key]
-            try:
-                if isinstance(result, str):
-                    # Try to parse the string as JSON
-                    result = json.loads(result)
-                return result
-            except json.JSONDecodeError:
-                if logger:
-                    logger.error(f"Failed to parse {output_key} as JSON")
-                return default_creator()
-        else:
-            if logger:
-                logger.error(f"Response missing {output_key}")
-            return default_creator()
-    except Exception as e:
-        if logger:
-            logger.error(f"Error in chain invocation: {e}")
-        return default_creator()
-
-
-def parse_json_with_fallback(
-    json_string: str,
-    default_value: Any,
-    logger: Optional[logging.Logger] = None
-) -> Any:
-    """
-    Attempt to parse a JSON string and return a default value if parsing fails.
-    
-    Args:
-        json_string: The JSON string to parse
-        default_value: The value to return if parsing fails
-        logger: Optional logger for error messages
-        
-    Returns:
-        The parsed JSON or the default value
-    """
-    try:
-        # Strip any potential markdown code block markers
-        if "```json" in json_string:
-            # Extract content between ```json and ```
-            parts = json_string.split("```json", 1)
-            if len(parts) > 1:
-                json_content = parts[1].split("```", 1)[0].strip()
-                return json.loads(json_content)
-        
-        # Try to parse as regular JSON
-        return json.loads(json_string)
-    except (json.JSONDecodeError, ValueError, TypeError) as e:
-        if logger:
-            logger.error(f"JSON parsing error: {e}")
-        return default_value
-
-
-def extract_field_safely(
-    data: Dict[str, Any],
-    field_path: str,
-    default_value: Any = None
-) -> Any:
-    """
-    Safely extract a field from a nested dictionary using dot notation.
-    
-    Args:
-        data: The dictionary to extract from
-        field_path: The path to the field using dot notation (e.g., "user.profile.name")
-        default_value: The value to return if the field does not exist
-        
-    Returns:
-        The field value or the default value
-    """
-    try:
-        # Split the path into individual keys
-        keys = field_path.split('.')
-        result = data
-        
-        # Navigate through the nested structure
-        for key in keys:
-            if isinstance(result, dict) and key in result:
-                result = result[key]
-            else:
-                return default_value
-                
-        return result
-    except Exception:
-        return default_value
-
-
-def format_conversation_history(
-    messages: List[Dict[str, str]],
-    max_messages: int = 10
-) -> str:
-    """
-    Format conversation messages into a string suitable for LLM context.
-    
-    Args:
-        messages: List of message dictionaries with 'role' and 'content'
-        max_messages: Maximum number of recent messages to include
-        
-    Returns:
-        Formatted conversation history string
-    """
-    # Take only the most recent messages if there are too many
-    if len(messages) > max_messages:
-        messages = messages[-max_messages:]
-    
-    # Format each message
-    formatted_messages = []
-    for msg in messages:
+def format_conversation_history(history: List[Dict[str, Any]]) -> str:
+    """Formats conversation history into a readable string for LLM prompts."""
+    formatted = []
+    for msg in history:
         role = msg.get('role', 'unknown').capitalize()
         content = msg.get('content', '')
-        formatted_messages.append(f"{role}: {content}")
-    
-    # Join messages with line breaks
-    return "\n\n".join(formatted_messages)
+        formatted.append(f"{role}: {content}")
+    return "\n\n".join(formatted)
 
 
-def calculate_average_scores(
-    evaluation: Dict[str, Any],
-    score_fields: List[str] = None
-) -> float:
+def parse_json_with_fallback(json_string: str, default_value: Any, logger: logging.Logger) -> Any:
+    """Safely parses a JSON string, returning a default value on failure."""
+    try:
+        # Attempt to find JSON within potential markdown code blocks
+        match = re.search(r"```(json)?\n(.*?)\n```", json_string, re.DOTALL | re.IGNORECASE)
+        if match:
+            json_string_extracted = match.group(2).strip()
+            logger.debug(f"Extracted JSON from markdown block: {json_string_extracted[:100]}...")
+            return json.loads(json_string_extracted)
+        else:
+            # If no markdown block found, try parsing the whole string
+            logger.debug(f"Attempting to parse JSON directly: {json_string[:100]}...")
+            return json.loads(json_string)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parsing failed: {e}. String was: {json_string[:200]}... Returning default.")
+        return default_value
+    except Exception as e:
+        logger.error(f"Unexpected error during JSON parsing: {e}. Returning default.")
+        return default_value
+
+def invoke_chain_with_error_handling(
+    chain: Chain,
+    inputs: Dict[str, Any],
+    logger: logging.Logger,
+    chain_name: str = "LLM Chain",
+    output_key: Optional[str] = None,
+    default_creator: Optional[Callable[[], Any]] = None
+) -> Optional[Any]:
     """
-    Calculate the average score from multiple fields in an evaluation dictionary.
-    
+    Invokes a LangChain chain with robust error handling and logging.
+
     Args:
-        evaluation: The evaluation dictionary
-        score_fields: List of field paths to scores using dot notation
-        
+        chain: The LangChain chain instance to invoke.
+        inputs: The input dictionary for the chain.
+        logger: The logger instance.
+        chain_name: Name of the chain for logging purposes.
+        output_key: If specified, returns only the value associated with this key from the result.
+        default_creator: A function that returns a default value if the chain fails or output is invalid.
+                       If None, returns None on failure.
+
     Returns:
-        Average score (0-10) or 5.0 if no scores are found
+        The result of the chain invocation (or specific value if output_key is set),
+        or the result of default_creator() or None on error.
     """
-    # Default score fields to look for
-    if score_fields is None:
-        score_fields = [
-            "situation.score", "task.score", "action.score", "result.score",
-            "clarity.score", "conciseness.score", "structure.score", 
-            "engagement.score", "confidence.score",
-            "question_relevance.score", "key_points_coverage.score", 
-            "examples.score", "depth.score", "context_awareness.score",
-            "overall_score"
-        ]
-    
-    # Extract available scores
-    scores = []
-    for field in score_fields:
-        score = extract_field_safely(evaluation, field)
-        if isinstance(score, (int, float)) and 0 <= score <= 10:
-            scores.append(score)
-    
-    # Calculate average or return default
-    if scores:
-        return sum(scores) / len(scores)
-    else:
-        return 5.0  # Default middle score 
+    default_value = default_creator() if default_creator else None
+    try:
+        logger.debug(f"Invoking {chain_name} with inputs: {json.dumps(inputs)[:200]}...")
+        result = chain.invoke(inputs)
+        logger.debug(f"{chain_name} invocation successful.")
+        
+        if not result:
+             logger.warning(f"{chain_name} returned an empty result.")
+             return default_value
+             
+        if output_key:
+            if isinstance(result, dict) and output_key in result:
+                extracted_value = result[output_key]
+                logger.debug(f"Extracted output key '{output_key}': {str(extracted_value)[:100]}...")
+                # Special handling if the extracted value is a JSON string that needs parsing
+                if isinstance(extracted_value, str):
+                    parsed_json = parse_json_with_fallback(extracted_value, None, logger)
+                    if parsed_json is not None:
+                        return parsed_json # Return parsed JSON if successful
+                return extracted_value # Return original value otherwise
+            else:
+                logger.error(f"Output key '{output_key}' not found in {chain_name} result: {result}")
+                return default_value
+        else:
+            # If no specific output key, assume the result might be a dict containing a JSON string
+            if isinstance(result, dict) and len(result) == 1:
+                 first_value = next(iter(result.values()))
+                 if isinstance(first_value, str):
+                     parsed_json = parse_json_with_fallback(first_value, None, logger)
+                     if parsed_json is not None:
+                         return parsed_json # Return parsed JSON if successful
+            return result # Return the full result dict otherwise
+            
+    except Exception as e:
+        logger.exception(f"Error invoking {chain_name}: {e}")
+        return default_value
+
+
+def extract_field_safely(data: Dict[str, Any], field_name: str, expected_type: type = str, default_value: Any = None) -> Any:
+    """Extracts a field from a dictionary safely, checking type and providing a default."""
+    value = data.get(field_name, default_value)
+    if not isinstance(value, expected_type):
+        # Log warning or handle type mismatch if necessary
+        return default_value
+    return value
+
+def calculate_average_scores(scores: List[Union[int, float]]) -> float:
+    """Calculates the average of a list of scores, handling empty lists."""
+    if not scores:
+        return 0.0
+    return sum(scores) / len(scores) 

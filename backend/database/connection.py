@@ -52,8 +52,15 @@ def get_db():
     Yields:
         SQLAlchemy database session
     """
+    logger.debug("Attempting to get DB session...")
     db = SessionLocal()
+    logger.debug(f"DB session created: {db}")
     try:
         yield db
+        logger.debug(f"DB session yielded: {db}")
+    except Exception as e:
+        logger.exception(f"Exception during DB session yield: {e}")
+        raise
     finally:
+        logger.debug(f"Closing DB session: {db}")
         db.close() 

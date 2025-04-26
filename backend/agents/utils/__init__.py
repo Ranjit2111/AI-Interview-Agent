@@ -28,4 +28,6 @@ __all__ = [
     'extract_field_safely',
     'format_conversation_history',
     'calculate_average_scores'
-] 
+]
+
+# This file makes Python treat the directory as a package. 
