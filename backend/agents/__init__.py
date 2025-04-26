@@ -3,34 +3,36 @@ Multi-agent system for AI interview preparation.
 This module contains agents that collaborate to provide a comprehensive interview experience.
 """
 
-try:
-    # Try standard import in production
-    from backend.agents.base import BaseAgent, AgentContext
-    from backend.agents.interviewer import InterviewerAgent, InterviewState
-    from backend.agents.coach import CoachAgent, CoachingFocus
-    from backend.agents.skill_assessor import SkillAssessorAgent, ProficiencyLevel, SkillCategory
-    from backend.agents.orchestrator import AgentOrchestrator, OrchestratorMode
-    from backend.agents.feedback_agent import FeedbackAgent
-except ImportError:
-    # Use relative imports for development/testing
-    from .base import BaseAgent, AgentContext
-    from .interviewer import InterviewerAgent, InterviewState
-    from .coach import CoachAgent, CoachingFocus
-    from .skill_assessor import SkillAssessorAgent, ProficiencyLevel, SkillCategory
-    from .orchestrator import AgentOrchestrator, OrchestratorMode
-    from .feedback_agent import FeedbackAgent
+from typing import Dict, Type
 
+# Import base classes and components
+from .base import BaseAgent, AgentContext
+
+# Import specific agent implementations
+from .interviewer import InterviewerAgent
+from .coach import CoachAgent
+from .skill_assessor import SkillAssessorAgent
+
+# Import the session manager (previously orchestrator)
+from .orchestrator import SessionManager
+
+# Import supporting enums or data structures if needed by consumers
+# (e.g., InterviewStyle might be useful, but often comes from models package)
+# from ..models.interview import InterviewStyle 
+
+# Define what is exposed when importing '*':
 __all__ = [
     'BaseAgent',
     'AgentContext',
     'InterviewerAgent',
-    'InterviewState',
     'CoachAgent',
-    'CoachingFocus',
     'SkillAssessorAgent',
-    'ProficiencyLevel',
-    'SkillCategory',
-    'AgentOrchestrator',
-    'OrchestratorMode',
-    'FeedbackAgent'
-] 
+    'SessionManager'
+]
+
+# Optional: Agent registry for dynamic loading (if needed later)
+AGENT_REGISTRY: Dict[str, Type[BaseAgent]] = {
+    'interviewer': InterviewerAgent,
+    'coach': CoachAgent,
+    'skill_assessor': SkillAssessorAgent,
+} 

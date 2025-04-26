@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("kokoro-setup")
 
-KOKORO_REPO_URL = "https://github.com/PolyAI-LDN/kokoro-tts"
+KOKORO_REPO_URL = "https://github.com/nazdridoy/kokoro-tts.git"
 DEFAULT_INSTALL_DIR = Path.home() / "kokoro-tts"
 DEFAULT_PORT = 8008
 

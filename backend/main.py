@@ -13,9 +13,9 @@ from datetime import datetime
 from pathlib import Path
 
 # FastAPI imports
-from fastapi import FastAPI, File, UploadFile, Form, HTTPException
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # Pydantic imports
@@ -96,13 +96,40 @@ class InterviewResponse(BaseModel):
 # Load environment variables
 load_dotenv()
 
-# Configure logging
-log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
-logging.basicConfig(
-    level=getattr(logging, log_level),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# --- Logging Configuration ---
+# Configure logging ONCE here for the entire application
+log_level_str = os.environ.get("LOG_LEVEL", "INFO").upper()
+log_level = getattr(logging, log_level_str, logging.INFO)
+
+# Define log format
+log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Get root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(log_level)
+
+# Remove existing handlers (if any) to avoid duplicates if app reloads
+if root_logger.hasHandlers():
+    root_logger.handlers.clear()
+
+# Create formatter
+formatter = logging.Formatter(log_format)
+
+# Create console handler
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+root_logger.addHandler(console_handler)
+
+# Optionally add a file handler (example)
+# log_dir = Path("logs")
+# log_dir.mkdir(exist_ok=True)
+# file_handler = logging.FileHandler(log_dir / f"app-{datetime.now().strftime('%Y%m%d')}.log")
+# file_handler.setFormatter(formatter)
+# root_logger.addHandler(file_handler)
+
+logger = logging.getLogger(__name__) # Get logger for this module
+logger.info(f"Logging configured with level: {log_level_str}")
+# --- End Logging Configuration ---
 
 # Create FastAPI application
 app = FastAPI(
@@ -111,10 +138,22 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# --- Global Exception Handler ---
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    # Log the exception with traceback
+    logger.exception(f"Unhandled exception during request processing for {request.url.path}: {exc}")
+    # Return a generic 500 response
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"An internal server error occurred: {exc}"}, # Include exc details for debugging
+    )
+# --- End Global Exception Handler ---
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, this should be restricted
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -127,7 +166,6 @@ logger.info("Services initialized")
 # Create API routes
 create_agent_api(app)
 create_resource_api(app)
-# Register transcript API routes
 app.include_router(transcript_router, prefix="/api/transcripts", tags=["transcripts"])
 logger.info("API routes registered")
 
@@ -290,23 +328,15 @@ async def generate_interview(request: InterviewRequest):
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize services when the application starts."""
-    # Initialize database
+    logger.info("Initializing database on startup...")
     init_db()
-    
-    # Initialize services
-    global service_provider
-    service_provider = initialize_services()
-    
-    # Generate API documentation
-    docs_dir = os.path.join(os.getcwd(), "..", "docs", "api")
-    try:
-        generate_static_docs(app, docs_dir)
-        logger.info(f"API documentation generated in {docs_dir}")
-    except Exception as e:
-        logger.error(f"Error generating API documentation: {str(e)}")
-    
+    docs_dir = Path("../docs/api")
+    api_docs_dir = docs_dir / "api_docs"
+    generate_static_docs(app, api_docs_dir)
+    logger.info(f"API documentation generated in {docs_dir.resolve()}")
     logger.info("Application startup complete")
+
+logger.info("Application setup complete. Waiting for Uvicorn server start...")
 
 # Run the application if executed directly
 if __name__ == "__main__":

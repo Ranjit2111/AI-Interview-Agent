@@ -9,66 +9,58 @@ import uuid
 from typing import Dict, Any, List, Optional, Callable
 from abc import ABC, abstractmethod
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import AgentExecutor, Tool
-from langchain.agents.format_scratchpad import format_to_openai_function_messages
-from langchain.agents.output_parsers import OpenAIFunctionsAgentOutputParser
-from langchain.tools.render import format_tool_to_openai_function
-from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import RunnablePassthrough, RunnableParallel
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
-from backend.utils.event_bus import EventBus, Event
+from backend.utils.event_bus import EventBus, Event, EventType
+from backend.models.interview import InterviewSession
+from backend.services.llm_service import LLMService
 
 
 class AgentContext:
     """
-    Context object for agents to maintain state across interactions.
+    Context object passed to agents during processing.
+    Holds session information, history, configuration, and communication channels.
     """
-    def __init__(self, session_id: str, user_id: Optional[str] = None):
+    def __init__(self,
+                 session_id: str,
+                 conversation_history: List[Dict[str, Any]],
+                 session_config: InterviewSession,
+                 event_bus: EventBus,
+                 logger: logging.Logger,
+                 user_id: Optional[str] = None,
+                 metadata: Optional[Dict[str, Any]] = None
+                 ):
         self.session_id = session_id
         self.user_id = user_id
-        self.conversation_history: List[Dict[str, Any]] = []
-        self.metadata: Dict[str, Any] = {}
-        self.created_at = datetime.utcnow()
-        self.last_updated = datetime.utcnow()
-    
-    def add_message(self, role: str, content: str, metadata: Optional[Dict[str, Any]] = None) -> None:
-        """
-        Add a message to the conversation history.
-        
-        Args:
-            role: The role of the message sender (user, agent, system)
-            content: The content of the message
-            metadata: Optional metadata for the message
-        """
-        message = {
-            "id": str(uuid.uuid4()),
-            "role": role,
-            "content": content,
-            "timestamp": datetime.utcnow().isoformat(),
-            "metadata": metadata or {}
-        }
-        self.conversation_history.append(message)
-        self.last_updated = datetime.utcnow()
-    
-    def get_history_as_text(self, max_tokens: Optional[int] = None) -> str:
+        self.conversation_history = conversation_history
+        self.session_config = session_config
+        self.event_bus = event_bus
+        self.logger = logger
+        self.metadata = metadata or {}
+        self.created_at = datetime.now(timezone.utc)
+
+    def get_last_user_message(self) -> Optional[str]:
+        """Gets the content of the last user message in the history."""
+        for message in reversed(self.conversation_history):
+            if message.get("role") == "user":
+                return message.get("content")
+        return None
+
+    def get_history_as_text(self) -> str:
         """
         Get the conversation history as a formatted text string.
         
-        Args:
-            max_tokens: Optional maximum number of tokens to include
-            
         Returns:
             The conversation history as a formatted string
         """
         history = ""
         for message in self.conversation_history:
-            history += f"{message['role']}: {message['content']}\n\n"
+            role = message.get('role', 'unknown')
+            content = message.get('content', '')
+            history += f"{role.capitalize()}: {content}\n\n"
         
-        # TODO: Implement token truncation if max_tokens is specified
         return history.strip()
     
     def get_langchain_messages(self) -> List[Any]:
@@ -80,265 +72,97 @@ class AgentContext:
         """
         messages = []
         for message in self.conversation_history:
-            if message["role"] == "user":
-                messages.append(HumanMessage(content=message["content"]))
-            elif message["role"] == "assistant":
-                messages.append(AIMessage(content=message["content"]))
-            elif message["role"] == "system":
-                messages.append(SystemMessage(content=message["content"]))
+            role = message.get("role")
+            content = message.get("content", "")
+            if role == "user":
+                messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                messages.append(AIMessage(content=content))
+            elif role == "system":
+                messages.append(SystemMessage(content=content))
         return messages
     
     def to_dict(self) -> Dict[str, Any]:
         """
-        Convert the context to a dictionary.
-        
-        Returns:
-            A dictionary representation of the context
+        Convert the context to a dictionary (for logging/serialization if needed).
+        Note: event_bus and logger are not typically serialized.
         """
         return {
             "session_id": self.session_id,
             "user_id": self.user_id,
             "conversation_history": self.conversation_history,
+            "session_config": self.session_config.dict() if self.session_config else None,
             "metadata": self.metadata,
             "created_at": self.created_at.isoformat(),
-            "last_updated": self.last_updated.isoformat()
         }
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'AgentContext':
-        """
-        Create a context object from a dictionary.
-        
-        Args:
-            data: A dictionary representation of the context
-            
-        Returns:
-            An AgentContext object
-        """
-        context = cls(
-            session_id=data["session_id"],
-            user_id=data.get("user_id")
-        )
-        context.conversation_history = data["conversation_history"]
-        context.metadata = data["metadata"]
-        context.created_at = datetime.fromisoformat(data["created_at"])
-        context.last_updated = datetime.fromisoformat(data["last_updated"])
-        return context
 
 
 class BaseAgent(ABC):
     """
-    Base agent class that all specialized agents inherit from.
+    Abstract base class for all specialized agents.
+    Provides common initialization and utilities.
     """
-    def __init__(self, 
-                 api_key: Optional[str] = None,
-                 model_name: str = "gemini-1.5-pro",
-                 planning_interval: int = 0,
+    def __init__(self,
+                 llm_service: LLMService,
                  event_bus: Optional[EventBus] = None,
                  logger: Optional[logging.Logger] = None):
         """
         Initialize the base agent.
         
         Args:
-            api_key: Google Gemini API key (if None, will use environment variable)
-            model_name: Name of the Gemini model to use (default: gemini-1.5-pro)
-            planning_interval: How often to run planning steps (0 = disabled)
-            event_bus: Event bus for inter-agent communication
-            logger: Logger for the agent
+            llm_service: Instance of LLMService to use for language model calls.
+            event_bus: Event bus for inter-agent communication.
+            logger: Logger for the agent.
         """
-        self.api_key = api_key or os.environ.get("GOOGLE_API_KEY")
-        if not self.api_key:
-            raise ValueError("Google API key is required. Set GOOGLE_API_KEY environment variable.")
-        
-        self.model_name = model_name
-        self.planning_interval = planning_interval
-        self.step_count = 0
-        
-        # Set up LLM with Google Gemini
-        self.llm = ChatGoogleGenerativeAI(
-            model=model_name, 
-            google_api_key=self.api_key,
-            temperature=0.7,
-            convert_system_message_to_human=True  # Gemini handles system messages differently
-        )
-        
+        if not llm_service:
+            raise ValueError("LLMService instance is required.")
+            
+        self.llm_service = llm_service
+        self.llm = llm_service.get_llm()
+
         # Set up event bus
         self.event_bus = event_bus or EventBus()
         
         # Set up logger
         self.logger = logger or logging.getLogger(self.__class__.__name__)
-        
-        # Initialize state
-        self.current_context: Optional[AgentContext] = None
-        
-        # Initialize LangChain tools
-        self.tools = self._initialize_tools()
-        
-        # Initialize agent executor if tools are available
-        if self.tools:
-            self._setup_agent_executor()
-    
-    def _initialize_tools(self) -> List[Tool]:
-        """
-        Initialize the tools for the agent.
-        Override in subclasses to provide specific tools.
-        
-        Returns:
-            List of LangChain tools
-        """
-        return []
-    
-    def _setup_agent_executor(self) -> None:
-        """
-        Set up the LangChain agent executor.
-        Called after tools are initialized.
-        """
-        if not self.tools:
-            return
-        
-        # Convert tools to OpenAI functions format
-        functions = [format_tool_to_openai_function(t) for t in self.tools]
-        
-        # Create the prompt template
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", self._get_system_prompt()),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ])
-        
-        # Set up the agent chain
-        self.agent_chain = (
-            RunnableParallel({
-                "input": lambda x: x["input"],
-                "chat_history": lambda x: x["chat_history"],
-                "agent_scratchpad": lambda x: format_to_openai_function_messages(x["intermediate_steps"]),
-            })
-            | prompt
-            | self.llm
-            | OpenAIFunctionsAgentOutputParser()
-        )
-        
-        # Create the agent executor
-        self.agent_executor = AgentExecutor(
-            agent=self.agent_chain,
-            tools=self.tools,
-            verbose=True,
-            handle_parsing_errors=True,
-            max_iterations=10,
-        )
-    
+
     def _get_system_prompt(self) -> str:
         """
-        Get the system prompt for the agent.
-        Override in subclasses to provide specific system prompts.
+        Get the base system prompt for the agent.
+        Should be overridden in subclasses for specific roles.
         
         Returns:
             System prompt string
         """
-        return (
-            "You are an AI interview assistant. Your goal is to help users prepare for job interviews. "
-            "You should be professional, helpful, and constructive in your responses."
-        )
-    
-    def create_context(self, session_id: Optional[str] = None, user_id: Optional[str] = None) -> AgentContext:
-        """
-        Create a new context for the agent.
-        
-        Args:
-            session_id: Optional session ID (generated if not provided)
-            user_id: Optional user ID
-            
-        Returns:
-            A new AgentContext object
-        """
-        session_id = session_id or str(uuid.uuid4())
-        self.current_context = AgentContext(session_id=session_id, user_id=user_id)
-        return self.current_context
-    
-    def load_context(self, context: AgentContext) -> None:
-        """
-        Load an existing context.
-        
-        Args:
-            context: The context to load
-        """
-        self.current_context = context
+        return "You are an AI assistant."
     
     @abstractmethod
-    def process_input(self, input_text: str, context: Optional[AgentContext] = None) -> str:
+    def process(self, context: AgentContext) -> Any:
         """
-        Process user input and generate a response.
+        Process the given context and generate a response or perform an action.
+        This is the main entry point for agent logic.
         
         Args:
-            input_text: The user input text
-            context: Optional context (uses self.current_context if not provided)
+            context: The current AgentContext containing history, config, etc.
             
         Returns:
-            The agent's response
+            The result of the agent's processing (e.g., response text, structured data).
+            The exact type depends on the specific agent implementation.
         """
         pass
     
-    def process_with_langchain(self, input_text: str, context: AgentContext) -> Dict[str, Any]:
-        """
-        Process input using LangChain agent if available.
-        
-        Args:
-            input_text: The user input text
-            context: The conversation context
-            
-        Returns:
-            Response from the LangChain agent
-        """
-        if not hasattr(self, 'agent_executor') or not self.agent_executor:
-            raise ValueError("LangChain agent not initialized")
-        
-        # Extract chat history from context
-        chat_history = context.get_langchain_messages()
-        
-        # Run the agent
-        return self.agent_executor.invoke({
-            "input": input_text,
-            "chat_history": chat_history,
-            "intermediate_steps": []
-        })
-    
-    def _should_plan(self) -> bool:
-        """
-        Determine if planning should be executed based on the planning interval.
-        
-        Returns:
-            True if planning should be executed, False otherwise
-        """
-        if self.planning_interval <= 0:
-            return False
-        
-        return self.step_count % self.planning_interval == 0
-    
-    def _run_planning_step(self, context: AgentContext) -> Dict[str, Any]:
-        """
-        Run a planning step to update the agent's understanding and plan.
-        
-        Args:
-            context: The current context
-            
-        Returns:
-            The planning result
-        """
-        # Default implementation - can be overridden in subclasses
-        return {
-            "planning_completed": True,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-    
-    def publish_event(self, event_type: str, data: Dict[str, Any]) -> None:
+    def publish_event(self, event_type: EventType, data: Dict[str, Any]) -> None:
         """
         Publish an event to the event bus.
         
         Args:
-            event_type: The type of event
-            data: The event data
+            event_type: The type of event (use EventType enum).
+            data: The event data.
         """
+        if not self.event_bus:
+            self.logger.warning("Event bus not available, cannot publish event.")
+            return
+            
         event = Event(
             event_type=event_type,
             source=self.__class__.__name__,
@@ -346,12 +170,16 @@ class BaseAgent(ABC):
         )
         self.event_bus.publish(event)
     
-    def subscribe(self, event_type: str, callback: Callable[[Event], None]) -> None:
+    def subscribe(self, event_type: EventType, callback: Callable[[Event], None]) -> None:
         """
         Subscribe to events of a specific type.
         
         Args:
-            event_type: The type of event to subscribe to
-            callback: The callback function to call when an event is received
+            event_type: The type of event to subscribe to (use EventType enum).
+            callback: The callback function to call when an event is received.
         """
+        if not self.event_bus:
+            self.logger.warning("Event bus not available, cannot subscribe to events.")
+            return
+            
         self.event_bus.subscribe(event_type, callback) 

@@ -62,7 +62,7 @@ class InterviewSession(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String(255), unique=True, index=True)
-    user_id = Column(String(255), nullable=True, index=True)
+    user_id = Column(String(255), ForeignKey('users.id'), nullable=True, index=True)
     job_role = Column(String(255))
     job_description = Column(Text, nullable=True)
     resume_text = Column(Text, nullable=True)
