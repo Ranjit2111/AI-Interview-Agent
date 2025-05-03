@@ -15,7 +15,7 @@ uvicorn[standard]==0.22.0
 python-multipart==0.0.7
 
 # Database and ORM
-sqlalchemy>=2.0.0
+
 alembic>=1.9.0
 faiss-cpu>=1.7.4
 # sqlite3 is part of the Python standard library and shouldn't be installed via pip

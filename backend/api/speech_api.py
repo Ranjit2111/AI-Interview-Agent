@@ -18,19 +18,19 @@ import httpx
 
 # Optional TTS dependency - Install with backend/setup_kokoro_tts.py
 # If missing, TTS features will be disabled but the API will still work
-try:
-    from kokoro_tts_fastapi_client import KokoroClient, Voice
-except ImportError:
-    KokoroClient = None
-    Voice = None
+# try:
+#     from kokoro_tts_fastapi_client import KokoroClient, Voice # REMOVED old client
+# except ImportError:
+#     KokoroClient = None # REMOVED old client
+#     Voice = None # REMOVED old client
 
 logger = logging.getLogger(__name__)
 
 # Check for AssemblyAI API key
 ASSEMBLYAI_API_KEY = os.environ.get("ASSEMBLYAI_API_KEY", "")
 
-# Kokoro TTS API URL (running locally)
-KOKORO_API_URL = os.environ.get("KOKORO_API_URL", "http://localhost:8008")
+# Kokoro TTS API URL (running locally, set by setup_kokoro_tts.py)
+KOKORO_API_URL = os.environ.get("KOKORO_API_URL") # Removed default, should be set by setup
 
 # Dictionary to store speech processing tasks
 speech_tasks = {}
@@ -38,13 +38,30 @@ speech_tasks = {}
 # Create router
 router = APIRouter()
 
-# Initialize Kokoro TTS client
-kokoro_client = None
-try:
-    kokoro_client = KokoroClient(base_url=KOKORO_API_URL)
-    logger.info("Successfully initialized Kokoro TTS client")
-except Exception as e:
-    logger.warning(f"Failed to initialize Kokoro TTS client: {e}")
+# Shared httpx client for TTS requests
+tts_client = httpx.AsyncClient(timeout=60.0) # Increased timeout for potentially long synthesis
+
+# Helper to check TTS service health
+async def is_tts_service_available():
+    if not KOKORO_API_URL:
+        logger.warning("KOKORO_API_URL environment variable is not set. TTS service is disabled.")
+        return False
+    try:
+        response = await tts_client.get(f"{KOKORO_API_URL}/health")
+        response.raise_for_status() # Raise exception for 4xx or 5xx status codes
+        logger.info("Kokoro TTS service is healthy.")
+        return True
+    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+        logger.error(f"Kokoro TTS service check failed: {e}")
+        return False
+
+# Initialize Kokoro TTS client # REMOVED old initialization block
+# kokoro_client = None
+# try:
+#     kokoro_client = KokoroClient(base_url=KOKORO_API_URL)
+#     logger.info("Successfully initialized Kokoro TTS client")
+# except Exception as e:
+#     logger.warning(f"Failed to initialize Kokoro TTS client: {e}")
 
 async def transcribe_with_assemblyai(audio_file_path: str, task_id: str):
     """
@@ -220,141 +237,218 @@ async def check_transcription_status(task_id: str):
 @router.get("/api/text-to-speech/voices")
 async def get_available_voices():
     """
-    Get a list of available TTS voices.
-    
+    Get a list of available TTS voices from the Kokoro server.
+
     Returns:
-        JSON response with voice list
+        JSON response with voice list or error message.
     """
-    if not kokoro_client:
-        return JSONResponse({
-            "error": "TTS service is not available",
-            "message": "To enable TTS functionality, run the setup script: python backend/setup_kokoro_tts.py",
-            "voices": []
-        })
-    
+    if not KOKORO_API_URL:
+        raise HTTPException(
+            status_code=503,
+            detail="TTS service URL not configured. Set KOKORO_API_URL environment variable."
+        )
+
     try:
-        voices = await kokoro_client.get_voices()
-        return JSONResponse({
-            "voices": [
-                {
-                    "id": voice.id,
-                    "name": voice.name,
-                    "gender": voice.gender,
-                    "language": voice.language,
-                    "description": voice.description
-                }
-                for voice in voices
-            ]
-        })
+        response = await tts_client.get(f"{KOKORO_API_URL}/voices")
+        response.raise_for_status()
+        voices_data = response.json() # Should be a list of dicts
+
+        # Map the response to the format expected by the frontend (if different)
+        # Assuming frontend expects 'id', 'name', 'language', 'description'
+        # The server provides 'name', 'language', 'description' currently.
+        # We can use 'name' as 'id' for now.
+        formatted_voices = [
+            {
+                "id": voice.get("name", "unknown_voice"), # Use name as ID
+                "name": voice.get("name", "Unknown Voice"),
+                "language": voice.get("language", "unknown"),
+                "description": voice.get("description", "No description available"),
+                "gender": voice.get("gender", "unknown") # Add gender if server provides it later
+            }
+            for voice in voices_data
+        ]
+
+        return JSONResponse({"voices": formatted_voices})
+
+    except httpx.RequestError as e:
+        logger.error(f"Error contacting TTS service for voices: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"TTS service unavailable: {e}"
+        )
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Error response from TTS service for voices: {e.response.status_code} - {e.response.text}")
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"TTS service error: {e.response.text}"
+        )
     except Exception as e:
-        logger.error(f"Error getting voices: {e}")
-        return JSONResponse({
-            "error": "Failed to get voices",
-            "message": str(e),
-            "voices": []
-        }, status_code=500)
+        logger.exception("Unexpected error getting TTS voices")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.post("/api/text-to-speech")
 async def text_to_speech(
     text: str = Form(...),
-    voice_id: str = Form("en_female_1"),  # Default voice
-    speed: float = Form(1.0),
-    pitch: float = Form(1.0),
-    format: str = Form("mp3")
+    voice_id: str = Form("af_heart"),  # Default voice matches server default
+    speed: float = Form(1.0, ge=0.5, le=2.0), # Added validation from server
+    # pitch: float = Form(1.0), # REMOVED - Not supported by server
+    # format: str = Form("mp3") # REMOVED - Server returns WAV
 ):
     """
-    Convert text to speech.
-    
+    Synthesize speech from text using the Kokoro TTS server.
+
     Args:
-        text: Text to convert to speech
-        voice_id: ID of the voice to use
-        speed: Speed factor (0.5-2.0)
-        pitch: Pitch factor (0.5-2.0)
-        format: Output format (mp3 or wav)
-        
+        text: Text to synthesize.
+        voice_id: ID (name) of the voice to use (e.g., 'af_heart').
+        speed: Speech speed (0.5 to 2.0).
+
     Returns:
-        Audio file as binary response
+        Audio data as a WAV file response.
     """
-    if not kokoro_client:
-        return JSONResponse({
-            "error": "TTS service is not available",
-            "message": "To enable TTS functionality, run the setup script: python backend/setup_kokoro_tts.py"
-        }, status_code=503)
-    
-    try:
-        # Convert text to speech
-        audio_data = await kokoro_client.synthesize(
-            text=text,
-            voice_id=voice_id,
-            speed=speed,
-            pitch=pitch,
-            audio_format=format
+    if not KOKORO_API_URL:
+        raise HTTPException(
+            status_code=503,
+            detail="TTS service URL not configured. Set KOKORO_API_URL environment variable."
         )
-        
-        # Return audio data
-        return Response(
-            content=audio_data,
-            media_type=f"audio/{format}",
-            headers={
-                "Content-Disposition": f"attachment; filename=speech.{format}"
-            }
+
+    payload = {
+        "text": text,
+        "voice": voice_id,
+        "speed": speed
+    }
+    logger.info(f"Sending TTS request to {KOKORO_API_URL}/synthesize with voice: {voice_id}, speed: {speed}")
+
+    try:
+        response = await tts_client.post(f"{KOKORO_API_URL}/synthesize", json=payload)
+        response.raise_for_status() # Check for 4xx/5xx errors
+
+        # Check content type (should be audio/wav)
+        content_type = response.headers.get("content-type")
+        if content_type != "audio/wav":
+            logger.error(f"Unexpected content type from TTS server: {content_type}. Response: {response.text}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"TTS server returned unexpected content type: {content_type}"
+            )
+
+        # Return the raw audio data with the correct content type
+        return Response(content=response.content, media_type="audio/wav")
+
+    except httpx.RequestError as e:
+        logger.error(f"Error contacting TTS service for synthesis: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"TTS service unavailable: {e}"
+        )
+    except httpx.HTTPStatusError as e:
+        error_detail = f"TTS service error: {e.response.text}"
+        try:
+            # Attempt to parse JSON error detail from server
+            error_json = e.response.json()
+            error_detail = error_json.get("detail", error_detail)
+        except json.JSONDecodeError:
+            pass # Use raw text if not JSON
+        logger.error(f"Error response from TTS service for synthesis: {e.response.status_code} - {error_detail}")
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=error_detail
         )
     except Exception as e:
-        logger.error(f"Error synthesizing speech: {e}")
-        return JSONResponse({
-            "error": "Failed to synthesize speech",
-            "message": str(e)
-        }, status_code=500)
+        logger.exception("Unexpected error during text-to-speech synthesis")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
+# Optional: Consider removing or adapting this streaming endpoint if true streaming isn't implemented/needed.
+# For now, it will behave like the non-streaming endpoint.
 @router.post("/api/text-to-speech/stream")
 async def stream_text_to_speech(
     text: str = Form(...),
-    voice_id: str = Form("en_female_1"),  # Default voice
-    speed: float = Form(1.0),
-    pitch: float = Form(1.0)
+    voice_id: str = Form("af_heart"),  # Default voice
+    speed: float = Form(1.0, ge=0.5, le=2.0),
+    # pitch: float = Form(1.0) # REMOVED
 ):
     """
-    Stream text to speech using Kokoro TTS with word-level timestamps.
-    
+    Synthesize speech from text and stream the audio (currently returns full WAV).
+
     Args:
-        text: Text to convert to speech
-        voice_id: Voice ID to use
-        speed: Speech speed (0.5-2.0)
-        pitch: Speech pitch (0.5-2.0)
-        
+        text: Text to synthesize.
+        voice_id: ID (name) of the voice to use.
+        speed: Speech speed (0.5 to 2.0).
+
     Returns:
-        Streaming response with audio data and timestamps
+        StreamingResponse containing WAV audio data.
     """
-    if not kokoro_client:
-        raise HTTPException(status_code=503, detail="Text-to-speech service is not available")
-    
-    try:
-        # Get voice by ID
-        voices = await kokoro_client.list_voices()
-        voice = next((v for v in voices if v.id == voice_id), None)
-        
-        if not voice:
-            raise HTTPException(status_code=404, detail=f"Voice '{voice_id}' not found")
-        
-        # Generate captioned speech
-        result = await kokoro_client.generate_captioned_speech(
-            text=text,
-            voice=voice,
-            speed=speed,
-            pitch=pitch
+    # This implementation currently mirrors the non-streaming version
+    # because the custom server returns the full WAV at once.
+    # A true streaming implementation would require server-side changes
+    # and different handling here (iterating over response chunks).
+    if not KOKORO_API_URL:
+        raise HTTPException(
+            status_code=503,
+            detail="TTS service URL not configured. Set KOKORO_API_URL environment variable."
         )
-        
-        # Return audio with timestamp data
-        return JSONResponse({
-            "audio_base64": result.audio_base64,
-            "timestamps": result.timestamps,
-            "duration": result.duration
-        })
+
+    payload = {
+        "text": text,
+        "voice": voice_id,
+        "speed": speed
+    }
+    logger.info(f"Sending Streaming TTS request to {KOKORO_API_URL}/synthesize with voice: {voice_id}, speed: {speed}")
+
+    try:
+        # Use a context manager for the request to ensure resources are cleaned up
+        async with tts_client.stream("POST", f"{KOKORO_API_URL}/synthesize", json=payload) as response:
+            response.raise_for_status()
+
+            content_type = response.headers.get("content-type")
+            if content_type != "audio/wav":
+                 logger.error(f"Unexpected content type from TTS streaming endpoint: {content_type}.")
+                 # Need to read the error response body if possible
+                 error_body = await response.aread()
+                 raise HTTPException(
+                     status_code=500,
+                     detail=f"TTS server returned unexpected content type '{content_type}': {error_body.decode()}"
+                 )
+
+            # Stream the response content
+            # Although the server sends it all at once now, this structure
+            # allows for future true streaming if the server is updated.
+            async def generator():
+                async for chunk in response.aiter_bytes():
+                    yield chunk
+
+            return StreamingResponse(generator(), media_type="audio/wav")
+
+    except httpx.RequestError as e:
+        logger.error(f"Error contacting TTS service for streaming synthesis: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"TTS service unavailable: {e}"
+        )
+    except httpx.HTTPStatusError as e:
+        error_detail = f"TTS service error"
+        try:
+            # Attempt to read error detail from the response body
+            error_body = await e.response.aread()
+            error_detail = error_body.decode()
+            # Try parsing JSON detail if possible
+            try:
+                 error_json = json.loads(error_detail)
+                 error_detail = error_json.get("detail", error_detail)
+            except json.JSONDecodeError:
+                 pass # Use raw text if not JSON
+        except Exception:
+             pass # Ignore if reading body fails
+
+        logger.error(f"Error response from TTS service for streaming synthesis: {e.response.status_code} - {error_detail}")
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=error_detail
+        )
     except Exception as e:
-        logger.exception("Failed to stream speech")
-        raise HTTPException(status_code=500, detail=f"Failed to stream speech: {str(e)}")
+        logger.exception("Unexpected error during streaming text-to-speech synthesis")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 def create_speech_api(app):

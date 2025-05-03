@@ -33,12 +33,9 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
 
 # Local imports
-from backend.database.connection import init_db
-from backend.services import initialize_services
+from backend.services import initialize_services, get_agent_session_manager
 from backend.utils.docs_generator import generate_static_docs
 from backend.api.agent_api import create_agent_api
-from backend.api.resource_api import create_resource_api
-from backend.api.transcript_api import router as transcript_router
 
 
 # Define Pydantic models for API responses
@@ -165,8 +162,6 @@ logger.info("Services initialized")
 
 # Create API routes
 create_agent_api(app)
-create_resource_api(app)
-app.include_router(transcript_router, prefix="/api/transcripts", tags=["transcripts"])
 logger.info("API routes registered")
 
 # Mount static files (if needed)
@@ -275,66 +270,35 @@ async def get_audio(filename: str):
         raise HTTPException(status_code=404, detail="Audio file not found")
     return FileResponse(file_path)
 
-@app.post("/submit-context", response_model=ContextResponse)
-async def submit_context(
-    job_role: str = Form(...),
-    job_description: str = Form(...),
-    resume_file: UploadFile = File(None)
-):
-    try:
-        resume_text = ""
-        
-        if resume_file:
-            file_path = os.path.join(TEMP_DIR, resume_file.filename)
-            
-            # Save the uploaded file
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(resume_file.file, buffer)
-            
-            if file_path.endswith('.pdf'):
-                # Use PyMuPDF for PDF processing
-                pdf_document = fitz.open(file_path)
-                resume_text = " ".join([page.get_text() for page in pdf_document])
-            elif file_path.endswith('.docx'):
-                doc = docx.Document(file_path)
-                resume_text = " ".join([para.text for para in doc.paragraphs])
-            else:
-                raise HTTPException(status_code=400, detail="Invalid file type. Only PDF and DOCX are allowed.")
-            
-            # Clean up the temporary file
-            os.unlink(file_path)
-        
-        return ContextResponse(
-            message=f"Successfully processed context. Job Role: {job_role}, Resume length: {len(resume_text)} characters"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error processing resume: {str(e)}")
-
-@app.post("/generate-interview", response_model=InterviewResponse)
-async def generate_interview(request: InterviewRequest):
-    if api_key == "MISSING_API_KEY":
-        raise HTTPException(status_code=500, detail="No valid API key found. Please set the API_KEY environment variable.")
-        
-    try:
-        # Generate the adaptive prompt using the chain
-        adaptive_prompt = chain.invoke({
-            "user_input": request.user_input, 
-            "job_role": request.job_role, 
-            "job_description": request.job_description
-        })
-        return InterviewResponse(generated_text=adaptive_prompt)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating interview question: {str(e)}")
-
 @app.on_event("startup")
 async def startup_event():
-    logger.info("Initializing database on startup...")
-    init_db()
-    docs_dir = Path("../docs/api")
-    api_docs_dir = docs_dir / "api_docs"
-    generate_static_docs(app, api_docs_dir)
-    logger.info(f"API documentation generated in {docs_dir.resolve()}")
-    logger.info("Application startup complete")
+    """Application startup event handler."""
+    logger.info("Application startup...")
+    # Remove database initialization
+    # try:
+    #     init_db()
+    # except Exception as e:
+    #     logger.error(f"Database initialization failed: {e}")
+
+    # Initialize services using the refactored function
+    try:
+        initialize_services() # This should now create the singletons
+        # Store the single AgentSessionManager on app state
+        app.state.agent_manager = get_agent_session_manager()
+        logger.info("AgentSessionManager attached to app state.")
+    except Exception as e:
+        logger.error(f"Service initialization failed: {e}")
+        # Decide how to handle critical service failure (e.g., exit?)
+
+    # Optional: Generate static docs on startup
+    # try:
+    #     docs_dir = Path("docs/api")
+    #     docs_dir.mkdir(parents=True, exist_ok=True)
+    #     generate_static_docs(app, "docs/api")
+    # except Exception as e:
+    #     logger.error(f"Static documentation generation failed: {e}")
+
+    logger.info("Application startup completed.")
 
 logger.info("Application setup complete. Waiting for Uvicorn server start...")
 

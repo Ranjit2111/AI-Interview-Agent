@@ -21,7 +21,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.agents import Tool
 from langchain.prompts import PromptTemplate, ChatPromptTemplate
 from langchain.chains import LLMChain, SequentialChain
-from langchain_core.output_parsers import StrOutputParser, JsonOutputParser
 
 try:
     from backend.agents.base import BaseAgent, AgentContext
@@ -42,12 +41,9 @@ try:
         PRACTICE_QUESTION_PROMPT,
         PRACTICE_QUESTION_RESPONSE_TEMPLATE
     )
-    from backend.agents.utils.llm_utils import (
+    from backend.utils.llm_utils import (
         invoke_chain_with_error_handling,
-        parse_json_with_fallback,
-        extract_field_safely,
-        format_conversation_history,
-        calculate_average_scores
+        parse_json_with_fallback
     )
 except ImportError:
     from .base import BaseAgent, AgentContext
@@ -68,12 +64,9 @@ except ImportError:
         PRACTICE_QUESTION_PROMPT,
         PRACTICE_QUESTION_RESPONSE_TEMPLATE
     )
-    from .utils.llm_utils import (
+    from ..utils.llm_utils import (
         invoke_chain_with_error_handling,
-        parse_json_with_fallback,
-        extract_field_safely,
-        format_conversation_history,
-        calculate_average_scores
+        parse_json_with_fallback
     )
 
 

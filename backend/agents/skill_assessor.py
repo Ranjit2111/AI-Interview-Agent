@@ -6,7 +6,6 @@ This agent identifies skills demonstrated, assesses proficiency levels, and sugg
 import logging
 import re
 import json
-import random
 import asyncio
 from typing import Dict, Any, List, Optional, Set, Tuple, Union
 from datetime import datetime
@@ -19,9 +18,7 @@ try:
     # Try standard import in production
     from backend.agents.base import BaseAgent, AgentContext
     from backend.utils.event_bus import Event, EventBus, EventType
-    from backend.services import get_search_service
     from backend.services.llm_service import LLMService
-    from backend.models.interview import SkillAssessment, Resource, ProficiencyLevel as DBProficiencyLevel, SkillCategory as DBSkillCategory
     from backend.agents.templates.skill_templates import (
         SKILL_SYSTEM_PROMPT,
         SKILL_EXTRACTION_TEMPLATE,
@@ -29,14 +26,12 @@ try:
         RESOURCE_SUGGESTION_TEMPLATE,
         SKILL_PROFILE_TEMPLATE
     )
-    from backend.agents.utils.llm_utils import invoke_chain_with_error_handling, parse_json_with_fallback
+    from backend.utils.llm_utils import invoke_chain_with_error_handling
 except ImportError:
     # Use relative imports for development/testing
     from .base import BaseAgent, AgentContext
     from ..utils.event_bus import Event, EventBus, EventType
-    from ..services import get_search_service
     from ..services.llm_service import LLMService
-    from ..models.interview import SkillAssessment, Resource, ProficiencyLevel as DBProficiencyLevel, SkillCategory as DBSkillCategory
     from .templates.skill_templates import (
         SKILL_SYSTEM_PROMPT,
         SKILL_EXTRACTION_TEMPLATE,
@@ -44,7 +39,7 @@ except ImportError:
         RESOURCE_SUGGESTION_TEMPLATE,
         SKILL_PROFILE_TEMPLATE
     )
-    from .utils.llm_utils import invoke_chain_with_error_handling, parse_json_with_fallback
+    from ..utils.llm_utils import invoke_chain_with_error_handling
 
 
 class ProficiencyLevel(str, Enum):
@@ -378,14 +373,14 @@ class SkillAssessorAgent(BaseAgent):
             self.logger.error(f"Proficiency assessment returned invalid data: {assessment_data}")
             return default_assessment
     
-    def _suggest_resources(self, skill: str, proficiency_level: str) -> List[Dict[str, Any]]:
+    async def _suggest_resources(self, skill: str, proficiency_level: str) -> List[Dict[str, Any]]:
         """
         Suggest resources, trying search service first, then LLM fallback.
-        
+
         Args:
             skill: The skill to get resources for
             proficiency_level: Current proficiency level
-            
+
         Returns:
             List of resource dictionaries
         """
@@ -393,80 +388,80 @@ class SkillAssessorAgent(BaseAgent):
         if cache_key in self.resource_cache:
             self.logger.debug(f"Returning cached resources for {skill} ({proficiency_level})")
             return self.resource_cache[cache_key]
-        
+
         resources = []
         search_service_used = False
         try:
+            # Import locally to avoid circular dependency
+            try:
+                from backend.services import get_search_service
+            except ImportError:
+                from ..services import get_search_service
+                
             search_service = get_search_service()
             if search_service:
                 self.logger.debug(f"Attempting to use search service for {skill} resources...")
-                try:
-                    # Run async search - simplified sync execution for now
-                    # In a real async app, this should be handled with await or run_in_executor
-                    resources = asyncio.run(search_service.search_resources(
-                         skill=skill,
-                         proficiency_level=proficiency_level,
-                         job_role=self.job_role or "[Not Specified]",
-                         num_results=3
-                    ))
-                    # Convert Resource model objects to simple dicts
-                    resource_dicts = [r.dict() for r in resources if hasattr(r, 'dict')]
-                    self.logger.info(f"Found {len(resource_dicts)} resources for '{skill}' via search service.")
-                    resources = resource_dicts # Assign converted dicts
-                    search_service_used = True
-                except RuntimeError as e:
-                    # Handle cases where asyncio.run cannot be used (e.g., already running loop)
-                    self.logger.warning(f"Could not execute async search directly: {e}. LLM fallback will be used.")
-                except Exception as e:
-                    self.logger.error(f"Error calling search service for '{skill}': {e}")
-            else:
-                self.logger.info("Search service not available, using LLM fallback for resources.")
-
-            # LLM fallback if search failed or returned no results
-            if not resources:
-                if search_service_used:
-                    self.logger.info(f"Search service found no resources for '{skill}'. Falling back to LLM.")
-                else:
-                    self.logger.info(f"Using LLM fallback for '{skill}' resources.")
-                    
-                llm_response = invoke_chain_with_error_handling(
-                    chain=self.resource_chain,
-                    inputs={"skill": skill, "proficiency_level": proficiency_level, "job_role": self.job_role or "[Not Specified]"},
-                    logger=self.logger,
-                    chain_name="Resource Suggestion Chain",
-                    output_key="resources", # Expecting JSON list output
-                    default_creator=lambda: []
-                )
-                if isinstance(llm_response, list):
-                    # Basic validation of resource structure
-                    validated_resources = []
-                    for r in llm_response:
-                        if isinstance(r, dict) and "title" in r and "url" in r:
-                            validated_resources.append({
-                                "type": r.get("type", "link"),
-                                "title": r["title"],
-                                "url": r["url"],
-                                "description": r.get("description", "")
-                            })
-                    resources = validated_resources
-                    if not resources:
-                        self.logger.warning(f"LLM resource suggestion for '{skill}' returned list with invalid structure.")
-                else:
-                    self.logger.warning(f"LLM resource suggestion for '{skill}' did not return a list. Got: {type(llm_response)}")
-                    resources = [] # Ensure empty list on failure
-
-            # Cache results (even if empty)
-            self.resource_cache[cache_key] = resources
-            
-            # Publish event only if resources were actually found
-            if resources:
-                self.publish_event(EventType.RESOURCES_SUGGESTED, {"skill": skill, "resources": resources})
+                search_query = f"learning resources for {skill} {proficiency_level}"
+                search_results = await search_service.search(search_query, num_results=3)
                 
-            return resources
-            
+                if search_results:
+                    resources = [
+                        {
+                            "title": result.get("title", "N/A"), 
+                            "url": result.get("link", "#"), 
+                            "type": result.get("type", "webpage"), # Infer type if possible
+                            "snippet": result.get("snippet", "") 
+                        } 
+                        for result in search_results
+                    ]
+                    search_service_used = True
+                    self.logger.info(f"Found {len(resources)} resources for '{skill}' via search service.")
+                else:
+                    self.logger.warning(f"Search service returned no results for query: {search_query}")
+            else:
+                self.logger.warning("Search service is not available.")
+
         except Exception as e:
-            self.logger.exception(f"Unexpected error suggesting resources for '{skill}': {e}")
-            return [] # Return empty list on major error
+            self.logger.error(f"Error using search service for skill '{skill}': {e}", exc_info=True)
+
+        # Fallback to LLM if search failed or no results
+        if not search_service_used:
+            self.logger.info(f"Using LLM fallback for '{skill}' resources.")
+            
+            llm_response = invoke_chain_with_error_handling(
+                chain=self.resource_chain,
+                inputs={"skill": skill, "proficiency_level": proficiency_level, "job_role": self.job_role or "[Not Specified]"},
+                logger=self.logger,
+                chain_name="Resource Suggestion Chain",
+                output_key="resources", # Expecting JSON list output
+                default_creator=lambda: []
+            )
+            if isinstance(llm_response, list):
+                # Basic validation of resource structure
+                validated_resources = []
+                for r in llm_response:
+                    if isinstance(r, dict) and "title" in r and "url" in r:
+                        validated_resources.append({
+                            "type": r.get("type", "link"),
+                            "title": r["title"],
+                            "url": r["url"],
+                            "description": r.get("description", "")
+                        })
+                resources = validated_resources
+                if not resources:
+                    self.logger.warning(f"LLM resource suggestion for '{skill}' returned list with invalid structure.")
+            else:
+                self.logger.warning(f"LLM resource suggestion for '{skill}' did not return a list. Got: {type(llm_response)}")
+                resources = [] # Ensure empty list on failure
+
+        # Cache results (even if empty)
+        self.resource_cache[cache_key] = resources
+        
+        # Publish event only if resources were actually found
+        if resources:
+            self.publish_event(EventType.RESOURCES_SUGGESTED, {"skill": skill, "resources": resources})
+            
+        return resources
     
     def generate_skill_profile(self) -> Dict[str, Any]:
         """
@@ -519,21 +514,6 @@ class SkillAssessorAgent(BaseAgent):
         else:
             self.logger.error(f"Skill profile generation returned invalid data: {profile_data}")
             return default_profile
-    
-    def _initialize_skill_keywords(self) -> Dict[str, List[str]]:
-        """
-        Initialize keywords for skill extraction.
-        
-        Returns:
-            Dictionary of skill categories to keywords
-        """
-        # Simplified for brevity, assumes self.role_skills is populated
-        role_key = (self.job_role or "").lower()
-        role_specific = self.role_skills.get(role_key, self.role_skills.get("software engineer"))
-        keywords = {}
-        for category, skills in role_specific.items():
-            keywords[category] = [s.lower() for s in skills]
-        return keywords
     
     def _identify_skills_in_text(self, text: str) -> List[Tuple[str, str]]:
         """

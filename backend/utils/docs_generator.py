@@ -8,61 +8,6 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from fastapi.openapi.utils import get_openapi
-
-
-def generate_openapi_spec(app, title: str, version: str, description: str) -> Dict[str, Any]:
-    """
-    Generate OpenAPI specification from FastAPI app.
-    
-    Args:
-        app: FastAPI application instance
-        title: API title
-        version: API version
-        description: API description
-        
-    Returns:
-        Dictionary containing OpenAPI specification
-    """
-    return get_openapi(
-        title=title,
-        version=version,
-        description=description,
-        routes=app.routes,
-    )
-
-
-def save_openapi_spec(app, output_dir: str, filename: str = "openapi.json") -> str:
-    """
-    Save OpenAPI specification to a file.
-    
-    Args:
-        app: FastAPI application instance
-        output_dir: Directory to save the specification
-        filename: Output filename
-        
-    Returns:
-        Path to the saved file
-    """
-    # Create directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Generate OpenAPI spec
-    openapi_spec = generate_openapi_spec(
-        app=app,
-        title="AI Interviewer Agent API",
-        version="1.0.0",
-        description="API for AI interview preparation services"
-    )
-    
-    # Save to file
-    output_path = os.path.join(output_dir, filename)
-    with open(output_path, "w") as f:
-        json.dump(openapi_spec, f, indent=2)
-    
-    print(f"OpenAPI specification saved to {output_path}")
-    return output_path
-
 
 def generate_static_docs(app, output_dir: str, template_dir: Optional[str] = None) -> str:
     """
@@ -80,9 +25,7 @@ def generate_static_docs(app, output_dir: str, template_dir: Optional[str] = Non
     docs_dir = os.path.join(output_dir, "api_docs")
     os.makedirs(docs_dir, exist_ok=True)
     
-    # Save OpenAPI spec
-    spec_path = save_openapi_spec(app, docs_dir)
-    
+    # Save OpenAPI spec    
     # Generate HTML index file
     index_path = os.path.join(docs_dir, "index.html")
     with open(index_path, "w") as f:

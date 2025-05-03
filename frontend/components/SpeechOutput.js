@@ -21,7 +21,7 @@ const SpeechOutput = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioData, setAudioData] = useState(null);
+  const [audioBlob, setAudioBlob] = useState(null);
   
   const audioRef = useRef(null);
   
@@ -40,24 +40,36 @@ const SpeechOutput = ({
   // Fetch available voices
   const fetchVoices = async () => {
     setError(null);
+    setVoices([]);
     
     try {
       const response = await fetch(`${backendUrl}/api/text-to-speech/voices`);
       
       if (!response.ok) {
-        throw new Error(`Error fetching voices: ${response.statusText}`);
+        let errorMsg = `Error fetching voices: ${response.statusText}`;
+        try {
+            const errorData = await response.json();
+            errorMsg = errorData.detail || errorMsg;
+        } catch (e) { /* Ignore if response is not JSON */ }
+        throw new Error(errorMsg);
       }
       
       const data = await response.json();
-      setVoices(data.voices);
+      const formattedVoices = data.voices.map(voice => ({
+          id: voice.name,
+          name: voice.name,
+          language: voice.language,
+          description: voice.description
+      }));
+      setVoices(formattedVoices);
       
-      // Set default voice
-      if (data.voices.length > 0) {
-        setSelectedVoice(data.voices[0].id);
+      if (formattedVoices.length > 0) {
+        const defaultVoice = formattedVoices.find(v => v.id === 'af_heart') || formattedVoices[0];
+        setSelectedVoice(defaultVoice.id);
       }
     } catch (err) {
       console.error('Error fetching voices:', err);
-      setError('Failed to load text-to-speech voices. Speech output may not be available.');
+      setError(`Failed to load voices: ${err.message}. TTS might be unavailable.`);
     }
   };
   
@@ -67,26 +79,35 @@ const SpeechOutput = ({
     
     setIsLoading(true);
     setError(null);
+    setAudioBlob(null);
     
     try {
-      // For streaming TTS with timestamps
       const formData = new FormData();
       formData.append('text', text);
       formData.append('voice_id', selectedVoice);
       formData.append('speed', 1.0);
-      formData.append('pitch', 1.0);
       
-      const response = await fetch(`${backendUrl}/api/text-to-speech/stream`, {
+      const response = await fetch(`${backendUrl}/api/text-to-speech`, {
         method: 'POST',
         body: formData
       });
       
       if (!response.ok) {
-        throw new Error(`Error generating speech: ${response.statusText}`);
+        let errorMsg = `Error generating speech: ${response.statusText}`;
+        try {
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                const errorData = await response.json();
+                errorMsg = errorData.detail || errorMsg;
+            } else {
+                 errorMsg = await response.text();
+            }
+        } catch (e) { /* Ignore parsing errors, use statusText */ }
+        throw new Error(errorMsg);
       }
       
-      const data = await response.json();
-      setAudioData(data);
+      const blob = await response.blob();
+      setAudioBlob(blob);
     } catch (err) {
       console.error('Error loading speech:', err);
       setError(`Failed to generate speech: ${err.message}`);
@@ -97,33 +118,32 @@ const SpeechOutput = ({
   
   // Play speech
   const playAudio = () => {
-    if (!audioData || !audioRef.current) return;
+    if (!audioBlob || !audioRef.current) return;
     
     try {
-      // Convert base64 to Blob and create object URL
-      const byteCharacters = atob(audioData.audio_base64);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'audio/mp3' });
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(audioBlob);
       
       audioRef.current.src = url;
       audioRef.current.play();
       setIsPlaying(true);
       onPlay();
       
-      // Clean up object URL when done
       audioRef.current.onended = () => {
         URL.revokeObjectURL(url);
         setIsPlaying(false);
         onEnd();
       };
+      audioRef.current.onerror = (e) => {
+         console.error('Audio playback error:', e);
+         setError('Failed to play audio.');
+         setIsPlaying(false);
+         URL.revokeObjectURL(url);
+         onEnd();
+      }
     } catch (err) {
       console.error('Error playing audio:', err);
       setError(`Failed to play audio: ${err.message}`);
+      setIsPlaying(false);
     }
   };
   
@@ -159,7 +179,7 @@ const SpeechOutput = ({
         
         <button
           onClick={isPlaying ? stopAudio : playAudio}
-          disabled={isLoading || !audioData}
+          disabled={isLoading || !audioBlob}
           className={`p-2 rounded-full ${
             isPlaying
               ? 'bg-red-600 hover:bg-red-700'

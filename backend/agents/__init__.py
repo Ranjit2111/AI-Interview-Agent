@@ -14,7 +14,7 @@ from .coach import CoachAgent
 from .skill_assessor import SkillAssessorAgent
 
 # Import the session manager (previously orchestrator)
-from .orchestrator import SessionManager
+from .orchestrator import AgentSessionManager
 
 # Import supporting enums or data structures if needed by consumers
 # (e.g., InterviewStyle might be useful, but often comes from models package)
@@ -27,7 +27,7 @@ __all__ = [
     'InterviewerAgent',
     'CoachAgent',
     'SkillAssessorAgent',
-    'SessionManager'
+    'AgentSessionManager'
 ]
 
 # Optional: Agent registry for dynamic loading (if needed later)

@@ -69,11 +69,11 @@ def invoke_chain_with_error_handling(
         logger.debug(f"Invoking {chain_name} with inputs: {json.dumps(inputs)[:200]}...")
         result = chain.invoke(inputs)
         logger.debug(f"{chain_name} invocation successful.")
-        
+
         if not result:
              logger.warning(f"{chain_name} returned an empty result.")
              return default_value
-             
+
         if output_key:
             if isinstance(result, dict) and output_key in result:
                 extracted_value = result[output_key]
@@ -96,7 +96,7 @@ def invoke_chain_with_error_handling(
                      if parsed_json is not None:
                          return parsed_json # Return parsed JSON if successful
             return result # Return the full result dict otherwise
-            
+
     except Exception as e:
         logger.exception(f"Error invoking {chain_name}: {e}")
         return default_value
