@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Dict, Any, List, Optional, Tuple
 import random
-import uuid # Keep
+import uuid 
 from enum import Enum
 from datetime import datetime
 
@@ -20,7 +20,7 @@ try:
     from backend.agents.base import BaseAgent, AgentContext # Keep
     from backend.utils.event_bus import Event, EventBus, EventType # Keep & Add EventType
     from backend.services.llm_service import LLMService # Added
-    from backend.models.interview import InterviewStyle # Keep InterviewStyle, remove others
+    from backend.agents.config_models import InterviewStyle
     from backend.agents.templates.interviewer_templates import (
         INTERVIEWER_SYSTEM_PROMPT,
         NEXT_ACTION_TEMPLATE,
@@ -28,16 +28,14 @@ try:
         INTRODUCTION_TEMPLATES,
         RESPONSE_FORMAT_TEMPLATE
     )
-    from backend.agents.utils.llm_utils import (
+    from backend.utils.llm_utils import (
         invoke_chain_with_error_handling, # Keep
-        parse_json_with_fallback, # Keep
-        # extract_field_safely, # Not used directly
         format_conversation_history # Keep
     )
 except ImportError:
     from .base import BaseAgent, AgentContext # Keep
     from ..utils.event_bus import Event, EventBus # Keep
-    from ..models.interview import InterviewStyle # Keep InterviewStyle
+    from ..agents.config_models import InterviewStyle
     from .templates.interviewer_templates import (
         INTERVIEWER_SYSTEM_PROMPT,
         NEXT_ACTION_TEMPLATE,
@@ -45,11 +43,9 @@ except ImportError:
         INTRODUCTION_TEMPLATES,
         RESPONSE_FORMAT_TEMPLATE
     )
-    from .utils.llm_utils import (
+    from ..utils.llm_utils import (
         invoke_chain_with_error_handling, # Keep
-        parse_json_with_fallback, # Keep
-        # extract_field_safely, # Not used directly
-        format_conversation_history # Keep
+        format_conversation_history
     )
 
 # Keep InterviewState Enum (simplified)
@@ -68,7 +64,6 @@ class InterviewerAgent(BaseAgent):
     The interviewer agent is responsible for:
     - Generating and asking appropriate interview questions
     - Evaluating candidate answers
-    - Providing feedback on responses
     - Maintaining interview flow and context
     - Adapting to the specified interview style
     
@@ -90,7 +85,7 @@ class InterviewerAgent(BaseAgent):
         job_description: str = "",
         resume_content: str = "",
         difficulty_level: str = "medium",
-        question_count: int = 5, # Reduced default for quicker tests
+        question_count: int = 15, # Reduced default for quicker tests
         company_name: Optional[str] = None
     ):
         """
@@ -124,7 +119,6 @@ class InterviewerAgent(BaseAgent):
         self.asked_question_count = 0
         self.current_question: Optional[str] = None
         self.areas_covered: List[str] = []
-        self.interview_session_id = None # Set by event handler
         
         # Setup LLM chains using self.llm from llm_service
         self._setup_llm_chains()
@@ -372,15 +366,13 @@ class InterviewerAgent(BaseAgent):
         except ValueError:
              self.logger.warning(f"Invalid interview style '{style_value}' received. Defaulting to {self.interview_style.value}.")
         
-        # Store session ID if provided
-        self.interview_session_id = data.get("session_id", str(uuid.uuid4())) # Generate one if missing
-        self.logger.info(f"Interview configuration updated for session {self.interview_session_id}")
+        self.logger.info(f"Interview configuration updated via SESSION_START event.")
     
     def _handle_session_end(self, event: Event) -> None:
         """
         Handle session end events (e.g., user manually stops).
         """
-        self.logger.info(f"Handling session_end event for session {self.interview_session_id}.")
+        self.logger.info(f"Handling session_end event.")
         self.current_state = InterviewState.COMPLETED
         # Optionally, clear sensitive data like resume content here if needed
         # self.resume_content = ""
@@ -389,16 +381,13 @@ class InterviewerAgent(BaseAgent):
         """
         Handle session reset events.
         """
-        self.logger.info(f"Handling session_reset event for session {self.interview_session_id}.")
+        self.logger.info(f"Handling session_reset event.")
         self.current_state = InterviewState.INITIALIZING
         self.asked_question_count = 0
         self.initial_questions = []
         self.current_question = None
         self.areas_covered = []
-    
-    def _reset_state(self):
-        # ... (Implementation updated in previous step) ...
-        pass
+
 
     def _determine_and_generate_next_action(self, context: AgentContext) -> Dict[str, Any]:
         """Uses LLM to decide the next step and generate content."""
@@ -577,16 +566,7 @@ class InterviewerAgent(BaseAgent):
             self.logger.error("Interviewer process called with invalid context. Cannot proceed.")
             return { "content": "Internal context error.", "response_type": "error", "metadata": {}}
             
-        # Ensure session ID matches if it's already set (can be set by _handle_session_start)
-        if self.interview_session_id and context.session_id != self.interview_session_id:
-            self.logger.error(f"Context session ID mismatch! Agent expected {self.interview_session_id}, got {context.session_id}. Cannot proceed.")
-            return { "content": "Internal context error.", "response_type": "error", "metadata": {}}
-        elif not self.interview_session_id:
-             # If agent session ID wasn't set by event yet, adopt it from context
-             self.interview_session_id = context.session_id
-             self.logger.info(f"Interviewer adopting session ID {self.interview_session_id} from context.")
-            
-        self.logger.info(f"Interviewer process called in state {self.current_state.value} for session {context.session_id}")
+        self.logger.info(f"Interviewer process called in state {self.current_state.value}")
         
         # Execute state-based action using the provided context
         action_result = self._do_action(context)
@@ -596,8 +576,7 @@ class InterviewerAgent(BaseAgent):
         completed_now = (self.current_state == InterviewState.COMPLETED and action_result.get("response_type") != "info")
         if completed_now and not getattr(self, '_completed_event_published', False):
              self.logger.info("Publishing interview_completed event.")
-             self.publish_event(EventType.INTERVIEW_COMPLETED, { # Use enum
-                 "session_id": context.session_id,
+             self.publish_event(EventType.INTERVIEW_COMPLETED, {
                  "timestamp": datetime.utcnow().isoformat(),
                  "total_questions_asked": self.asked_question_count,
                  "areas_covered": self.areas_covered

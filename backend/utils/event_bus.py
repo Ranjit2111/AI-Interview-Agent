@@ -15,24 +15,40 @@ class EventType(str, enum.Enum):
     """
     Enumeration of event types used in the application.
     """
-    # Interview events
-    INTERVIEW_START = "interview_start"
-    INTERVIEW_END = "interview_end"
-    INTERVIEWER_RESPONSE = "interviewer_response"
-    USER_RESPONSE = "user_response"
-    INTERVIEW_SUMMARY = "interview_summary"
-    
-    # Coaching events
-    COACHING_REQUEST = "coaching_request"
-    COACHING_RESPONSE = "coaching_response"
-    
-    # Skill assessment events
-    SKILL_IDENTIFIED = "skill_identified"
-    SKILL_ASSESSED = "skill_assessed"
-    
-    # Generic events
-    ERROR = "error"
-    STATUS_UPDATE = "status_update"
+    # Session Lifecycle
+    SESSION_START = "session_start" # Published by AgentSessionManager on init
+    SESSION_END = "session_end"     # Published by AgentSessionManager on end_interview call
+    SESSION_RESET = "session_reset" # Published by AgentSessionManager on reset_session call
+    AGENT_LOAD = "agent_load"       # Published by AgentSessionManager when an agent is lazy-loaded
+
+    # Core Interaction
+    USER_MESSAGE = "user_message" # Published by AgentSessionManager when user message received
+    ASSISTANT_RESPONSE = "assistant_response" # Published by AgentSessionManager after getting agent response
+
+    # Agent Specific - Interviewer
+    INTERVIEWER_RESPONSE = "interviewer_response" # Published by InterviewerAgent (contains question)
+    INTERVIEW_COMPLETED = "interview_completed" # Published by InterviewerAgent when done
+    # INTERVIEW_SUMMARY = "interview_summary" # Potentially published by Interviewer or Coach? Review usage.
+
+    # Agent Specific - Coach
+    COACHING_REQUEST = "coaching_request" # Published via ServiceSessionManager proxy, handled by CoachAgent
+    COACH_FEEDBACK = "coach_feedback"     # Published by CoachAgent with feedback
+    COACH_ANALYSIS = "coach_analysis"     # Published by CoachAgent with structured analysis
+
+    # Agent Specific - Skill Assessor
+    SKILL_ASSESSMENT = "skill_assessment" # Published by SkillAssessorAgent (e.g., with final profile or updates)
+    # SKILL_IDENTIFIED = "skill_identified" # Potentially useful for real-time feedback, but maybe covered by SKILL_ASSESSMENT
+    # SKILL_ASSESSED = "skill_assessed"
+
+    # Data / Service Events
+    TRANSCRIPT_CREATED = "transcript_created" # Published by TranscriptService
+    TRANSCRIPT_UPDATED = "transcript_updated" # Published by TranscriptService
+    TRANSCRIPT_DELETED = "transcript_deleted" # Published by TranscriptService
+    SESSION_PERSISTED = "session_persisted" # Optional: Published by ServiceSessionManager after successful save
+
+    # Generic Events
+    ERROR = "error"                 # Published on errors
+    STATUS_UPDATE = "status_update" # Generic status update
 
 
 @dataclass
@@ -128,7 +144,6 @@ class EventBus:
                 except Exception as e:
                     print(f"Error in subscriber callback for event type {event_type}: {e}")
         
-        # Call wildcard subscribers
         if "*" in self.subscribers:
             for callback in self.subscribers["*"]:
                 try:

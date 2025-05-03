@@ -10,6 +10,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from backend.config import get_logger
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class LLMService:
     """
@@ -18,7 +21,7 @@ class LLMService:
     """
     def __init__(self, 
                  api_key: Optional[str] = None, 
-                 model_name: str = "gemini-1.5-pro", # Updated default
+                 model_name: str = "gemini-2.0-flash",
                  temperature: float = 0.7):
         """
         Initializes the LLMService.
@@ -53,7 +56,7 @@ class LLMService:
                     model=self.model_name,
                     google_api_key=self.api_key,
                     temperature=self.temperature,
-                    convert_system_message_to_human=True # Gemini specific setting
+                    convert_system_message_to_human=True
                 )
                 self.logger.info(f"Initialized ChatGoogleGenerativeAI model: {self.model_name}")
             except Exception as e:
@@ -69,8 +72,8 @@ if __name__ == '__main__':
         print(f"Successfully obtained LLM instance: {type(llm_instance)}")
         
         # Simple invocation test
-        # response = llm_instance.invoke("Hello!")
-        # print(f"LLM Response: {response.content}")
+        response = llm_instance.invoke("Hello, how are you?")
+        print(f"LLM Response: {response.content}")
 
     except ValueError as ve:
         print(f"Configuration Error: {ve}")

@@ -8,8 +8,6 @@ from fastapi import FastAPI
 
 from backend.api.agent_api import create_agent_api
 from backend.api.speech_api import create_speech_api
-from backend.api.resource_api import create_resource_api
-from backend.api.transcript_api import router as transcript_router
 
 # Create logger
 logger = logging.getLogger(__name__)
@@ -33,11 +31,6 @@ def create_app() -> FastAPI:
     logger.info("Registering API routes...")
     create_agent_api(app)
     create_speech_api(app)
-    create_resource_api(app)
-    
-    # Add transcript API routes
-    logger.info("Registering transcript API routes...")
-    app.include_router(transcript_router)
     
     # Add health check endpoint
     @app.get("/api/health")

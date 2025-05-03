@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from backend.utils.event_bus import EventBus, Event, EventType
-from backend.models.interview import InterviewSession
+from backend.agents.config_models import SessionConfig
 from backend.services.llm_service import LLMService
 
 
@@ -26,14 +26,12 @@ class AgentContext:
     def __init__(self,
                  session_id: str,
                  conversation_history: List[Dict[str, Any]],
-                 session_config: InterviewSession,
+                 session_config: SessionConfig,
                  event_bus: EventBus,
                  logger: logging.Logger,
-                 user_id: Optional[str] = None,
                  metadata: Optional[Dict[str, Any]] = None
                  ):
         self.session_id = session_id
-        self.user_id = user_id
         self.conversation_history = conversation_history
         self.session_config = session_config
         self.event_bus = event_bus
@@ -87,11 +85,22 @@ class AgentContext:
         Convert the context to a dictionary (for logging/serialization if needed).
         Note: event_bus and logger are not typically serialized.
         """
+        session_config_dict = None
+        if self.session_config:
+            session_config_dict = {
+                "job_role": self.session_config.job_role,
+                "style": self.session_config.style.value if self.session_config.style else None,
+                "difficulty": self.session_config.difficulty,
+                "target_question_count": self.session_config.target_question_count,
+                "company_name": self.session_config.company_name,
+                "job_description": self.session_config.job_description,
+                "resume_content": "[Truncated]" if self.session_config.resume_content else None
+            }
+            
         return {
             "session_id": self.session_id,
-            "user_id": self.user_id,
-            "conversation_history": self.conversation_history,
-            "session_config": self.session_config.dict() if self.session_config else None,
+            "conversation_history_length": len(self.conversation_history),
+            "session_config": session_config_dict,
             "metadata": self.metadata,
             "created_at": self.created_at.isoformat(),
         }

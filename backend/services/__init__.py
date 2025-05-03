@@ -1,198 +1,174 @@
 """
 Services module initialization.
 Provides initialization functions for creating and configuring service instances.
+Refactored for single-session, local-only operation.
 """
 
 import logging
 import os
-from typing import Dict, Any, Optional
+from typing import Optional, Any
 
 # Local imports
-from backend.database.connection import init_db
+# Remove database imports
+# from backend.database.connection import init_db
 from backend.utils.event_bus import EventBus
-from backend.utils.vector_store import VectorStore
-from backend.services.data_management import DataManagementService
-from backend.services.session_manager import SessionManager
+# Remove unused service imports
+# from backend.services.data_management import DataManagementService
+# from backend.services.session_manager import SessionManager as ServiceSessionManager
 from backend.services.search_service import SearchService
-from backend.services.transcript_service import TranscriptService
+# from backend.services.transcript_service import TranscriptService
+from backend.services.llm_service import LLMService # Keep LLMService
+from backend.agents.orchestrator import AgentSessionManager # Import AgentSessionManager
+from backend.agents.config_models import SessionConfig # Import SessionConfig
+from backend.config import get_logger # Import logger config
 
 
-class ServiceProvider:
+# Simplified Singleton Management
+# Store instances directly in the module scope or use a simplified provider
+
+_llm_service_instance: Optional[LLMService] = None
+_event_bus_instance: Optional[EventBus] = None
+_search_service_instance: Optional[SearchService] = None
+_agent_session_manager_instance: Optional[AgentSessionManager] = None
+
+logger = get_logger(__name__) # Use central logger config
+
+def get_llm_service() -> LLMService:
     """
-    Service provider class that manages global service instances.
-    Implements a singleton pattern for service access.
+    Get the singleton LLMService instance.
     """
-    _instance = None
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(ServiceProvider, cls).__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-    
-    def __init__(self):
-        """Initialize service provider and register services."""
-        if not hasattr(self, "initialized"):
-            self.logger = logging.getLogger(__name__)
-            self.logger.info("Initializing service provider")
-            
-            # Configure service registry
-            self.services = {}
-            
-            # Initialize event bus
-            self.event_bus = EventBus()
-            self.services["event_bus"] = self.event_bus
-            
-            # Initialize session manager
-            self.session_manager = SessionManager(event_bus=self.event_bus)
-            self.services["session_manager"] = self.session_manager
-            
-            # Initialize data management service
-            self.data_service = DataManagementService(event_bus=self.event_bus)
-            self.services["data_service"] = self.data_service
-            
-            # Initialize search service
-            self.search_service = SearchService()
-            self.services["search_service"] = self.search_service
-            
-            # Initialize transcript service
-            
-            # Configure vector store for transcript embeddings
-            vector_store_dir = os.environ.get("VECTOR_DB_PATH", "./data/vector_store")
-            embedding_model = os.environ.get("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
-            
-            vector_store = VectorStore(
-                embedding_model_name=embedding_model,
-                index_dir=vector_store_dir
-            )
-            
-            self.transcript_service = TranscriptService(
-                event_bus=self.event_bus,
-                vector_store=vector_store,
-                embedding_model_name=embedding_model,
-                vector_store_dir=vector_store_dir
-            )
-            self.services["transcript_service"] = self.transcript_service
-            
-            # Mark as initialized
-            self.initialized = True
-            self.logger.info("Service provider initialized successfully")
-    
-    def get(self, service_name: str) -> Any:
-        """
-        Get a service instance by name.
-        
-        Args:
-            service_name: Name of the service
-            
-        Returns:
-            Service instance
-            
-        Raises:
-            KeyError: If service not found
-        """
-        if service_name not in self.services:
-            raise KeyError(f"Service {service_name} not found")
-        
-        return self.services[service_name]
-    
-    def configure_logging(self, level=logging.INFO):
-        """
-        Configure logging for all services.
-        
-        Args:
-            level: Logging level
-        """
-        # Configure root logger
-        logging.basicConfig(
-            level=level,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        
-        # Update service loggers
-        self.logger.setLevel(level)
-        for service_name, service in self.services.items():
-            if hasattr(service, "logger"):
-                service.logger.setLevel(level)
-
-
-# Global service provider instance
-service_provider = ServiceProvider()
-
+    global _llm_service_instance
+    if _llm_service_instance is None:
+        logger.info("Creating singleton LLMService instance...")
+        try:
+            _llm_service_instance = LLMService() # Uses env vars for API key
+        except ValueError as e:
+            logger.error(f"LLMService initialization failed: {e}")
+            raise # Re-raise critical error
+        except Exception as e:
+            logger.exception(f"Unexpected error creating LLMService: {e}")
+            raise
+        logger.info("Singleton LLMService instance created.")
+    return _llm_service_instance
 
 def get_event_bus() -> EventBus:
     """
-    Get the global event bus instance.
-    
-    Returns:
-        Event bus instance
+    Get the singleton EventBus instance.
     """
-    return service_provider.event_bus
-
-
-def get_session_manager() -> SessionManager:
-    """
-    Get the global session manager instance.
-    
-    Returns:
-        Session manager instance
-    """
-    return service_provider.session_manager
-
-
-def get_data_service() -> DataManagementService:
-    """
-    Get the global data management service instance.
-    
-    Returns:
-        Data management service instance
-    """
-    return service_provider.data_service
-
+    global _event_bus_instance
+    if _event_bus_instance is None:
+        logger.info("Creating singleton EventBus instance...")
+        _event_bus_instance = EventBus()
+        logger.info("Singleton EventBus instance created.")
+    return _event_bus_instance
 
 def get_search_service() -> SearchService:
     """
-    Get the global search service instance.
-    
-    Returns:
-        Search service instance
+    Get the singleton SearchService instance.
     """
-    return service_provider.search_service
+    global _search_service_instance
+    if _search_service_instance is None:
+        logger.info("Creating singleton SearchService instance...")
+        try:
+            # Assumes API keys are in env vars (SERPAPI_API_KEY or SERPER_API_KEY)
+            provider_name = os.environ.get("SEARCH_PROVIDER", "serpapi")
+            _search_service_instance = SearchService(provider_name=provider_name)
+        except ValueError as e:
+            logger.error(f"SearchService initialization failed: {e}. Ensure API keys are set.")
+            # Decide if this is critical - maybe return None or raise?
+            # For now, raise as SkillAssessorAgent might depend on it.
+            raise
+        except Exception as e:
+            logger.exception(f"Unexpected error creating SearchService: {e}")
+            raise
+        logger.info(f"Singleton SearchService instance created (Provider: {provider_name}).")
+    return _search_service_instance
+
+def get_agent_session_manager() -> AgentSessionManager:
+    """
+    Get the singleton AgentSessionManager instance.
+    """
+    global _agent_session_manager_instance
+    if _agent_session_manager_instance is None:
+        logger.info("Creating singleton AgentSessionManager instance...")
+        try:
+            agent_logger = get_logger("AgentSessionManager")
+            llm_service = get_llm_service() # Depends on LLMService
+            event_bus = get_event_bus()     # Depends on EventBus
+            default_config = SessionConfig() # Create default config
+
+            _agent_session_manager_instance = AgentSessionManager(
+                llm_service=llm_service,
+                event_bus=event_bus,
+                logger=agent_logger,
+                session_config=default_config
+            )
+        except Exception as e:
+            logger.exception(f"Failed to create AgentSessionManager singleton: {e}")
+            raise # Critical failure if the main agent cannot start
+        logger.info("Singleton AgentSessionManager instance created.")
+    return _agent_session_manager_instance
 
 
-def get_transcript_service() -> TranscriptService:
+def initialize_services() -> None:
     """
-    Get the transcript service instance.
-    
-    Returns:
-        TranscriptService: The transcript service instance.
+    Initialize all singleton services. Call this on application startup.
+    This function now primarily ensures singletons are created eagerly if desired,
+    though they will also be created on first access via get_... functions.
+    It no longer returns a provider object.
     """
-    return ServiceProvider().get("transcript_service")
-
-
-def initialize_services(config: Optional[Dict[str, Any]] = None) -> ServiceProvider:
-    """
-    Initialize all services and return the service provider.
-    
-    Args:
-        config: Optional configuration dictionary.
-        
-    Returns:
-        ServiceProvider: The service provider instance.
-    """
-    # Initialize database
+    logger.info("Initializing core services...")
     try:
-        init_db()
+        get_llm_service()
+        get_event_bus()
+        get_search_service() # Initialize search service as well
+        get_agent_session_manager() # Initialize the main agent manager
+        logger.info("Core services initialized.")
     except Exception as e:
-        logging.error(f"Error initializing database: {str(e)}")
-    
-    # Create and return service provider
-    provider = ServiceProvider()
-    provider.configure_logging()
-    
-    # Apply configuration if provided
-    if config:
-        # Apply configuration to services as needed
-        pass
-    
-    return provider 
+        logger.error(f"Core service initialization failed: {e}")
+        # Depending on the app's needs, you might want to exit or handle this
+        raise
+
+# Remove old provider class and related functions
+# class ServiceProvider:
+#     ...
+# def get_session_manager(): ...
+# def get_data_service(): ...
+# def get_transcript_service(): ...
+
+
+# The following functions are obsolete and should be removed
+# def get_session_manager() -> SessionManager:
+#     """
+#     Get the global session manager instance.
+#     
+#     Returns:
+#         Session manager instance
+#     """
+#     return service_provider.session_manager
+# 
+# 
+# def get_data_service() -> DataManagementService:
+#     """
+#     Get the global data management service instance.
+#     
+#     Returns:
+#         Data management service instance
+#     """
+#     return service_provider.data_service
+# 
+# 
+# def get_transcript_service() -> TranscriptService:
+#     """
+#     Get the transcript service instance.
+#     
+#     Returns:
+#         TranscriptService: The transcript service instance.
+#     """
+#     return ServiceProvider().get("transcript_service")
+# 
+# # The second initialize_services and ServiceProvider class definitions are also obsolete
+# def initialize_services(config: Optional[Dict[str, Any]] = None) -> ServiceProvider:
+#    ...
+# class ServiceProvider:
+#    ... 

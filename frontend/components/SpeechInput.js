@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import SpeechRecognition from './SpeechRecognition';
 
 /**
@@ -21,6 +21,8 @@ const SpeechInput = ({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
   const [isListening, setIsListening] = useState(autoStart);
+  const [sttTaskId, setSttTaskId] = useState(null);
+  const pollingIntervalRef = useRef(null);
   const [muted, setMuted] = useState(!autoStart);
   const [errorMessage, setErrorMessage] = useState('');
   const [recognition, setRecognition] = useState(null);
@@ -94,6 +96,15 @@ const SpeechInput = ({
     }
   }, [language, onSpeechInput, autoStart]);
   
+  // Clean up polling interval on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+  
   // Handle toggling listening state
   const toggleListening = useCallback(() => {
     if (!recognition) return;
@@ -122,38 +133,106 @@ const SpeechInput = ({
     }
   };
   
+  // Function to poll transcription status
+  const pollTranscriptionStatus = useCallback(async (taskId) => {
+    try {
+      const statusResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/speech-to-text/status/${taskId}`);
+
+      if (!statusResponse.ok) {
+        // Handle non-OK status during polling (e.g., 404 if task ID is invalid)
+        const errorData = await statusResponse.json().catch(() => ({ detail: `Polling error: ${statusResponse.statusText}` }));
+        throw new Error(errorData.detail || `Polling error: ${statusResponse.statusText}`);
+      }
+
+      const statusData = await statusResponse.json();
+
+      if (statusData.status === 'completed') {
+        clearInterval(pollingIntervalRef.current); // Stop polling
+        pollingIntervalRef.current = null;
+        onSpeechInput(statusData.transcript); // Pass transcript
+        setIsUploading(false); // Reset upload state
+        setSttTaskId(null);
+        setUploadedFile(null);
+      } else if (statusData.status === 'error') {
+        clearInterval(pollingIntervalRef.current); // Stop polling
+        pollingIntervalRef.current = null;
+        throw new Error(statusData.error || 'Transcription failed'); // Use error message from backend
+      } else {
+        // Still processing, continue polling
+        setIsUploading(true); // Keep upload indicator active
+      }
+    } catch (error) {
+      console.error('Error polling transcription status:', error);
+      setUploadError(error.message);
+      clearInterval(pollingIntervalRef.current); // Stop polling on error
+      pollingIntervalRef.current = null;
+      setIsUploading(false);
+      setSttTaskId(null);
+    }
+  }, [onSpeechInput]); // Include dependencies
+  
   const handleFileUpload = async () => {
     if (!uploadedFile) return;
-    
+
     setIsUploading(true);
     setUploadError(null);
-    
+    setSttTaskId(null); // Reset previous task ID
+
+    // Clear any existing polling interval before starting a new upload
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+
     const formData = new FormData();
     formData.append('audio_file', uploadedFile);
-    
+    formData.append('language', language); // Include language if backend supports it
+
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8000'}/api/speech-to-text`, {
         method: 'POST',
         body: formData
       });
-      
+
       if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
+        // Try to get error message from response body
+        let errorMsg = `Upload error: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.detail || errorMsg;
+        } catch (e) { /* Ignore if response is not JSON */ }
+        throw new Error(errorMsg);
       }
-      
+
       const data = await response.json();
-      
-      if (data.transcript) {
-        onSpeechInput(data.transcript);
+
+      // Expect task_id and initial status
+      if (data.task_id && data.status === 'processing') {
+        setSttTaskId(data.task_id);
+        // Start polling
+        pollingIntervalRef.current = setInterval(() => {
+          pollTranscriptionStatus(data.task_id);
+        }, 3000); // Poll every 3 seconds (adjust as needed)
+      } else if (data.status === 'error') {
+        throw new Error(data.error || 'Failed to start transcription task');
       } else {
-        throw new Error('No transcript returned from server');
+        // Handle unexpected initial response (e.g., immediate completion?)
+        if (data.status === 'completed' && data.transcript) {
+          onSpeechInput(data.transcript);
+          setIsUploading(false);
+          setUploadedFile(null);
+        } else {
+          throw new Error('Unexpected response from transcription server');
+        }
       }
     } catch (error) {
       console.error('Error uploading audio file:', error);
       setUploadError(error.message);
+      setIsUploading(false); // Ensure loading state is reset on initial error
+      setSttTaskId(null);
     } finally {
-      setIsUploading(false);
-      setUploadedFile(null);
+      // Don't reset isUploading here if polling has started
+      // setUploadedFile(null); // Keep file info while processing?
     }
   };
   

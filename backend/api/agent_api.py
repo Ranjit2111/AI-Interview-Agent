@@ -1,315 +1,213 @@
 """
-API interface for the interview agent system.
-Provides endpoints for interacting with the interview agents.
+API endpoints for interacting with the interview agent.
+Refactored for single-session mode.
 """
 
-import os
-import json
-import uuid
-from typing import Dict, Any, List, Optional
-from datetime import datetime
 import logging
+from typing import List, Dict, Any, Optional
 
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, Query
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, HTTPException, Depends, Path, Request
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from backend.agents.orchestrator import AgentSessionManager
+from backend.agents.config_models import SessionConfig
+from backend.agents.base import AgentContext
+from backend.config import get_logger
 
-from backend.database.connection import get_db
-from backend.models.interview import InterviewStyle, InterviewSession
-from backend.models.user import User
-from backend.agents import SessionManager
+logger = get_logger(__name__)
 
+class InterviewStartRequest(BaseModel):
+    """Request body for starting/configuring the interview."""
+    # Mirror fields from SessionConfig, make them optional to allow partial updates?
+    # Or require all for a clean start? Let's require core ones.
+    job_role: Optional[str] = Field("General Role", description="Target job role for the interview")
+    job_description: Optional[str] = Field(None, description="Job description details")
+    resume_content: Optional[str] = Field(None, description="Candidate's resume text")
+    style: Optional[str] = Field("formal", description="Interview style (formal, casual, aggressive, technical)")
+    difficulty: Optional[str] = Field("medium", description="Interview difficulty level")
+    target_question_count: Optional[int] = Field(5, description="Approximate number of questions")
+    company_name: Optional[str] = Field(None, description="Company name for context")
 
-class UserMessage(BaseModel):
-    """Model for user messages sent to the agent system."""
-    message: str = Field(..., description="The user's message text")
-    user_id: Optional[str] = Field(None, description="User identifier")
-    session_id: str = Field(..., description="Session identifier")
-
-    class Config:
-        from_attributes = True
-
-
-class InterviewConfig(BaseModel):
-    """Model for configuring a new interview session."""
-    job_role: str = Field(..., description="Target job role for the interview")
-    job_description: Optional[str] = Field(None, description="Detailed job description")
-    resume_content: Optional[str] = Field(None, description="Content of the user's resume")
-    company_name: Optional[str] = Field(None, description="Company name")
-    interview_style: Optional[str] = Field(InterviewStyle.FORMAL.value, description="Style of interview (FORMAL, CASUAL, AGGRESSIVE, TECHNICAL)")
-    question_count: Optional[int] = Field(5, description="Target number of questions")
-    difficulty_level: Optional[str] = Field("medium", description="Difficulty level")
-    user_id: Optional[str] = Field(None, description="User identifier")
-    
-    class Config:
-        from_attributes = True
-
-
-class SessionStartResponse(BaseModel):
-    session_id: str = Field(..., description="The unique ID for the new session")
-    initial_message: Optional[Dict[str, Any]] = Field(None, description="The initial message from the interviewer")
-    
-    class Config:
-        from_attributes = True
-
-
-class SessionEndResponse(BaseModel):
-    status: str
-    session_id: str
-    coaching_summary: Optional[Dict[str, Any]]
-    skill_profile: Optional[Dict[str, Any]]
-    
-    class Config:
-        from_attributes = True
-
-
-class SessionInfo(BaseModel):
-    """Model for session information."""
-    session_id: str
-    job_role: str
-    interview_style: str
-    created_at: str
-    
-    class Config:
-        from_attributes = True
-
-
-class SessionMetrics(BaseModel):
-    """Model for session metrics."""
-    session_id: str
-    total_messages: int
-    user_messages: int
-    assistant_messages: int
-    system_messages: int
-    total_response_time_seconds: float
-    average_response_time_seconds: float
-    total_api_calls: int
-    total_tokens_used: int
-    
-    class Config:
-        from_attributes = True
-
+class UserInput(BaseModel):
+    """Request body for sending user message to the interview."""
+    message: str = Field(..., description="The user's message/answer")
 
 class AgentResponse(BaseModel):
-    """Model for agent responses."""
+    """Standard response structure from agent interactions."""
     role: str
-    agent: Optional[str] = None
     content: str
     response_type: Optional[str] = None
-    timestamp: str
-    processing_time: Optional[float] = None
     metadata: Optional[Dict[str, Any]] = None
-    is_error: Optional[bool] = False
-    
-    class Config:
-        from_attributes = True
 
+class HistoryResponse(BaseModel):
+    """Response for conversation history."""
+    history: List[Dict[str, Any]]
 
-class SkillResource(BaseModel):
-    """Model for skill improvement resources."""
-    title: str
-    url: str
-    description: Optional[str]
-    type: Optional[str]
-    relevance_score: Optional[float]
-    
-    class Config:
-        from_attributes = True
+class StatsResponse(BaseModel):
+    """Response for session statistics."""
+    stats: Dict[str, Any]
 
+class ResetResponse(BaseModel):
+    """Response for resetting the session."""
+    message: str
 
-class SkillProfile(BaseModel):
-    """Model for a user's complete skill profile."""
-    job_role: str
-    assessed_skills: List[Dict[str, Any]]
-    
-    class Config:
-        from_attributes = True
+class EndResponse(BaseModel):
+    """Response for ending the interview."""
+    results: Dict[str, Any]
 
+def create_agent_api(app):
+    """Creates and registers agent API routes."""
+    # Update router prefix and tags
+    router = APIRouter(prefix="/interview", tags=["interview"])
 
-async def get_session_config(session_id: str, db: Session = Depends(get_db)) -> InterviewSession:
-    """Placeholder: Retrieves InterviewSession config from DB."""
-    session_data = db.query(InterviewSession).filter(InterviewSession.session_id == session_id).first()
-    if not session_data:
-        raise HTTPException(status_code=404, detail=f"Session config {session_id} not found")
-    return session_data
-
-
-async def get_session_manager_instance(
-    session_id: str = Query(...),
-    db: Session = Depends(get_db)
-) -> SessionManager:
-    """
-    FastAPI dependency to get a SessionManager instance for a given session ID.
-    Retrieves config from DB and instantiates the manager.
-    """
-    try:
-        session_config = await get_session_config(session_id, db)
-        user_id = session_config.user_id 
-        manager = SessionManager(
-            session_id=session_id,
-            user_id=user_id, 
-            session_config=session_config
-        )
-        return manager
-    except HTTPException as http_exc:
-        raise http_exc
-    except Exception as e:
-        logging.exception(f"Failed to get/create SessionManager for {session_id}: {e}")
-        raise HTTPException(status_code=500, detail="Could not load session manager.")
-
-
-def create_agent_api(app: FastAPI):
-    """
-    Create API endpoints for the agent system.
-    """
-    logger = logging.getLogger(__name__)
-    
-    @app.post("/api/interview/start", response_model=SessionStartResponse)
-    async def start_interview(config: InterviewConfig, db: Session = Depends(get_db)):
+    @router.post("/start", response_model=AgentResponse)
+    async def start_interview(start_request: InterviewStartRequest, request: Request):
         """
-        Start a new interview session.
-        Creates InterviewSession, persists it, initializes SessionManager, gets first message.
+        Starts a new interview or configures the existing single session.
+        Resets previous state and applies new configuration.
+        Returns the initial message from the interviewer.
         """
-        logger.info(f"Entered start_interview endpoint for role: {config.job_role}") 
-        session_id = str(uuid.uuid4())
-        logger.info(f"Attempting to start interview session {session_id}...")
+        logger.info(f"Received request to start/configure interview: {start_request.dict()}")
         try:
-            logger.info("Mapping config to InterviewSession model...")
-            session_data = InterviewSession(
-                session_id=session_id,
-                user_id=config.user_id,
-                job_role=config.job_role,
-                job_description=config.job_description,
-                resume_text=config.resume_content, 
-                style=InterviewStyle(config.interview_style or InterviewStyle.FORMAL.value), 
-                created_at=datetime.utcnow(), 
-            )
-            logger.info("InterviewSession object created in memory.")
-            
-            db.add(session_data)
-            logger.info("Added session_data to DB session.")
-            db.commit()
-            logger.info("DB commit successful.")
-            db.refresh(session_data)
-            logger.info(f"Interview session {session_id} persisted and refreshed.")
+            agent_manager: AgentSessionManager = request.app.state.agent_manager
+            if not agent_manager:
+                raise HTTPException(status_code=500, detail="Agent Manager not initialized")
 
-            logger.info("Initializing SessionManager...")
-            manager = SessionManager(
-                session_id=session_id,
-                user_id=config.user_id,
-                session_config=session_data
+            # Create new SessionConfig from request
+            # Handle potential None values if needed based on SessionConfig definition
+            new_config = SessionConfig(**start_request.dict(exclude_unset=True))
+
+            # Update the singleton agent manager's config
+            agent_manager.session_config = new_config
+            logger.info(f"Updated agent manager config: {new_config.dict()}")
+
+            # Reset the agent manager's state
+            agent_manager.reset_session() # This publishes SESSION_RESET
+            logger.info("Agent manager state reset.")
+
+            # Trigger the initial processing to get the first message
+            # Construct a minimal context for the first process call
+            initial_context = AgentContext(
+                session_id="local_session", # Placeholder
+                conversation_history=[],
+                session_config=new_config,
+                event_bus=agent_manager.event_bus,
+                logger=agent_manager.logger
             )
-            logger.info("SessionManager initialized.")
-            
-            logger.info("Processing initial message...")
-            initial_response = manager.process_message("")
-            logger.info("Initial message processed.")
-            
-            return SessionStartResponse(
-                session_id=session_id,
-                initial_message=initial_response
-            )
-            
-        except ValueError as ve:
-            logger.exception(f"Value error during session start (likely invalid style '{config.interview_style}'): {ve}")
-            raise HTTPException(status_code=400, detail=f"Invalid configuration value: {ve}")
+            first_response = agent_manager.process(initial_context)
+            logger.info(f"Generated initial agent response: {first_response}")
+
+            # Return the first agent response
+            return AgentResponse(**first_response)
+
         except Exception as e:
-            logger.exception(f"Unhandled error starting interview session {session_id}: {e}")
-            db.rollback()
-            raise HTTPException(status_code=500, detail="Failed to start interview session.")
-    
-    @app.post("/api/interview/send", response_model=AgentResponse)
-    async def send_message(
-        message: UserMessage,
-        manager: SessionManager = Depends(lambda message_body: get_session_manager_instance(session_id=message_body.session_id), use_cache=False)
-    ):
-        """
-        Send a message to an ongoing interview session.
-        """
-        logger.info(f"Received message for session {message.session_id}")
-        agent_response = manager.process_message(message.message, message.user_id)
-        return AgentResponse(**agent_response)
-    
-    @app.post("/api/interview/end", response_model=SessionEndResponse)
-    async def end_interview(
-        session_id: str = Query(...),
-        manager: SessionManager = Depends(get_session_manager_instance)
-    ):
-        """
-        End an interview session and get final summaries.
-        """
-        logger.info(f"Ending interview session {session_id}")
-        final_results = manager.end_interview()
-        return SessionEndResponse(**final_results)
-    
-    @app.get("/api/interview/history", response_model=List[AgentResponse])
-    async def get_conversation_history(
-        session_id: str = Query(...),
-        manager: SessionManager = Depends(get_session_manager_instance)
-    ):
-        """
-        Get the conversation history for a session.
-        """
-        logger.info(f"Fetching history for session {manager.session_id}")
-        return [AgentResponse(**msg) for msg in manager.get_conversation_history()]
+            logger.exception(f"Error during interview start: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to start interview: {e}")
 
-    @app.get("/api/interview/stats", response_model=SessionMetrics)
-    async def get_session_stats(
-        session_id: str = Query(...),
-        manager: SessionManager = Depends(get_session_manager_instance)
-    ):
+    @router.post("/message", response_model=AgentResponse)
+    async def post_message(user_input: UserInput, request: Request):
         """
-        Get performance statistics for a session.
+        Send a user message (answer) to the ongoing interview session.
+        Returns the agent's next response (question, feedback, closing).
         """
-        logger.info(f"Fetching stats for session {manager.session_id}")
-        return SessionMetrics(**manager.get_session_stats())
+        logger.info(f"Received user message: '{user_input.message[:50]}...' ")
+        try:
+            agent_manager: AgentSessionManager = request.app.state.agent_manager
+            if not agent_manager:
+                raise HTTPException(status_code=500, detail="Agent Manager not initialized")
 
-    @app.get("/api/interview/skill-profile", response_model=SkillProfile)
-    async def get_skill_profile_endpoint(
-        session_id: str = Query(...),
-        manager: SessionManager = Depends(get_session_manager_instance)
-    ):
-        """
-        Get the generated skill profile for a session (usually after ending).
-        """
-        logger.info(f"Fetching skill profile for session {manager.session_id}")
-        skill_agent = manager._get_agent('skill_assessor')
-        if skill_agent and hasattr(skill_agent, 'generate_skill_profile'):
-            profile = skill_agent.generate_skill_profile()
-            if isinstance(profile, dict) and "error" in profile:
-                raise HTTPException(status_code=500, detail=profile["error"])
-            try:
-                return SkillProfile(**profile)
-            except Exception as validation_error:
-                logger.error(f"Skill profile validation failed for session {manager.session_id}: {validation_error}")
-                raise HTTPException(status_code=500, detail="Failed to validate skill profile structure.")
-        else:
-            logger.error(f"Skill assessor not available for session {manager.session_id}")
-            raise HTTPException(status_code=500, detail="Skill assessment not available.")
+            # Construct context for the agent
+            # History is managed internally by agent_manager after process_message call
+            # We just need to trigger the processing of the new message
+            # The agent's process method should handle history update and context creation internally now
+            agent_response = agent_manager.process_message(message=user_input.message)
 
-    @app.get("/api/interview/skill-resources", response_model=List[SkillResource])
-    async def get_skill_resources_endpoint(
-        skill_name: str = Query(...),
-        session_id: str = Query(...),
-        manager: SessionManager = Depends(get_session_manager_instance)
-    ):
-        """
-        Get suggested resources for improving a specific skill.
-        """
-        logger.info(f"Fetching resources for skill '{skill_name}' in session {manager.session_id}")
-        skill_agent = manager._get_agent('skill_assessor')
-        if skill_agent and hasattr(skill_agent, 'get_suggested_resources'):
-            resources = skill_agent.get_suggested_resources(skill_name)
-            try:
-                return [SkillResource(**res) for res in resources]
-            except Exception as validation_error:
-                logger.error(f"Skill resource validation failed for session {manager.session_id}: {validation_error}")
-                raise HTTPException(status_code=500, detail="Failed to validate skill resource structure.")
-        else:
-            logger.error(f"Skill assessor not available for session {manager.session_id}")
-            raise HTTPException(status_code=500, detail="Skill assessment not available.")
+            logger.info(f"Agent generated response: {agent_response}")
+            return AgentResponse(**agent_response)
 
-    logger.info("Agent API endpoints created.")
+        except Exception as e:
+            logger.exception(f"Error processing message: {e}")
+            raise HTTPException(status_code=500, detail=f"Error processing message: {e}")
 
-    return app 
+    @router.post("/end", response_model=EndResponse)
+    async def end_interview(request: Request):
+        """
+        Manually ends the current interview session and retrieves final results.
+        """
+        logger.info("Received request to end interview.")
+        try:
+            agent_manager: AgentSessionManager = request.app.state.agent_manager
+            if not agent_manager:
+                raise HTTPException(status_code=500, detail="Agent Manager not initialized")
+
+            # Call the agent manager's end method
+            final_results = agent_manager.end_interview()
+            logger.info(f"Interview ended. Final results: {final_results}")
+
+            # Note: No database saving happens here anymore
+            return EndResponse(results=final_results)
+
+        except Exception as e:
+            logger.exception(f"Error ending interview: {e}")
+            raise HTTPException(status_code=500, detail=f"Error ending interview: {e}")
+
+    @router.get("/history", response_model=HistoryResponse)
+    async def get_history(request: Request):
+        """
+        Retrieves the conversation history for the current session.
+        """
+        logger.debug("Received request for conversation history.")
+        try:
+            agent_manager: AgentSessionManager = request.app.state.agent_manager
+            if not agent_manager:
+                raise HTTPException(status_code=500, detail="Agent Manager not initialized")
+
+            history = agent_manager.get_conversation_history()
+            return HistoryResponse(history=history)
+
+        except Exception as e:
+            logger.exception(f"Error retrieving history: {e}")
+            raise HTTPException(status_code=500, detail=f"Error retrieving history: {e}")
+
+    @router.get("/stats", response_model=StatsResponse)
+    async def get_stats(request: Request):
+        """
+        Retrieves performance statistics for the current session.
+        """
+        logger.debug("Received request for session stats.")
+        try:
+            agent_manager: AgentSessionManager = request.app.state.agent_manager
+            if not agent_manager:
+                raise HTTPException(status_code=500, detail="Agent Manager not initialized")
+
+            stats = agent_manager.get_session_stats()
+            return StatsResponse(stats=stats)
+
+        except Exception as e:
+            logger.exception(f"Error retrieving stats: {e}")
+            raise HTTPException(status_code=500, detail=f"Error retrieving stats: {e}")
+
+    @router.post("/reset", response_model=ResetResponse)
+    async def reset_interview(request: Request):
+        """
+        Resets the state of the single interview session manager.
+        """
+        logger.info("Received request to reset interview state.")
+        try:
+            agent_manager: AgentSessionManager = request.app.state.agent_manager
+            if not agent_manager:
+                raise HTTPException(status_code=500, detail="Agent Manager not initialized")
+
+            agent_manager.reset_session()
+            logger.info("Interview state reset successfully.")
+            return ResetResponse(message="Interview session state has been reset.")
+
+        except Exception as e:
+            logger.exception(f"Error resetting interview state: {e}")
+            raise HTTPException(status_code=500, detail=f"Error resetting interview state: {e}")
+
+    # Register the router with the main app
+    app.include_router(router)
+    logger.info("Agent API router registered with prefix /interview")
+
+# Note: The create_agent_api function now registers the router internally.
+# Ensure it's called correctly in main.py. 
