@@ -30,7 +30,8 @@ try:
     )
     from backend.utils.llm_utils import (
         invoke_chain_with_error_handling, # Keep
-        format_conversation_history # Keep
+        format_conversation_history, # Keep
+        parse_json_with_fallback # Added
     )
 except ImportError:
     from .base import BaseAgent, AgentContext # Keep
@@ -45,7 +46,8 @@ except ImportError:
     )
     from ..utils.llm_utils import (
         invoke_chain_with_error_handling, # Keep
-        format_conversation_history
+        format_conversation_history, # Keep
+        parse_json_with_fallback # Added
     )
 
 # Keep InterviewState Enum (simplified)
@@ -353,20 +355,29 @@ class InterviewerAgent(BaseAgent):
         
         # Update interview parameters if provided
         data = event.data
-        self.job_role = data.get("job_role", self.job_role)
-        self.job_description = data.get("job_description", self.job_description)
-        self.resume_content = data.get("resume_content", self.resume_content)
-        self.company_name = data.get("company_name", self.company_name)
-        self.question_count = int(data.get("question_count", self.question_count))
-        self.difficulty_level = data.get("difficulty_level", self.difficulty_level)
+        config = data.get("config", {})
         
-        try:
-            style_value = data.get("interview_style", self.interview_style.value)
-            self.interview_style = InterviewStyle(style_value)
-        except ValueError:
-             self.logger.warning(f"Invalid interview style '{style_value}' received. Defaulting to {self.interview_style.value}.")
+        if isinstance(config, dict):
+            self.job_role = config.get("job_role", self.job_role)
+            self.job_description = config.get("job_description", self.job_description)
+            self.resume_content = config.get("resume_content", self.resume_content)
+            self.company_name = config.get("company_name", self.company_name)
+            self.question_count = int(config.get("target_question_count", self.question_count))
+            self.difficulty_level = config.get("difficulty", self.difficulty_level)
+            
+            try:
+                style_value = config.get("style", self.interview_style.value)
+                self.interview_style = InterviewStyle(style_value)
+            except ValueError:
+                 self.logger.warning(f"Invalid interview style '{style_value}' received. Defaulting to {self.interview_style.value}.")
+        else:
+            self.logger.warning(f"Received invalid config data: {config}")
         
         self.logger.info(f"Interview configuration updated via SESSION_START event.")
+        
+        # Generate initial questions
+        self._generate_questions()
+        self.logger.info(f"Generated {len(self.initial_questions)} initial questions during session start.")
     
     def _handle_session_end(self, event: Event) -> None:
         """
@@ -409,9 +420,9 @@ class InterviewerAgent(BaseAgent):
         }
         
         default_action = {
-            "action_type": "end_interview",
-            "next_question_text": None,
-            "justification": "Defaulting to end interview due to processing error.",
+            "action_type": "ask_new_question",
+            "next_question_text": "Can you tell me about your professional background and experience?",
+            "justification": "Defaulting to a general question due to processing error.",
             "newly_covered_topics": []
         }
         
@@ -423,14 +434,31 @@ class InterviewerAgent(BaseAgent):
             output_key="action_json" # Expecting JSON string output
         )
         
+        # Handle case where the response is in the 'text' field instead of 'action_json'
+        if response is None and isinstance(self.next_action_chain.invoke(inputs), dict):
+            raw_response = self.next_action_chain.invoke(inputs)
+            self.logger.debug(f"Raw response from next_action_chain: {raw_response}")
+            
+            # Check if there's a text field containing JSON
+            if 'text' in raw_response and isinstance(raw_response['text'], str):
+                parsed_json = parse_json_with_fallback(raw_response['text'], None, self.logger)
+                if parsed_json is not None:
+                    self.logger.info(f"Successfully parsed JSON from 'text' field")
+                    response = parsed_json
+        
         if isinstance(response, dict) and "action_type" in response:
             action_type = response.get("action_type")
             if not isinstance(action_type, str) or action_type not in ["ask_follow_up", "ask_new_question", "end_interview"]:
                 self.logger.error(f"Invalid action_type received: {action_type}")
                 return default_action
+            if action_type == "end_interview" and self.asked_question_count < 3:
+                self.logger.warning(f"Attempting to end interview after only {self.asked_question_count} questions. Overriding.")
+                response["action_type"] = "ask_new_question"
+                response["next_question_text"] = default_action["next_question_text"]
+                response["justification"] = "Continuing interview to meet minimum question count."
             if not isinstance(response.get("newly_covered_topics"), list):
                  response["newly_covered_topics"] = []
-            self.logger.info(f"Next action determined: {action_type}, Justification: {response.get('justification')}")
+            self.logger.info(f"Next action determined: {response.get('action_type')}, Justification: {response.get('justification')}")
             return response
         else:
             self.logger.error(f"Next action chain did not return a valid action dictionary. Got: {response}")
@@ -440,10 +468,10 @@ class InterviewerAgent(BaseAgent):
         """
         Processes the current context to determine the next step in the interview.
         Uses the ReAct-style chain to decide the action and generate the response.
-
+        
         Args:
             context: The current AgentContext.
-
+            
         Returns:
             A dictionary representing the agent's response.
         """
@@ -459,7 +487,11 @@ class InterviewerAgent(BaseAgent):
         }
 
         if self.current_state == InterviewState.INITIALIZING:
-            self._handle_session_start(Event(EventType.SESSION_START, {"config": context.session_config.dict()}))
+            self._handle_session_start(Event(
+                event_type=EventType.SESSION_START,
+                source=self.__class__.__name__,
+                data={"config": context.session_config.dict()}
+            ))
             # Transition state after handling start
             if self.initial_questions:
                 self.current_state = InterviewState.INTRODUCING

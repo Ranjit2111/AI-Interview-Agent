@@ -81,10 +81,11 @@ async def transcribe_with_assemblyai(audio_file_path: str, task_id: str):
         async with httpx.AsyncClient() as client:
             # Upload the file
             with open(audio_file_path, "rb") as f:
+                file_content = f.read() # Read the content first
                 response = await client.post(
                     "https://api.assemblyai.com/v2/upload",
                     headers=headers,
-                    data=f
+                    data=file_content # Pass the bytes
                 )
             
             if response.status_code != 200:
@@ -132,12 +133,14 @@ async def transcribe_with_assemblyai(audio_file_path: str, task_id: str):
                 data = response.json()
                 
                 if data["status"] == "completed":
+                    logger.info(f"Transcription completed with text: '{data['text']}'")
                     speech_tasks[task_id] = {
                         "status": "completed",
                         "transcript": data["text"]
                     }
                     return
                 elif data["status"] == "error":
+                    logger.error(f"Transcription error: {data.get('error', 'Unknown error')}")
                     speech_tasks[task_id] = {
                         "status": "error",
                         "error": f"Transcription error: {data.get('error', 'Unknown error')}"
@@ -250,22 +253,101 @@ async def get_available_voices():
     try:
         response = await tts_client.get(f"{KOKORO_API_URL}/v1/audio/voices")
         response.raise_for_status()
-        voices_data = response.json() # Should be a list of dicts
-
-        # Map the response to the format expected by the frontend (if different)
-        # Assuming frontend expects 'id', 'name', 'language', 'description'
-        # The server provides 'name', 'language', 'description' currently.
-        # We can use 'name' as 'id' for now.
-        formatted_voices = [
-            {
-                "id": voice.get("name", "unknown_voice"), # Use name as ID
-                "name": voice.get("name", "Unknown Voice"),
-                "language": voice.get("language", "unknown"),
-                "description": voice.get("description", "No description available"),
-                "gender": voice.get("gender", "unknown") # Add gender if server provides it later
-            }
-            for voice in voices_data
-        ]
+        voices_data = response.json() # Should be a list of dicts, but might be list of strings or a dict
+        
+        logger.debug(f"Received voices data: {voices_data}")
+        formatted_voices = []
+        
+        # Handle different response formats
+        if isinstance(voices_data, list):
+            # Original expected format: list of voice objects or strings
+            for voice_item in voices_data:
+                if isinstance(voice_item, dict):
+                    # Handle expected dictionary structure
+                    formatted_voices.append({
+                        "id": voice_item.get("name", "unknown_voice"),
+                        "name": voice_item.get("name", "Unknown Voice"),
+                        "language": voice_item.get("language", "unknown"),
+                        "description": voice_item.get("description", "No description available"),
+                        "gender": voice_item.get("gender", "unknown")
+                    })
+                elif isinstance(voice_item, str):
+                    # Handle unexpected list of strings structure
+                    formatted_voices.append({
+                        "id": voice_item, # Use the string as ID
+                        "name": voice_item.replace("_", " ").title(), # Format name from ID
+                        "language": "unknown", # Cannot determine language
+                        "description": "Description unavailable",
+                        "gender": "unknown"
+                    })
+                else:
+                    logger.warning(f"Unexpected item type in voices list: {type(voice_item)}")
+        elif isinstance(voices_data, dict):
+            # New format: might be a dict with a 'voices' key or similar
+            # Look for common keys that might contain the voice list
+            possible_keys = ["voices", "data", "results", "models"]
+            voice_list = None
+            
+            # Try to find a list of voices in any of the common keys
+            for key in possible_keys:
+                if key in voices_data and isinstance(voices_data[key], list):
+                    voice_list = voices_data[key]
+                    logger.info(f"Found voices list under key: {key}")
+                    break
+                    
+            # If we found a list, process it
+            if voice_list:
+                for voice_item in voice_list:
+                    if isinstance(voice_item, dict):
+                        formatted_voices.append({
+                            "id": voice_item.get("name", voice_item.get("id", "unknown_voice")),
+                            "name": voice_item.get("name", voice_item.get("id", "Unknown Voice")),
+                            "language": voice_item.get("language", "unknown"),
+                            "description": voice_item.get("description", "No description available"),
+                            "gender": voice_item.get("gender", "unknown")
+                        })
+                    elif isinstance(voice_item, str):
+                        formatted_voices.append({
+                            "id": voice_item,
+                            "name": voice_item.replace("_", " ").title(),
+                            "language": "unknown",
+                            "description": "Description unavailable",
+                            "gender": "unknown"
+                        })
+            # If no list found in common keys, try using the dict keys themselves as voice IDs
+            elif len(voices_data) > 0:
+                logger.info(f"Using dictionary keys as voice IDs, found {len(voices_data)} voices")
+                for key, value in voices_data.items():
+                    voice_name = key
+                    # If the value is a dict, it might contain additional voice info
+                    voice_info = value if isinstance(value, dict) else {}
+                    formatted_voices.append({
+                        "id": key,
+                        "name": voice_info.get("name", key.replace("_", " ").title()),
+                        "language": voice_info.get("language", "unknown"),
+                        "description": voice_info.get("description", "No description available"),
+                        "gender": voice_info.get("gender", "unknown")
+                    })
+            else:
+                logger.error(f"Could not find voice list in dictionary response: {voices_data}")
+                # Return a default voice if we can't find any
+                formatted_voices = [{
+                    "id": "am_michael",
+                    "name": "Default Voice",
+                    "language": "en",
+                    "description": "Default voice (API response could not be parsed)",
+                    "gender": "unknown"
+                }]
+        else:
+             logger.error(f"Unexpected data structure for voices response: {type(voices_data)}")
+             # Instead of failing, provide at least one default voice
+             formatted_voices = [{
+                 "id": "am_michael",
+                 "name": "Default Voice",
+                 "language": "en",
+                 "description": "Default voice (API response could not be parsed)",
+                 "gender": "unknown"
+             }]
 
         return JSONResponse({"voices": formatted_voices})
 
@@ -289,7 +371,7 @@ async def get_available_voices():
 @router.post("/api/text-to-speech")
 async def text_to_speech(
     text: str = Form(...),
-    voice_id: str = Form("af_heart"),  # Default voice matches server default
+    voice_id: str = Form("am_michael"),  # Default voice matches server default
     speed: float = Form(1.0, ge=0.5, le=2.0), # Added validation from server
     # pitch: float = Form(1.0), # REMOVED - Not supported by server
     # format: str = Form("mp3") # REMOVED - Server returns WAV
@@ -299,7 +381,7 @@ async def text_to_speech(
 
     Args:
         text: Text to synthesize.
-        voice_id: ID (name) of the voice to use (e.g., 'af_heart').
+        voice_id: ID (name) of the voice to use (e.g., 'am_michael').
         speed: Speech speed (0.5 to 2.0).
 
     Returns:
@@ -366,7 +448,7 @@ async def text_to_speech(
 @router.post("/api/text-to-speech/stream")
 async def stream_text_to_speech(
     text: str = Form(...),
-    voice_id: str = Form("af_heart"),  # Default voice
+    voice_id: str = Form("am_michael"),  # Default voice
     speed: float = Form(1.0, ge=0.5, le=2.0),
     # pitch: float = Form(1.0) # REMOVED
 ):

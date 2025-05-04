@@ -83,7 +83,11 @@ class AgentSessionManager:
                     end_time = datetime.utcnow()
                     load_time = (end_time - start_time).total_seconds()
                     self.logger.info(f"Loaded {agent_type} agent in {load_time:.2f} seconds.")
-                    self.event_bus.publish(Event(EventType.AGENT_LOAD, {"agent_type": agent_type, "load_time": load_time}))
+                    self.event_bus.publish(Event(
+                        event_type=EventType.AGENT_LOAD, 
+                        source='AgentSessionManager',
+                        data={"agent_type": agent_type, "load_time": load_time}
+                    ))
                 
             except Exception as e:
                 self.logger.exception(f"Failed to initialize agent {agent_type}: {e}")
@@ -108,8 +112,9 @@ class AgentSessionManager:
         self.conversation_history.append(user_message_data)
 
         self.event_bus.publish(Event(
-            EventType.USER_MESSAGE,
-            {
+            event_type=EventType.USER_MESSAGE,
+            source='AgentSessionManager',
+            data={
                 "message": user_message_data
             }
         ))
@@ -144,8 +149,9 @@ class AgentSessionManager:
             self.conversation_history.append(assistant_response_data)
 
             self.event_bus.publish(Event(
-                EventType.ASSISTANT_RESPONSE,
-                {
+                event_type=EventType.ASSISTANT_RESPONSE,
+                source='AgentSessionManager',
+                data={
                     "response": assistant_response_data
                 }
             ))
@@ -155,7 +161,11 @@ class AgentSessionManager:
 
         except Exception as e:
             self.logger.exception(f"Error processing message: {e}")
-            self.event_bus.publish(Event(EventType.ERROR, {"error": str(e), "details": "Error during message processing"}))
+            self.event_bus.publish(Event(
+                event_type=EventType.ERROR,
+                source='AgentSessionManager',
+                data={"error": str(e), "details": "Error during message processing"}
+            ))
             error_response = {
                 "role": "system",
                 "content": "Sorry, I encountered an error processing your request. Please try again.",
@@ -181,7 +191,11 @@ class AgentSessionManager:
         and returns a consolidated result.
         """
         self.logger.info(f"Ending interview session")
-        self.event_bus.publish(Event(EventType.SESSION_END, {}))
+        self.event_bus.publish(Event(
+            event_type=EventType.SESSION_END,
+            source='AgentSessionManager',
+            data={}
+        ))
 
         final_results = {
             "status": "Interview Ended",
@@ -247,6 +261,6 @@ class AgentSessionManager:
         self.total_tokens_used = 0
         self.api_call_count = 0
         
-        self.event_bus.publish(Event(EventType.SESSION_RESET, {}))
+        self.event_bus.publish(Event(event_type=EventType.SESSION_RESET, source='AgentSessionManager', data={}))
         self.logger.info(f"Agent Session Manager state has been reset.")
 

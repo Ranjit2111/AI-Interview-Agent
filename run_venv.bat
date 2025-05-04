@@ -23,15 +23,6 @@ echo Installing essential backend dependencies...
 cd backend
 call .venv\Scripts\activate
 
-::echo Installing core packages...
-::python -m pip install "uvicorn[standard]" "fastapi" "sqlalchemy" "python-dotenv" "pydantic<2.0.0" "python-multipart"
-
-::echo Installing langchain packages...
-::python -m pip install "langchain-core" "langchain-community" "langchain-google-genai"
-
-::echo Installing data processing packages...
-::python -m pip install "numpy==1.23.5" "scipy==1.10.0" "PyMuPDF==1.21.1" "python-docx==0.8.11"
-
 :: Deactivate virtual environment
 call deactivate
 cd ..
@@ -58,6 +49,12 @@ echo Starting backend server...
 start cmd /k "cd backend && call .venv\Scripts\activate && set PYTHONPATH=%PROJECT_ROOT% && python -m uvicorn main:app --reload --port 8000"
 
 echo.
+echo Installing frontend dependencies...
+cd frontend
+call npm install
+cd ..
+
+echo.
 echo Starting frontend server...
 start cmd /k "cd frontend && npm run dev"
 
@@ -65,7 +62,7 @@ echo.
 echo Services are starting in separate windows.
 echo.
 echo - Backend: http://localhost:8000
-echo - Frontend: http://localhost:3000
+echo - Frontend: http://localhost:8080
 echo.
 echo If you encounter errors, check the console windows for details.
 

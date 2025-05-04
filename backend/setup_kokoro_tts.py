@@ -203,7 +203,7 @@ logger = logging.getLogger("kokoro-tts-server")
 # --- Configuration ---
 # Use environment variables or defaults
 DEFAULT_LANG_CODE = os.environ.get("KOKORO_LANG_CODE", "a") # 'a' for American English
-DEFAULT_VOICE = os.environ.get("KOKORO_DEFAULT_VOICE", "af_heart")
+DEFAULT_VOICE = os.environ.get("KOKORO_DEFAULT_VOICE", "am_michael")
 MODEL_DEVICE = os.environ.get("KOKORO_DEVICE", "cpu") # "cuda" or "mps" if available and configured
 SERVER_PORT = int(os.environ.get("PORT", {DEFAULT_PORT})) # Get port from env
 SERVER_HOST = os.environ.get("HOST", "127.0.0.1") # Default to localhost
@@ -270,7 +270,7 @@ async def get_voices():
     # This list might need manual updating based on Kokoro releases.
     # For now, return the default as the only known one.
     # TODO: Explore if kokoro or misaki offers voice listing capabilities.
-    return [{{"name": DEFAULT_VOICE, "language": DEFAULT_LANG_CODE, "description": "Default Kokoro Voice (af_heart)"}}]
+    return [{{"name": DEFAULT_VOICE, "language": DEFAULT_LANG_CODE, "description": "Default Kokoro Voice (am_michael)"}}]
 
 @app.post("/synthesize", response_class=StreamingResponse)
 async def synthesize_speech(request: TTSRequest):
