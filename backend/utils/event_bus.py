@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Callable, Set
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
 import enum
+import logging
 
 
 class EventType(str, enum.Enum):
@@ -118,6 +119,7 @@ class EventBus:
         self.subscribers: Dict[str, List[Callable[[Event], None]]] = {}
         self.event_history: List[Event] = []
         self.max_history_size = 1000
+        self.logger = logging.getLogger(__name__)
     
     def publish(self, event: Event) -> None:
         """
@@ -142,14 +144,15 @@ class EventBus:
                 try:
                     callback(event)
                 except Exception as e:
-                    print(f"Error in subscriber callback for event type {event_type}: {e}")
+                    self.logger.exception(f"Error in subscriber callback for event type {event_type}: {e}")
         
+        # Notify wildcard subscribers
         if "*" in self.subscribers:
             for callback in self.subscribers["*"]:
                 try:
                     callback(event)
                 except Exception as e:
-                    print(f"Error in wildcard subscriber callback: {e}")
+                    self.logger.exception(f"Error in wildcard subscriber callback: {e}")
     
     def subscribe(self, event_type: str, callback: Callable[[Event], None]) -> None:
         """

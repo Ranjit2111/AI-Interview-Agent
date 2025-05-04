@@ -1,0 +1,276 @@
+# Kokoro TTS API Documentation
+
+This document outlines the available API endpoints for the Kokoro TTS service based on the provided OpenAPI specification.
+
+## OpenAI Compatible TTS Endpoints
+
+---
+
+### POST /v1/audio/speech
+- **Summary:** Create Speech
+- **Description:** OpenAI-compatible endpoint for text-to-speech
+- **Operation ID:** create_speech_v1_audio_speech_post
+- **Parameters:**
+    - Header: `x-raw-response` (optional, string)
+- **Request Body:** (required, application/json)
+    - Schema: `OpenAISpeechRequest` (See Components section below)
+- **Responses:**
+    - 200: Successful Response
+    - 404: Not found
+    - 422: Validation Error
+
+---
+
+### GET /v1/download/{filename}
+- **Summary:** Download Audio File
+- **Description:** Download a generated audio file from temp storage
+- **Operation ID:** download_audio_file_v1_download__filename__get
+- **Parameters:**
+    - Path: `filename` (required, string) - The filename to download.
+- **Responses:**
+    - 200: Successful Response
+    - 404: Not found
+    - 422: Validation Error
+
+---
+
+### GET /v1/models
+- **Summary:** List Models
+- **Description:** List all available models
+- **Operation ID:** list_models_v1_models_get
+- **Parameters:** None
+- **Responses:**
+    - 200: Successful Response
+    - 404: Not found
+
+---
+
+### GET /v1/models/{model}
+- **Summary:** Retrieve Model
+- **Description:** Retrieve a specific model
+- **Operation ID:** retrieve_model_v1_models__model__get
+- **Parameters:**
+    - Path: `model` (required, string) - The model name to retrieve.
+- **Responses:**
+    - 200: Successful Response
+    - 404: Not found
+    - 422: Validation Error
+
+---
+
+### GET /v1/audio/voices
+- **Summary:** List Voices
+- **Description:** List all available voices for text-to-speech
+- **Operation ID:** list_voices_v1_audio_voices_get
+- **Parameters:** None
+- **Responses:**
+    - 200: Successful Response
+    - 404: Not found
+
+---
+
+### POST /v1/audio/voices/combine
+- **Summary:** Combine Voices
+- **Description:** Combine multiple voices into a new voice and return the .pt file.
+    Args:
+        request: Either a string with voices separated by + (e.g. "voice1+voice2")
+                or a list of voice names to combine
+    Returns:
+        FileResponse with the combined voice .pt file
+    Raises:
+        HTTPException:
+            - 400: Invalid request (wrong number of voices, voice not found)
+            - 500: Server error (file system issues, combination failed)
+- **Operation ID:** combine_voices_v1_audio_voices_combine_post
+- **Request Body:** (required, application/json)
+    - Schema: String or Array of Strings (Voice names)
+- **Responses:**
+    - 200: Successful Response
+    - 404: Not found
+    - 422: Validation Error
+
+---
+
+## Text Processing Endpoints
+
+---
+
+### POST /dev/phonemize
+- **Summary:** Phonemize Text
+- **Description:** Convert text to phonemes using Kokoro's quiet mode.
+    Args:
+        request: Request containing text and language
+    Returns:
+        Phonemes and token IDs
+- **Operation ID:** phonemize_text_dev_phonemize_post
+- **Request Body:** (required, application/json)
+    - Schema: `PhonemeRequest` (See Components section below)
+- **Responses:**
+    - 200: Successful Response (Schema: `PhonemeResponse`)
+    - 422: Validation Error
+
+---
+
+### POST /dev/generate_from_phonemes
+- **Summary:** Generate From Phonemes
+- **Description:** Generate audio directly from phonemes using Kokoro's phoneme format
+- **Operation ID:** generate_from_phonemes_dev_generate_from_phonemes_post
+- **Request Body:** (required, application/json)
+    - Schema: `GenerateFromPhonemesRequest` (See Components section below)
+- **Responses:**
+    - 200: Successful Response
+    - 422: Validation Error
+
+---
+
+### POST /dev/captioned_speech
+- **Summary:** Create Captioned Speech
+- **Description:** Generate audio with word-level timestamps using streaming approach
+- **Operation ID:** create_captioned_speech_dev_captioned_speech_post
+- **Parameters:**
+    - Header: `x-raw-response` (optional, string)
+- **Request Body:** (required, application/json)
+    - Schema: `CaptionedSpeechRequest` (See Components section below)
+- **Responses:**
+    - 200: Successful Response
+    - 422: Validation Error
+
+---
+
+## Debug Endpoints
+
+---
+
+### GET /debug/threads
+- **Summary:** Get Thread Info
+- **Operation ID:** get_thread_info_debug_threads_get
+- **Responses:**
+    - 200: Successful Response
+
+---
+
+### GET /debug/storage
+- **Summary:** Get Storage Info
+- **Operation ID:** get_storage_info_debug_storage_get
+- **Responses:**
+    - 200: Successful Response
+
+---
+
+### GET /debug/system
+- **Summary:** Get System Info
+- **Operation ID:** get_system_info_debug_system_get
+- **Responses:**
+    - 200: Successful Response
+
+---
+
+### GET /debug/session_pools
+- **Summary:** Get Session Pool Info
+- **Description:** Get information about ONNX session pools.
+- **Operation ID:** get_session_pool_info_debug_session_pools_get
+- **Responses:**
+    - 200: Successful Response
+
+---
+
+## Web Player Endpoint
+
+---
+
+### GET /web/{filename}
+- **Summary:** Serve Web File
+- **Description:** Serve web player static files asynchronously.
+- **Operation ID:** serve_web_file_web__filename__get
+- **Parameters:**
+    - Path: `filename` (required, string) - The static filename to serve.
+- **Responses:**
+    - 200: Successful Response
+    - 404: Not found
+    - 422: Validation Error
+
+---
+
+## Utility Endpoints
+
+---
+
+### GET /health
+- **Summary:** Health Check
+- **Description:** Health check endpoint
+- **Operation ID:** health_check_health_get
+- **Responses:**
+    - 200: Successful Response
+
+---
+
+### GET /v1/test
+- **Summary:** Test Endpoint
+- **Description:** Test endpoint to verify routing
+- **Operation ID:** test_endpoint_v1_test_get
+- **Responses:**
+    - 200: Successful Response
+
+---
+
+## Components (Schemas)
+
+*Note: Details extracted from the components/schemas section of the OpenAPI spec.*
+
+### CaptionedSpeechRequest
+- **Description:** Request schema for captioned speech endpoint
+- **Properties:**
+    - `model` (string, default: "kokoro"): Model (tts-1, tts-1-hd, kokoro).
+    - `input` (string, required): Text to generate audio for.
+    - `voice` (string, default: "af_heart"): Voice to use (base or combined).
+    - `response_format` (string enum, default: "mp3"): Audio format (mp3, opus, aac, flac, wav, pcm). AAC not supported. PCM is raw 16-bit samples.
+    - `speed` (number, default: 1.0): Speed (0.25 to 4.0).
+    - `stream` (boolean, default: true): Stream audio as generated (per sentence).
+    - `return_timestamps` (boolean, default: true): Return word-level timestamps.
+    - `return_download_link` (boolean, default: false): Return download link in X-Download-Path header.
+    - `lang_code` (string | null): Optional language code. Defaults based on voice.
+    - `normalization_options` (`NormalizationOptions` | null): Options for normalization (see below).
+
+### GenerateFromPhonemesRequest
+- **Description:** Simple request for phoneme-to-speech generation
+- **Properties:**
+    - `phonemes` (string, required): Phoneme string to synthesize.
+    - `voice` (string, required): Voice ID to use.
+
+### NormalizationOptions
+- **Description:** Options for the normalization system
+- **Properties:**
+    - `normalize` (boolean, default: true): Normalize input text.
+    - `unit_normalization` (boolean, default: false): Transform units (e.g., 10KB -> 10 kilobytes).
+    - `url_normalization` (boolean, default: true): Normalize URLs for pronunciation.
+    - `email_normalization` (boolean, default: true): Normalize emails for pronunciation.
+    - `optional_pluralization_normalization` (boolean, default: true): Replace (s) with s.
+    - `phone_normalization` (boolean, default: true): Normalize phone numbers.
+
+### OpenAISpeechRequest
+- **Description:** Request schema for OpenAI-compatible speech endpoint
+- **Properties:**
+    - `model` (string, default: "kokoro"): Model (tts-1, tts-1-hd, kokoro).
+    - `input` (string, required): Text to generate audio for.
+    - `voice` (string, default: "af_heart"): Voice to use (base or combined).
+    - `response_format` (string enum, default: "mp3"): Audio format (mp3, opus, aac, flac, wav, pcm). AAC not supported. PCM is raw 16-bit samples.
+    - `download_format` (string enum | null): Optional different format for download link (uses response_format if null).
+    - `speed` (number, default: 1.0): Speed (0.25 to 4.0).
+    - `stream` (boolean, default: true): Stream audio as generated (per sentence).
+    - `return_download_link` (boolean, default: false): Return download link in X-Download-Path header.
+    - `lang_code` (string | null): Optional language code. Defaults based on voice.
+    - `normalization_options` (`NormalizationOptions` | null): Options for normalization (see above).
+
+### PhonemeRequest
+- **Properties:**
+    - `text` (string, required): Text to convert.
+    - `language` (string, default: "a"): Language code.
+
+### PhonemeResponse
+- **Properties:**
+    - `phonemes` (string, required): Resulting phonemes.
+    - `tokens` (array[integer], required): Corresponding token IDs.
+
+### HTTPValidationError / ValidationError
+- Standard FastAPI validation error schemas. Contains details about validation failures (location, message, type).
+

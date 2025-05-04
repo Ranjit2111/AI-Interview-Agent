@@ -436,165 +436,84 @@ class InterviewerAgent(BaseAgent):
             self.logger.error(f"Next action chain did not return a valid action dictionary. Got: {response}")
             return default_action
 
-    def _do_action(self, context: AgentContext) -> Dict[str, Any]:
-        """Performs the next action based on the current state."""
-        response_type = "error" # Default to error
-        response_text = "An internal error occurred." # Default message
-        metadata = {} # Optional metadata to return
-        
-        try:
-            if self.current_state == InterviewState.INITIALIZING:
-                self.logger.info("State: INITIALIZING -> Generating initial questions.")
-                self._generate_questions() # Generate initial pool
-                if not self.initial_questions:
-                     self.logger.error("Failed to generate any initial questions! Ending interview prematurely.")
-                     self.current_state = InterviewState.COMPLETED
-                     response_text = "I seem to be having trouble formulating questions right now. We'll have to stop here. My apologies."
-                     response_type = "closing"
-                else:
-                     self.current_state = InterviewState.INTRODUCING
-                     self.logger.info("State transition: INITIALIZING -> INTRODUCING")
-                     # Fall through to INTRODUCING state in the same turn
-                # Re-evaluate state for fall-through
-                if self.current_state != InterviewState.INTRODUCING:
-                     # If already completed due to error above, return immediately
-                     return {"response_type": response_type, "text": response_text, "metadata": metadata}
-            
-            # Note: Use 'if' instead of 'elif' for INTRODUCING to allow fall-through from INITIALIZING
-            if self.current_state == InterviewState.INTRODUCING:
-                self.logger.info("State: INTRODUCING -> Creating introduction and asking first question.")
-                intro_text = self._create_introduction()
-                formatted_intro = self._format_response_by_style(intro_text, "introduction")
-                
-                first_question = self.initial_questions.pop(0) # Get and remove first question
-                formatted_question = self._format_response_by_style(first_question, "question")
-                self.current_question = first_question # Set current question
-                self.asked_question_count = 1
-                
-                response_text = f"{formatted_intro}\\n\\n{formatted_question}"
-                self.current_state = InterviewState.QUESTIONING
-                response_type = "question"
-                metadata["question_number"] = self.asked_question_count
-                self.logger.info(f"State transition: INTRODUCING -> QUESTIONING. Asked initial question 1.")
-                # Publish the question asked
-                self.publish_event(EventType.INTERVIEWER_QUESTION, {"question": self.current_question, "question_number": 1}) 
-            
-            elif self.current_state == InterviewState.QUESTIONING:
-                # Check if target reached *before* determining next action
-                if self.asked_question_count >= self.question_count:
-                     self.logger.info(f"Target question count ({self.question_count}) reached. Ending interview.")
-                     action_data = {"action_type": "end_interview"} # Force end
-                else:
-                     self.logger.info(f"State: QUESTIONING -> Determining next action (Question {self.asked_question_count + 1}).")
-                     action_data = self._determine_and_generate_next_action(context)
-                
-                # Update covered topics from LLM analysis
-                new_topics = action_data.get("newly_covered_topics", [])
-                if new_topics:
-                    updated = False
-                    for topic in new_topics:
-                        # Basic validation for topic
-                        if isinstance(topic, str) and topic.strip() and topic not in self.areas_covered:
-                            self.areas_covered.append(topic.strip())
-                            updated = True
-                    if updated:
-                        self.logger.debug(f"Updated areas covered: {self.areas_covered}")
-                
-                action_type = action_data.get("action_type")
-                
-                if action_type in ["ask_follow_up", "ask_new_question"]:
-                    next_question = action_data.get("next_question_text")
-                    if next_question and isinstance(next_question, str) and next_question.strip():
-                        formatted_question = self._format_response_by_style(next_question, "question")
-                        self.current_question = next_question.strip() # Update current question
-                        self.asked_question_count += 1
-                        response_text = formatted_question
-                        response_type = "question"
-                        metadata["question_number"] = self.asked_question_count
-                        self.logger.info(f"Asking question {self.asked_question_count}: {self.current_question[:100]}...")
-                        # Publish the question asked
-                        self.publish_event(EventType.INTERVIEWER_QUESTION, {"question": self.current_question, "question_number": self.asked_question_count})
-                        # State remains QUESTIONING
-                    else:
-                        self.logger.error(f"Action type was {action_type} but no valid question text provided ('{next_question}'). Ending interview.")
-                        action_type = "end_interview" # Force end if no question
-                
-                # Handle end_interview action (either decided by LLM or forced)
-                # Use 'if' because action_type might have been changed above
-                if action_type == "end_interview":
-                    self.logger.info("State: QUESTIONING -> Ending interview.")
-                    self.current_state = InterviewState.COMPLETED
-                    # Use justification from LLM if available, else default
-                    closing_remark = action_data.get("justification") or "Okay, that covers the main questions I had. Thank you for taking the time to speak with me today."
-                    # Ensure closing remark is a non-empty string
-                    if not isinstance(closing_remark, str) or not closing_remark.strip():
-                         closing_remark = "Thank you for your time today."
-                    response_text = self._format_response_by_style(closing_remark, "closing")
-                    response_type = "closing"
-                    self.logger.info(f"State transition: QUESTIONING -> COMPLETED")
-            
-            elif self.current_state == InterviewState.COMPLETED:
-                 self.logger.info("State: COMPLETED - Interview already finished.")
-                 response_text = "The interview has already concluded. Thank you." # Provide info
-                 response_type = "info"
-            
-        except Exception as e:
-            self.logger.exception(f"Unhandled exception in _do_action: {e}")
-            self.current_state = InterviewState.COMPLETED # Prevent loops
-            response_type = "error"
-            response_text = "I apologize, but I encountered an unexpected error and need to end the interview. Thank you for your time."
-        
-        return {
-            "response_type": response_type,
-            "text": response_text,
-            "metadata": metadata
+    def process(self, context: AgentContext) -> Dict[str, Any]:
+        """
+        Processes the current context to determine the next step in the interview.
+        Uses the ReAct-style chain to decide the action and generate the response.
+
+        Args:
+            context: The current AgentContext.
+
+        Returns:
+            A dictionary representing the agent's response.
+        """
+        self.logger.info(f"Interviewer processing state: {self.current_state}")
+
+        response_data = {
+            "role": "assistant",
+            "agent": "interviewer",
+            "content": "",
+            "response_type": "status",
+            "timestamp": datetime.utcnow().isoformat(),
+            "metadata": {}
         }
 
-    def process(self, context: AgentContext) -> Dict[str, Any]: # Renamed from invoke, takes context
-        """
-        Main entry point for the Interviewer agent, called by SessionManager.
-        Processes the current context and determines the next action/response.
+        if self.current_state == InterviewState.INITIALIZING:
+            self._handle_session_start(Event(EventType.SESSION_START, {"config": context.session_config.dict()}))
+            # Transition state after handling start
+            if self.initial_questions:
+                self.current_state = InterviewState.INTRODUCING
+            else:
+                self.logger.error("Initialization failed, no questions generated.")
+                response_data["content"] = "Sorry, I encountered an error setting up the interview questions."
+                response_data["response_type"] = "error"
+                self.current_state = InterviewState.COMPLETED
+                return response_data
+
+        if self.current_state == InterviewState.INTRODUCING:
+            intro_text = self._create_introduction()
+            response_data["content"] = intro_text
+            response_data["response_type"] = "introduction"
+            self.current_state = InterviewState.QUESTIONING
+            self.logger.info("Interview introduction generated.")
+            # Publish event? Maybe not needed here as it's just an intro.
+            return response_data
         
-        Args:
-            context: The AgentContext provided by the SessionManager.
+        elif self.current_state == InterviewState.QUESTIONING:
+            # Use the ReAct chain to determine the next action and question
+            action_result = self._determine_and_generate_next_action(context)
             
-        Returns:
-            Dictionary containing the agent's response content, type, and optional metadata.
-        """
-        # Basic check for context validity
-        if not context:
-            self.logger.error("Interviewer process called with invalid context. Cannot proceed.")
-            return { "content": "Internal context error.", "response_type": "error", "metadata": {}}
+            action_type = action_result.get("action_type")
+            next_question = action_result.get("next_question_text")
+            new_topics = action_result.get("newly_covered_topics", [])
+
+            if new_topics:
+                self.areas_covered.extend(topic for topic in new_topics if topic not in self.areas_covered)
             
-        self.logger.info(f"Interviewer process called in state {self.current_state.value}")
-        
-        # Execute state-based action using the provided context
-        action_result = self._do_action(context)
-        
-        # Publish event if interview completed during this action
-        # Use a flag to prevent publishing multiple times if process is called again in COMPLETED state
-        completed_now = (self.current_state == InterviewState.COMPLETED and action_result.get("response_type") != "info")
-        if completed_now and not getattr(self, '_completed_event_published', False):
-             self.logger.info("Publishing interview_completed event.")
-             self.publish_event(EventType.INTERVIEW_COMPLETED, {
-                 "timestamp": datetime.utcnow().isoformat(),
-                 "total_questions_asked": self.asked_question_count,
-                 "areas_covered": self.areas_covered
-             })
-             self._completed_event_published = True # Set flag
-        elif self.current_state != InterviewState.COMPLETED:
-             self._completed_event_published = False # Reset flag if not completed
-        
-        response_content = action_result.get("text", "")
-        response_type = action_result.get("response_type", "error")
-        response_metadata = action_result.get("metadata", {})
-        
-        self.logger.info(f"Interviewer process returning: Type={response_type}, Text='{response_content[:100]}...' Metadata={response_metadata}")
-        
-        # Return structure expected by SessionManager
-        return {
-            "content": response_content,
-            "response_type": response_type,
-            "metadata": response_metadata
-            # TODO: Add token usage here if available from LLM response in _do_action
-        } 
+            if action_type == "end_interview":
+                self.current_state = InterviewState.COMPLETED
+                response_data["content"] = "Thank you for your time. This concludes the interview."
+                response_data["response_type"] = "closing"
+                self.logger.info("Interview concluded based on ReAct decision.")
+                self.publish_event(EventType.INTERVIEW_COMPLETED, {"reason": action_result.get("justification")})
+            elif next_question:
+                self.current_question = next_question
+                self.asked_question_count += 1
+                response_data["content"] = self.current_question
+                response_data["response_type"] = "question"
+                response_data["metadata"] = {"question_number": self.asked_question_count}
+                self.logger.info(f"Generated question #{self.asked_question_count} via ReAct: {self.current_question[:100]}...")
+                self.publish_event(EventType.INTERVIEWER_RESPONSE, {"question": self.current_question, "question_number": self.asked_question_count})
+            else:
+                # Handle error case where action requires a question but none was generated
+                self.logger.error("ReAct chain decided to ask a question but did not provide text.")
+                self.current_state = InterviewState.COMPLETED
+                response_data["content"] = "It seems we've reached a natural stopping point. Thank you for your time."
+                response_data["response_type"] = "closing"
+                self.publish_event(EventType.INTERVIEW_COMPLETED, {"reason": "Error generating next question"})
+
+        elif self.current_state == InterviewState.COMPLETED:
+            response_data["content"] = "The interview has already concluded."
+            response_data["response_type"] = "status"
+
+        return response_data 

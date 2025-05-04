@@ -59,12 +59,12 @@ def create_agent_api(app):
     # Update router prefix and tags
     router = APIRouter(prefix="/interview", tags=["interview"])
 
-    @router.post("/start", response_model=AgentResponse)
+    @router.post("/start", response_model=ResetResponse)
     async def start_interview(start_request: InterviewStartRequest, request: Request):
         """
         Starts a new interview or configures the existing single session.
         Resets previous state and applies new configuration.
-        Returns the initial message from the interviewer.
+        Returns a simple confirmation message.
         """
         logger.info(f"Received request to start/configure interview: {start_request.dict()}")
         try:
@@ -84,23 +84,11 @@ def create_agent_api(app):
             agent_manager.reset_session() # This publishes SESSION_RESET
             logger.info("Agent manager state reset.")
 
-            # Trigger the initial processing to get the first message
-            # Construct a minimal context for the first process call
-            initial_context = AgentContext(
-                session_id="local_session", # Placeholder
-                conversation_history=[],
-                session_config=new_config,
-                event_bus=agent_manager.event_bus,
-                logger=agent_manager.logger
-            )
-            first_response = agent_manager.process(initial_context)
-            logger.info(f"Generated initial agent response: {first_response}")
-
-            # Return the first agent response
-            return AgentResponse(**first_response)
+            # Return a simple confirmation message
+            return ResetResponse(message=f"Interview session configured and reset for role: {new_config.job_role}")
 
         except Exception as e:
-            logger.exception(f"Error during interview start: {e}")
+            logger.exception(f"Error during interview start/config: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to start interview: {e}")
 
     @router.post("/message", response_model=AgentResponse)

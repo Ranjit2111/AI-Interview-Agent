@@ -18,13 +18,13 @@ import re
 import random
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.agents import Tool
 from langchain.prompts import PromptTemplate, ChatPromptTemplate
 from langchain.chains import LLMChain, SequentialChain
 
 try:
     from backend.agents.base import BaseAgent, AgentContext
     from backend.utils.event_bus import Event, EventBus
+    from backend.services.llm_service import LLMService
     from backend.agents.templates.coach_templates import (
         TIPS_TEMPLATE,
         TEMPLATE_PROMPT,
@@ -48,6 +48,7 @@ try:
 except ImportError:
     from .base import BaseAgent, AgentContext
     from ..utils.event_bus import Event, EventBus
+    from ..services.llm_service import LLMService
     from .templates.coach_templates import (
         TIPS_TEMPLATE,
         TEMPLATE_PROMPT,
@@ -115,8 +116,7 @@ class CoachAgent(BaseAgent):
     
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        model_name: str = "gemini-1.5-pro",
+        llm_service: LLMService,
         event_bus: Optional[EventBus] = None,
         logger: Optional[logging.Logger] = None,
         coaching_focus: Optional[List[str]] = None,
@@ -126,14 +126,13 @@ class CoachAgent(BaseAgent):
         Initialize the coach agent for post-interview feedback.
         
         Args:
-            api_key: API key for the language model
-            model_name: Name of the language model to use
+            llm_service: Language model service instance.
             event_bus: Event bus for inter-agent communication
             logger: Logger for recording agent activity
             coaching_focus: List of areas to focus coaching on (defaults defined in DEFAULT_COACHING_FOCUS)
             feedback_verbosity: Level of detail in feedback (brief, moderate, detailed)
         """
-        super().__init__(api_key=api_key, model_name=model_name, planning_interval=0, event_bus=event_bus, logger=logger)
+        super().__init__(llm_service=llm_service, event_bus=event_bus, logger=logger)
         
         self.coaching_focus = coaching_focus or self.DEFAULT_COACHING_FOCUS
         self.feedback_verbosity = feedback_verbosity
@@ -163,31 +162,6 @@ class CoachAgent(BaseAgent):
         """
         # System prompt is now static as mode/focus are less dynamic
         return SYSTEM_PROMPT
-    
-    def _initialize_tools(self) -> List[Tool]:
-        """
-        Initialize tools for the coach agent.
-        
-        Returns:
-            List of LangChain tools
-        """
-        return [
-            Tool(
-                name="generate_improvement_tips",
-                func=self._generate_improvement_tips_tool,
-                description="Generate specific tips for improving in particular areas of interview performance (e.g., STAR method, communication)"
-            ),
-            Tool(
-                name="generate_response_template",
-                func=self._generate_response_template_tool,
-                description="Generate a template for how to effectively answer a specific type of interview question (e.g., behavioral, technical)"
-            ),
-            Tool(
-                name="generate_practice_question",
-                func=self._generate_practice_question_tool,
-                description="Generate a practice interview question based on specified parameters (e.g., type, role)"
-            )
-        ]
     
     def _setup_llm_chains(self) -> None:
         """
@@ -1145,7 +1119,7 @@ class CoachAgent(BaseAgent):
             return
         
         # Store the current question for later analysis context
-        self.current_question = event.data.get("question", "")
+        self.current_question = event.data.get('response', {}).get("content", "")
         self.logger.debug(f"Stored current question: {self.current_question[:100]}...")
             
             # Reset current answer since we have a new question
@@ -1163,7 +1137,7 @@ class CoachAgent(BaseAgent):
             return
         
         # Store the current answer for later analysis context
-        self.current_answer = event.data.get("message", "")
+        self.current_answer = event.data.get('message', {}).get("content", "")
         self.logger.debug(f"Stored current answer: {self.current_answer[:100]}...")
     
     def _handle_interview_summary(self, event: Event) -> None:
@@ -1468,3 +1442,91 @@ class CoachAgent(BaseAgent):
         
         return analysis
 
+    def generate_coaching_summary(self, context: AgentContext) -> Dict[str, Any]:
+        """
+        Generates a comprehensive coaching summary based on the entire interview context.
+        This is typically called at the end of an interview session.
+
+        Args:
+            context: The AgentContext containing the full conversation history and config.
+
+        Returns:
+            A dictionary containing the structured coaching summary.
+        """
+        self.logger.info("Generating final coaching summary for the interview session.")
+        
+        full_history = context.conversation_history
+        qa_pairs = []
+        current_q = None
+        for msg in full_history:
+            role = msg.get("role")
+            content = msg.get("content")
+            # Heuristic: Assume assistant messages from 'interviewer' are questions
+            if role == "assistant" and msg.get("agent") == "interviewer":
+                current_q = content
+            elif role == "user" and current_q is not None:
+                qa_pairs.append({"question": current_q, "answer": content})
+                current_q = None # Reset question after getting an answer
+        
+        if not qa_pairs:
+             self.logger.warning("No complete Q&A pairs found in history to generate coaching summary.")
+             return {"error": "Could not generate summary due to missing Q&A pairs."}
+
+        # --- Perform analysis on all Q&A pairs (This can be computationally expensive) ---
+        # For simplicity here, we'll analyze the LAST pair as a representative sample.
+        # A full implementation might iterate, use specific chains, or use the PERFORMANCE_ANALYSIS_TEMPLATE.
+        # TODO: Enhance this to analyze more than just the last pair for a true summary.
+        
+        try:
+            last_q = qa_pairs[-1]["question"]
+            last_a = qa_pairs[-1]["answer"]
+
+            evaluations = {}
+            job_role = context.session_config.job_role or "[Not Provided]"
+            requires_star = self._requires_star_evaluation(last_q, last_a)
+
+            if requires_star:
+                evaluations["star"] = self._evaluate_star_method(last_q, last_a)
+            evaluations["communication"] = self._evaluate_communication_skills(last_q, last_a)
+            evaluations["completeness"] = self._evaluate_response_completeness(last_q, last_a, job_role)
+
+            # Format the feedback
+            formatted_feedback = self._format_structured_feedback(evaluations, "comprehensive")
+            formatted_feedback["note"] = "This summary is based on an analysis of the final interaction. A more comprehensive analysis could be performed."
+            
+            # Publish an event (optional, could be done by caller)
+            # self.publish_event(EventType.COACH_ANALYSIS, {"coaching_summary": formatted_feedback})
+            
+            self.logger.info("Generated coaching summary successfully (based on last Q&A).")
+            return formatted_feedback
+            
+        except Exception as e:
+            self.logger.exception(f"Error generating coaching summary: {e}")
+            return {"error": f"Failed to generate coaching summary: {e}"}
+
+    def _handle_session_start(self, event: Event) -> None:
+        """
+        Handles the session start event, potentially resetting state or loading config.
+        """
+        # Reset internal state related to a specific interview
+        self.logger.info(f"CoachAgent handling {event.event_type} event.")
+        self.interview_session_id = event.data.get("session_id", "unknown") # Example: If session ID is in event
+        self.current_question = None
+        self.current_answer = None
+        self.interview_performance = {}
+        self.improvement_areas = set()
+        self.strength_areas = set()
+        self.qa_pairs_history = [] # Reset Q&A history if used
+
+        # Update config from event if provided
+        if event.data and 'config' in event.data:
+            config_data = event.data['config']
+            self.logger.info(f"CoachAgent updating config from SESSION_START event: {config_data}")
+            # Assuming config_data is a dict-like representation of SessionConfig
+            self.coaching_focus = config_data.get('coaching_focus', self.DEFAULT_COACHING_FOCUS) # Example update
+            # Update other relevant config attributes if needed by the coach
+            # self.feedback_verbosity = config_data.get('feedback_verbosity', "detailed") 
+            # Note: job_role isn't directly stored but used in methods, fetched from context when needed.
+
+        self.logger.debug("CoachAgent state reset for new session.")
+            
