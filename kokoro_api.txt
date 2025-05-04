@@ -222,7 +222,7 @@ This document outlines the available API endpoints for the Kokoro TTS service ba
 - **Properties:**
     - `model` (string, default: "kokoro"): Model (tts-1, tts-1-hd, kokoro).
     - `input` (string, required): Text to generate audio for.
-    - `voice` (string, default: "af_heart"): Voice to use (base or combined).
+    - `voice` (string, default: "am_michael"): Voice to use (base or combined).
     - `response_format` (string enum, default: "mp3"): Audio format (mp3, opus, aac, flac, wav, pcm). AAC not supported. PCM is raw 16-bit samples.
     - `speed` (number, default: 1.0): Speed (0.25 to 4.0).
     - `stream` (boolean, default: true): Stream audio as generated (per sentence).
@@ -252,7 +252,7 @@ This document outlines the available API endpoints for the Kokoro TTS service ba
 - **Properties:**
     - `model` (string, default: "kokoro"): Model (tts-1, tts-1-hd, kokoro).
     - `input` (string, required): Text to generate audio for.
-    - `voice` (string, default: "af_heart"): Voice to use (base or combined).
+    - `voice` (string, default: "am_michael"): Voice to use (base or combined).
     - `response_format` (string enum, default: "mp3"): Audio format (mp3, opus, aac, flac, wav, pcm). AAC not supported. PCM is raw 16-bit samples.
     - `download_format` (string enum | null): Optional different format for download link (uses response_format if null).
     - `speed` (number, default: 1.0): Speed (0.25 to 4.0).
