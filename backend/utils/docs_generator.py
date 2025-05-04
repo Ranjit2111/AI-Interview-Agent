@@ -5,8 +5,12 @@ Provides utilities for generating and exporting API documentation.
 
 import os
 import json
+import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
+
+# Added: Get logger instance
+logger = logging.getLogger(__name__)
 
 
 def generate_static_docs(app, output_dir: str, template_dir: Optional[str] = None) -> str:
@@ -21,15 +25,25 @@ def generate_static_docs(app, output_dir: str, template_dir: Optional[str] = Non
     Returns:
         Path to the documentation directory
     """
-    # Create directories
-    docs_dir = os.path.join(output_dir, "api_docs")
-    os.makedirs(docs_dir, exist_ok=True)
+    docs_dir = Path(output_dir)
+    docs_dir.mkdir(parents=True, exist_ok=True)
     
-    # Save OpenAPI spec    
+    # Save OpenAPI spec
+    openapi_spec = app.openapi()
+    openapi_path = docs_dir / "openapi.json"
+    try:
+        with open(openapi_path, "w") as f:
+            json.dump(openapi_spec, f, indent=2)
+        logger.info(f"OpenAPI spec saved to {openapi_path}")
+    except IOError as e:
+        logger.error(f"Failed to save OpenAPI spec: {e}")
+        # Decide if this should raise an error or just warn
+            
     # Generate HTML index file
-    index_path = os.path.join(docs_dir, "index.html")
-    with open(index_path, "w") as f:
-        f.write(f"""
+    index_path = docs_dir / "index.html"
+    try:
+        with open(index_path, "w") as f:
+            f.write(f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -60,11 +74,14 @@ def generate_static_docs(app, output_dir: str, template_dir: Optional[str] = Non
 </body>
 </html>
         """)
+    except IOError as e:
+        logger.error(f"Failed to write Swagger HTML file: {e}")
     
     # Generate ReDoc version
-    redoc_path = os.path.join(docs_dir, "redoc.html")
-    with open(redoc_path, "w") as f:
-        f.write(f"""
+    redoc_path = docs_dir / "redoc.html"
+    try:
+        with open(redoc_path, "w") as f:
+            f.write(f"""
 <!DOCTYPE html>
 <html>
 <head>
@@ -79,9 +96,11 @@ def generate_static_docs(app, output_dir: str, template_dir: Optional[str] = Non
 </body>
 </html>
         """)
+    except IOError as e:
+        logger.error(f"Failed to write ReDoc HTML file: {e}")
     
-    print(f"API documentation generated in {docs_dir}")
-    return docs_dir
+    logger.info(f"API documentation generated in {docs_dir}")
+    return str(docs_dir)
 
 
 if __name__ == "__main__":
@@ -90,6 +109,9 @@ if __name__ == "__main__":
     import sys
     
     # Add the parent directory to the path to import the app
+    # Ensure logger is configured if run directly
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     
     # Import the FastAPI app

@@ -16,20 +16,11 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks,
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 import httpx
 
-# Optional TTS dependency - Install with backend/setup_kokoro_tts.py
-# If missing, TTS features will be disabled but the API will still work
-# try:
-#     from kokoro_tts_fastapi_client import KokoroClient, Voice # REMOVED old client
-# except ImportError:
-#     KokoroClient = None # REMOVED old client
-#     Voice = None # REMOVED old client
-
 logger = logging.getLogger(__name__)
 
 # Check for AssemblyAI API key
 ASSEMBLYAI_API_KEY = os.environ.get("ASSEMBLYAI_API_KEY", "")
 
-# Kokoro TTS API URL (running locally, set by setup_kokoro_tts.py)
 KOKORO_API_URL = os.environ.get("KOKORO_API_URL") # Removed default, should be set by setup
 
 # Dictionary to store speech processing tasks
@@ -162,6 +153,14 @@ async def transcribe_with_assemblyai(audio_file_path: str, task_id: str):
             "status": "error",
             "error": f"Transcription error: {str(e)}"
         }
+    finally:
+        # Ensure temporary file is always deleted
+        if audio_file_path and os.path.exists(audio_file_path):
+            try:
+                os.unlink(audio_file_path)
+                logger.info(f"Cleaned up temporary STT file: {audio_file_path}")
+            except OSError as e:
+                logger.error(f"Error deleting temporary STT file {audio_file_path}: {e}")
 
 
 @router.post("/api/speech-to-text")
@@ -249,7 +248,7 @@ async def get_available_voices():
         )
 
     try:
-        response = await tts_client.get(f"{KOKORO_API_URL}/voices")
+        response = await tts_client.get(f"{KOKORO_API_URL}/v1/audio/voices")
         response.raise_for_status()
         voices_data = response.json() # Should be a list of dicts
 
@@ -313,14 +312,17 @@ async def text_to_speech(
         )
 
     payload = {
-        "text": text,
+        "model": "kokoro",  # Use the documented model field, default to 'kokoro'
+        "input": text,      # Use 'input' instead of 'text'
         "voice": voice_id,
-        "speed": speed
+        "response_format": "wav", # Explicitly request WAV format
+        "speed": speed,
+        "stream": False      # Disable streaming for this endpoint
     }
-    logger.info(f"Sending TTS request to {KOKORO_API_URL}/synthesize with voice: {voice_id}, speed: {speed}")
+    logger.info(f"Sending TTS request to {KOKORO_API_URL}/v1/audio/speech with voice: {voice_id}, speed: {speed}")
 
     try:
-        response = await tts_client.post(f"{KOKORO_API_URL}/synthesize", json=payload)
+        response = await tts_client.post(f"{KOKORO_API_URL}/v1/audio/speech", json=payload) # Corrected endpoint
         response.raise_for_status() # Check for 4xx/5xx errors
 
         # Check content type (should be audio/wav)
@@ -390,15 +392,18 @@ async def stream_text_to_speech(
         )
 
     payload = {
-        "text": text,
+        "model": "kokoro", # Use the documented model field, default to 'kokoro'
+        "input": text,     # Use 'input' instead of 'text'
         "voice": voice_id,
-        "speed": speed
+        "response_format": "wav", # Explicitly request WAV format
+        "speed": speed,
+        "stream": True     # Ensure streaming is enabled for this endpoint
     }
-    logger.info(f"Sending Streaming TTS request to {KOKORO_API_URL}/synthesize with voice: {voice_id}, speed: {speed}")
+    logger.info(f"Sending Streaming TTS request to {KOKORO_API_URL}/v1/audio/speech with voice: {voice_id}, speed: {speed}")
 
     try:
         # Use a context manager for the request to ensure resources are cleaned up
-        async with tts_client.stream("POST", f"{KOKORO_API_URL}/synthesize", json=payload) as response:
+        async with tts_client.stream("POST", f"{KOKORO_API_URL}/v1/audio/speech", json=payload) as response: # Corrected endpoint
             response.raise_for_status()
 
             content_type = response.headers.get("content-type")

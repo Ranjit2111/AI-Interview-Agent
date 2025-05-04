@@ -18,7 +18,6 @@ __all__ = [
     "EventBus",
     "EventType",
     "generate_static_docs",
-    "save_openapi_spec",
     "format_conversation_history",
     "parse_json_with_fallback",
     "invoke_chain_with_error_handling",

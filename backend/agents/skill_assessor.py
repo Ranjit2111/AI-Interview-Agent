@@ -206,8 +206,13 @@ class SkillAssessorAgent(BaseAgent):
         Args:
             event: The event with interviewer response
         """
-        if event.data and "question" in event.data:
-            self.current_question = event.data["question"]
+        # Corrected: Check for nested 'response' key
+        if not event.data or 'response' not in event.data:
+            self.logger.warning("Received interviewer event without 'response' data.")
+            return
+        # Corrected: Access content from nested structure
+        self.current_question = event.data['response'].get("content")
+        self.logger.debug(f"SkillAssessor stored current question: {self.current_question[:50]}...")
     
     def _handle_user_response(self, event: Event) -> None:
         """
@@ -216,9 +221,17 @@ class SkillAssessorAgent(BaseAgent):
         Args:
             event: The event with user response
         """
-        if event.data and "answer" in event.data:
-            self.current_answer = event.data["answer"]
-            self._analyze_response(self.current_answer)
+        # Corrected: Check for nested 'message' key
+        if not event.data or 'message' not in event.data:
+            self.logger.warning("Received user response event without 'message' data.")
+            return
+        # Corrected: Access content from nested structure
+        self.current_answer = event.data['message'].get("content")
+        self.logger.debug(f"SkillAssessor received answer: {self.current_answer[:50]}...")
+        
+        # Trigger analysis of the received answer
+        if self.current_answer:
+            self._analyze_single_response(self.current_answer)
     
     def _handle_interview_summary(self, event: Event) -> None:
         """
@@ -549,20 +562,25 @@ class SkillAssessorAgent(BaseAgent):
         Handles session start to get config and reset state.
         
         Args:
-            event: The event with session start
+            event: The session start event object
         """
-        self.logger.info("SkillAssessor handling session_start event.")
-        self._reset_state()
-        if event.data and isinstance(event.data.get("config"), dict):
-            config_data = event.data["config"]
-            self.interview_session_id = event.data.get("session_id")
-            self.job_role = config_data.get("job_role", self.job_role)
-            # Re-initialize keywords based on potentially updated job role
+        self.logger.info(f"SkillAssessorAgent handling {event.event_type}.")
+        self._reset_state() # Reset state first
+        
+        # Extract config from event data and update attributes
+        if event.data and 'config' in event.data:
+            config_data = event.data['config']
+            self.logger.info(f"SkillAssessorAgent updating config from event: {config_data}")
+            self.job_role = config_data.get('job_role', "")
+            # Add other config updates if needed by skill assessor
+            # self.technical_focus = config_data.get('technical_focus', True)
+            
+            # Re-initialize skill keywords based on the potentially new job role
             self.skill_keywords = self._initialize_skill_keywords()
-            # Set technical_focus based on job role or config if needed
-            self.logger.info(f"SkillAssessor configured for session {self.interview_session_id}, role: {self.job_role}")
+            self.logger.info(f"Re-initialized skill keywords for job role: {self.job_role}")
         else:
-            self.logger.warning("Session start event missing config data for SkillAssessor.")
+             self.logger.warning("SESSION_START event received without config data.")
+            
     
     def _handle_session_reset(self, event: Event) -> None:
         """
@@ -585,43 +603,6 @@ class SkillAssessorAgent(BaseAgent):
         self.skill_mentions = {}
         self.resource_cache = {}
         self.logger.debug("SkillAssessor state reset.")
-    
-    def _handle_interviewer_response(self, event: Event) -> None:
-        """
-        Stores the current question for context.
-        
-        Args:
-            event: The event with interviewer response
-        """
-        if event.data and isinstance(event.data.get("response"), dict):
-            response_data = event.data["response"]
-            question_content = response_data.get("content")
-            if question_content:
-                self.current_question = question_content
-                self.current_answer = None # Reset answer context
-                self.logger.debug(f"SkillAssessor stored current question: {self.current_question[:100]}...")
-            # No warning if content missing, might be other response types
-        else:
-            self.logger.warning("Received interviewer event without expected 'response' dict for SkillAssessor.")
-    
-    def _handle_user_response(self, event: Event) -> None:
-        """
-        Handles user response: Stores answer and triggers passive analysis.
-        
-        Args:
-            event: The event with user response
-        """
-        if event.data and isinstance(event.data.get("message"), dict):
-            message_data = event.data["message"]
-            answer_content = message_data.get("content")
-            if answer_content:
-                self.current_answer = answer_content # Store answer context
-                self.logger.debug(f"SkillAssessor stored current answer: {self.current_answer[:100]}...")
-                # Trigger analysis of this specific answer
-                self._analyze_single_response(answer_content)
-            # No warning if content missing
-        else:
-            self.logger.warning("Received user event without expected 'message' dict for SkillAssessor.")
     
     def _analyze_single_response(self, response: str) -> None:
         """
