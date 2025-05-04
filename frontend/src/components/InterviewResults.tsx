@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +15,35 @@ const InterviewResults: React.FC<InterviewResultsProps> = ({
   skillProfile,
   onStartNewInterview,
 }) => {
+  // Extract relevant data from coaching summary
+  const getStrengths = () => {
+    if (coachingSummary?.sections) {
+      // Look for strengths in all sections
+      for (const section of coachingSummary.sections) {
+        if (section.strengths && section.strengths.length > 0) {
+          return section.strengths;
+        }
+      }
+    }
+    return null;
+  };
+
+  const getImprovements = () => {
+    if (coachingSummary?.sections) {
+      // Look for improvements in all sections
+      for (const section of coachingSummary.sections) {
+        if (section.improvements && section.improvements.length > 0) {
+          return section.improvements;
+        }
+      }
+    }
+    return null;
+  };
+
+  const strengths = getStrengths();
+  const improvements = getImprovements();
+  const summary = coachingSummary?.summary;
+
   return (
     <div className="container mx-auto max-w-4xl p-4">
       <div className="text-center mb-8">
@@ -46,14 +74,14 @@ const InterviewResults: React.FC<InterviewResultsProps> = ({
                 {/* Strengths */}
                 <div>
                   <h3 className="text-xl font-semibold text-interview-secondary mb-3">Strengths</h3>
-                  {coachingSummary?.strengths ? (
+                  {strengths ? (
                     <ul className="list-disc list-inside space-y-2">
-                      {Array.isArray(coachingSummary.strengths) ? (
-                        coachingSummary.strengths.map((strength: string, i: number) => (
+                      {Array.isArray(strengths) ? (
+                        strengths.map((strength: string, i: number) => (
                           <li key={i}>{strength}</li>
                         ))
                       ) : (
-                        <p>{String(coachingSummary.strengths)}</p>
+                        <p>{String(strengths)}</p>
                       )}
                     </ul>
                   ) : (
@@ -66,14 +94,14 @@ const InterviewResults: React.FC<InterviewResultsProps> = ({
                   <h3 className="text-xl font-semibold text-interview-secondary mb-3">
                     Areas for Improvement
                   </h3>
-                  {coachingSummary?.areas_for_improvement ? (
+                  {improvements ? (
                     <ul className="list-disc list-inside space-y-2">
-                      {Array.isArray(coachingSummary.areas_for_improvement) ? (
-                        coachingSummary.areas_for_improvement.map((area: string, i: number) => (
+                      {Array.isArray(improvements) ? (
+                        improvements.map((area: string, i: number) => (
                           <li key={i}>{area}</li>
                         ))
                       ) : (
-                        <p>{String(coachingSummary.areas_for_improvement)}</p>
+                        <p>{String(improvements)}</p>
                       )}
                     </ul>
                   ) : (
@@ -81,35 +109,17 @@ const InterviewResults: React.FC<InterviewResultsProps> = ({
                   )}
                 </div>
                 
-                {/* Recommendations */}
+                {/* Summary/Overall Assessment */}
                 <div>
                   <h3 className="text-xl font-semibold text-interview-secondary mb-3">
                     Recommendations
                   </h3>
-                  {coachingSummary?.recommendations ? (
-                    <ul className="list-disc list-inside space-y-2">
-                      {Array.isArray(coachingSummary.recommendations) ? (
-                        coachingSummary.recommendations.map((rec: string, i: number) => (
-                          <li key={i}>{rec}</li>
-                        ))
-                      ) : (
-                        <p>{String(coachingSummary.recommendations)}</p>
-                      )}
-                    </ul>
+                  {summary ? (
+                    <p className="text-gray-700">{summary}</p>
                   ) : (
                     <p className="text-gray-500 italic">No recommendations available</p>
                   )}
                 </div>
-                
-                {/* Overall Assessment */}
-                {coachingSummary?.overall_assessment && (
-                  <div>
-                    <h3 className="text-xl font-semibold text-interview-secondary mb-3">
-                      Overall Assessment
-                    </h3>
-                    <p className="text-gray-700">{coachingSummary.overall_assessment}</p>
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -125,34 +135,35 @@ const InterviewResults: React.FC<InterviewResultsProps> = ({
             </CardHeader>
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {skillProfile && typeof skillProfile === 'object' ? (
-                  Object.entries(skillProfile).map(([skill, rating]: [string, any]) => (
-                    <div key={skill} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-center mb-2">
-                        <h4 className="font-medium capitalize">
-                          {skill.replace(/_/g, ' ')}
-                        </h4>
-                        {typeof rating === 'number' ? (
-                          <SkillBadge score={rating} />
-                        ) : (
-                          <Badge>{String(rating)}</Badge>
-                        )}
-                      </div>
-                      {typeof rating === 'number' && (
-                        <div className="w-full bg-gray-200 rounded-full h-2.5">
-                          <div
-                            className="bg-interview-secondary h-2.5 rounded-full"
-                            style={{ width: `${Math.min(100, Math.max(0, rating * 10))}%` }}
-                          ></div>
+                {/* Display Job Role */}
+                <div className="col-span-1 md:col-span-2 border rounded-lg p-4">
+                  <h4 className="font-medium">Job Role</h4>
+                  <p className="text-lg">{skillProfile?.job_role || "[Not Specified]"}</p>
+                </div>
+                
+                {/* Display Assessed Skills */}
+                <div className="col-span-1 md:col-span-2 border rounded-lg p-4">
+                  <h4 className="font-medium">Assessed Skills</h4>
+                  {skillProfile?.assessed_skills && skillProfile.assessed_skills.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                      {skillProfile.assessed_skills.map((skill: any, index: number) => (
+                        <div key={index} className="border rounded-lg p-3">
+                          <div className="flex justify-between items-center">
+                            <h5 className="font-medium">{skill.skill_name}</h5>
+                            <Badge className="bg-interview-secondary">
+                              {skill.proficiency_level || "Not Assessed"}
+                            </Badge>
+                          </div>
+                          {skill.category && (
+                            <p className="text-sm text-gray-500 mt-1">Category: {skill.category}</p>
+                          )}
                         </div>
-                      )}
+                      ))}
                     </div>
-                  ))
-                ) : (
-                  <p className="text-gray-500 italic col-span-2 text-center">
-                    No skill assessment data available
-                  </p>
-                )}
+                  ) : (
+                    <p className="text-gray-500 italic mt-2">No skill assessment data available</p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -169,35 +180,6 @@ const InterviewResults: React.FC<InterviewResultsProps> = ({
         </Button>
       </div>
     </div>
-  );
-};
-
-// Helper component for skill ratings
-const SkillBadge = ({ score }: { score: number }) => {
-  let color = '';
-  let label = '';
-  
-  if (score >= 9) {
-    color = 'bg-green-500';
-    label = 'Excellent';
-  } else if (score >= 7) {
-    color = 'bg-green-400';
-    label = 'Good';
-  } else if (score >= 5) {
-    color = 'bg-yellow-400';
-    label = 'Average';
-  } else if (score >= 3) {
-    color = 'bg-orange-400';
-    label = 'Fair';
-  } else {
-    color = 'bg-red-500';
-    label = 'Needs Improvement';
-  }
-  
-  return (
-    <Badge className={`${color} hover:${color}`}>
-      {label} ({score}/10)
-    </Badge>
   );
 };
 

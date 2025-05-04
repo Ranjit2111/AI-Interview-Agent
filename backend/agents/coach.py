@@ -1530,3 +1530,57 @@ class CoachAgent(BaseAgent):
 
         self.logger.debug("CoachAgent state reset for new session.")
             
+    def process(self, context: AgentContext) -> Any:
+        """
+        Process the current context and generate coaching feedback.
+        This is the main entry point required by BaseAgent.
+        
+        Args:
+            context: The current AgentContext containing history, config, etc.
+            
+        Returns:
+            Dictionary with coaching results
+        """
+        self.logger.info("CoachAgent process method called with context")
+        
+        # Extract the most recent question-answer pair if available
+        last_question = None
+        last_answer = None
+        
+        for i in range(len(context.conversation_history) - 1, 0, -1):
+            msg = context.conversation_history[i]
+            if msg.get("role") == "user" and last_answer is None:
+                last_answer = msg.get("content")
+            elif msg.get("role") == "assistant" and last_answer is not None and last_question is None:
+                last_question = msg.get("content")
+                break
+        
+        if last_question and last_answer:
+            self.current_question = last_question
+            self.current_answer = last_answer
+            
+            # Determine what type of feedback to provide
+            requires_star = self._requires_star_evaluation(last_question, last_answer)
+            feedback_type = self._determine_feedback_type(last_answer, requires_star)
+            
+            # Generate appropriate evaluations
+            evaluations = {}
+            if feedback_type in ["comprehensive", "star_method"] or requires_star:
+                evaluations["star"] = self._evaluate_star_method(last_question, last_answer)
+            
+            if feedback_type in ["comprehensive", "communication"]:
+                evaluations["communication"] = self._evaluate_communication_skills(last_question, last_answer)
+            
+            if feedback_type in ["comprehensive", "completeness"]:
+                job_role = context.session_config.job_role if hasattr(context.session_config, "job_role") else "professional"
+                evaluations["completeness"] = self._evaluate_response_completeness(last_question, last_answer, job_role)
+            
+            # Format the results into a structured response
+            return self._format_structured_feedback(evaluations, feedback_type)
+        
+        # No question-answer pair found - return a placeholder response
+        return {
+            "feedback_type": "status",
+            "message": "No interview data available to analyze. Please complete at least one question-answer exchange."
+        }
+            

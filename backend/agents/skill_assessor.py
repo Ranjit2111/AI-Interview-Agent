@@ -136,7 +136,7 @@ class SkillAssessorAgent(BaseAgent):
         # Subscribe to relevant events
         if self.event_bus:
             self.event_bus.subscribe(EventType.INTERVIEWER_RESPONSE, self._handle_interviewer_response)
-            self.event_bus.subscribe(EventType.USER_RESPONSE, self._handle_user_response)
+            self.event_bus.subscribe(EventType.USER_MESSAGE, self._handle_user_response)
             self.event_bus.subscribe(EventType.INTERVIEW_SUMMARY, self._handle_interview_summary)
             self.event_bus.subscribe(EventType.SESSION_START, self._handle_session_start)
             self.event_bus.subscribe(EventType.SESSION_RESET, self._handle_session_reset)
@@ -686,3 +686,39 @@ class SkillAssessorAgent(BaseAgent):
         
         # This now handles caching and generation logic
         return self._suggest_resources(skill_name_lower, proficiency)
+    
+    def _create_skill_profile_tool(self, skills_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Generate a comprehensive skill profile from accumulated skill data.
+        
+        Args:
+            skills_data: List of skill dictionaries with assessment data
+            
+        Returns:
+            Structured skill profile
+        """
+        self.logger.info(f"Creating skill profile from {len(skills_data)} identified skills.")
+        
+        try:
+            # Use the existing generate_skill_profile method which already does most of the work
+            profile = self.generate_skill_profile()
+            
+            # Add additional context about when the profile was generated
+            profile["generated_at"] = datetime.now().isoformat()
+            profile["skills_count"] = len(skills_data)
+            
+            # Publish event with the generated skill profile
+            self.publish_event(EventType.SKILL_ASSESSMENT, {
+                "skill_profile": profile,
+                "skills_count": len(skills_data)
+            })
+            
+            return profile
+            
+        except Exception as e:
+            self.logger.error(f"Error creating skill profile: {e}", exc_info=True)
+            return {
+                "error": "Failed to generate skill profile",
+                "job_role": self.job_role or "[Not Specified]",
+                "reason": str(e)
+            }

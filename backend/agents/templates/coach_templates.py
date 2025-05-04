@@ -160,36 +160,36 @@ Additionally, provide:
 - Practical Tips: 2-3 actionable suggestions to improve their communication
 
 FORMAT YOUR RESPONSE AS JSON:
-{
-    "clarity": {
+{{
+    "clarity": {{
         "score": <0-10>,
         "feedback": "<specific clarity feedback>"
-    },
-    "conciseness": {
+    }},
+    "conciseness": {{
         "score": <0-10>,
         "feedback": "<specific conciseness feedback>"
-    },
-    "structure": {
+    }},
+    "structure": {{
         "score": <0-10>,
         "feedback": "<specific structure feedback>"
-    },
-    "engagement": {
+    }},
+    "engagement": {{
         "score": <0-10>,
         "feedback": "<specific engagement feedback>"
-    },
-    "confidence": {
+    }},
+    "confidence": {{
         "score": <0-10>,
         "feedback": "<specific confidence feedback>"
-    },
-    "technical_terminology": {
+    }},
+    "technical_terminology": {{
         "score": <0-10>,
         "feedback": "<specific technical terminology feedback>"
-    },
+    }},
     "overall_score": <0-10>,
     "key_strengths": ["<strength 1>", "<strength 2>", ...],
     "improvement_areas": ["<area 1>", "<area 2>", ...],
     "practical_tips": ["<tip 1>", "<tip 2>", ...]
-}
+}}
 """
 
 # Completeness evaluation template
@@ -200,48 +200,48 @@ Question: {question}
 Candidate's Response: {answer}
 Job Role: {job_role}
 
-TASK: Evaluate how complete and comprehensive the candidate's answer is for this specific question and job role.
+TASK: Evaluate how complete and comprehensive the candidate's answer is, especially for this job role.
 
-Assess the following factors on a scale of 0-10 with specific feedback:
-- Question Relevance: How directly did they address the actual question asked?
-- Key Points Coverage: Did they cover all the important aspects related to the question?
-- Examples: Did they provide sufficient and relevant examples?
-- Depth: Did they go beyond surface-level explanations?
-- Context Awareness: Did they tailor their response to the role and company context?
+Assess the following aspects on a scale of 0-10 with specific feedback:
+- Question Relevance: How directly did they address what was asked?
+- Key Points Coverage: Did they cover the essential points expected for this question?
+- Examples: Did they provide relevant and specific examples?
+- Depth: Did they go into sufficient detail on important aspects?
+- Context Awareness: Did they tailor their answer to the job role and situation?
 
 Additionally, provide:
-- Overall Completeness Score (0-10): A comprehensive assessment of response completeness
-- Missing Elements: Important points they should have included
-- Excessive Elements: Any unnecessary information that diluted their answer
-- Improvement Plan: How they could make the response more complete and relevant
+- Overall Completeness Score (0-10): A weighted assessment across all dimensions
+- Missing Elements: Important aspects they should have included but didn't
+- Excessive Elements: Any unnecessary information that distracted from their answer
+- Improvement Plan: How they could make this response more complete and effective
 
 FORMAT YOUR RESPONSE AS JSON:
-{
-    "question_relevance": {
+{{
+    "question_relevance": {{
         "score": <0-10>,
         "feedback": "<specific relevance feedback>"
-    },
-    "key_points_coverage": {
+    }},
+    "key_points_coverage": {{
         "score": <0-10>,
         "feedback": "<specific coverage feedback>"
-    },
-    "examples": {
+    }},
+    "examples": {{
         "score": <0-10>,
         "feedback": "<specific examples feedback>"
-    },
-    "depth": {
+    }},
+    "depth": {{
         "score": <0-10>,
         "feedback": "<specific depth feedback>"
-    },
-    "context_awareness": {
+    }},
+    "context_awareness": {{
         "score": <0-10>,
         "feedback": "<specific context awareness feedback>"
-    },
+    }},
     "overall_score": <0-10>,
     "missing_elements": ["<missing element 1>", "<missing element 2>", ...],
     "excessive_elements": ["<excessive element 1>", "<excessive element 2>", ...],
-    "improvement_plan": "<specific plan for improving completeness>"
-}
+    "improvement_plan": "<detailed improvement plan>"
+}}
 """
 
 # Personalized feedback template

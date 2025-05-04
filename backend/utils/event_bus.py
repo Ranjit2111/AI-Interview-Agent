@@ -29,7 +29,7 @@ class EventType(str, enum.Enum):
     # Agent Specific - Interviewer
     INTERVIEWER_RESPONSE = "interviewer_response" # Published by InterviewerAgent (contains question)
     INTERVIEW_COMPLETED = "interview_completed" # Published by InterviewerAgent when done
-    # INTERVIEW_SUMMARY = "interview_summary" # Potentially published by Interviewer or Coach? Review usage.
+    INTERVIEW_SUMMARY = "interview_summary" # Published by Interviewer or Session Manager with interview summary
 
     # Agent Specific - Coach
     COACHING_REQUEST = "coaching_request" # Published via ServiceSessionManager proxy, handled by CoachAgent
@@ -38,6 +38,7 @@ class EventType(str, enum.Enum):
 
     # Agent Specific - Skill Assessor
     SKILL_ASSESSMENT = "skill_assessment" # Published by SkillAssessorAgent (e.g., with final profile or updates)
+    SKILL_EXTRACTED = "skill_extracted" # Published when a skill is identified in the user's response
     # SKILL_IDENTIFIED = "skill_identified" # Potentially useful for real-time feedback, but maybe covered by SKILL_ASSESSMENT
     # SKILL_ASSESSED = "skill_assessed"
 

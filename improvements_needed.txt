@@ -1,0 +1,5 @@
+At the start of the interview, the interviewer starts off twice, I should make it only introduce once, such that its not awkward for the interviewee.
+
+Towards the end, the interviewer seems to abruptly cut the interview, it should give some sort of conclusion like, good to chat with you, we'll discuss with the team and inform you of our decision.
+Skill assessor and coach agents can be improved.
+add tools for agents to work with
