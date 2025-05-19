@@ -175,7 +175,6 @@ graph TD
         U_EB -- defines --> EVT(Event/EventType)
         U_LU -- contains --> LLMHelpers(format_history, parse_json, invoke_chain)
         U_VS -- contains --> VectorStoreClass(FAISS/SentenceTransformer)
-        U_DG(utils/docs_generator.py):::util
     end
 
     %% Data Layer

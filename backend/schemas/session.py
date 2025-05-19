@@ -9,7 +9,6 @@ import enum
 
 # Import enums from models to ensure consistency
 from backend.models.interview import InterviewStyle
-
 # --- Input Schemas ---
 
 class InterviewConfig(BaseModel):

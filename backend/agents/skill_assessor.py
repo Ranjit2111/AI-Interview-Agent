@@ -19,6 +19,7 @@ try:
     from backend.agents.base import BaseAgent, AgentContext
     from backend.utils.event_bus import Event, EventBus, EventType
     from backend.services.llm_service import LLMService
+    from backend.services.search_service import Resource
     from backend.agents.templates.skill_templates import (
         SKILL_SYSTEM_PROMPT,
         SKILL_EXTRACTION_TEMPLATE,
@@ -32,6 +33,7 @@ except ImportError:
     from .base import BaseAgent, AgentContext
     from ..utils.event_bus import Event, EventBus, EventType
     from ..services.llm_service import LLMService
+    from ..services.search_service import Resource
     from .templates.skill_templates import (
         SKILL_SYSTEM_PROMPT,
         SKILL_EXTRACTION_TEMPLATE,
@@ -359,7 +361,7 @@ class SkillAssessorAgent(BaseAgent):
             inputs={"skill": skill, "job_role": self.job_role or "[Not Specified]", "context": context},
             logger=self.logger,
             chain_name="Proficiency Assessment Chain",
-            output_key="proficiency_assessment", # Expecting JSON output under this key
+            output_key="proficiency_assessment", 
             default_creator=lambda: default_assessment
         )
         
@@ -397,7 +399,7 @@ class SkillAssessorAgent(BaseAgent):
         Returns:
             List of resource dictionaries
         """
-        cache_key = f"{skill.lower()}_{proficiency_level.lower()}" # Cache per skill & level
+        cache_key = f"{skill.lower()}_{proficiency_level.lower()}"
         if cache_key in self.resource_cache:
             self.logger.debug(f"Returning cached resources for {skill} ({proficiency_level})")
             return self.resource_cache[cache_key]
@@ -405,7 +407,6 @@ class SkillAssessorAgent(BaseAgent):
         resources = []
         search_service_used = False
         try:
-            # Import locally to avoid circular dependency
             try:
                 from backend.services import get_search_service
             except ImportError:
@@ -414,23 +415,27 @@ class SkillAssessorAgent(BaseAgent):
             search_service = get_search_service()
             if search_service:
                 self.logger.debug(f"Attempting to use search service for {skill} resources...")
-                search_query = f"learning resources for {skill} {proficiency_level}"
-                search_results = await search_service.search(search_query, num_results=3)
                 
-                if search_results:
-                    resources = [
-                        {
-                            "title": result.get("title", "N/A"), 
-                            "url": result.get("link", "#"), 
-                            "type": result.get("type", "webpage"), # Infer type if possible
-                            "snippet": result.get("snippet", "") 
-                        } 
-                        for result in search_results
-                    ]
+                search_service_results: List[Resource] = await search_service.search_resources(
+                    skill=skill,
+                    proficiency_level=proficiency_level,
+                    job_role=self.job_role, # Pass the agent's job_role
+                    num_results=3 # Keep num_results or make configurable
+                )
+                
+                if search_service_results:
+                    resources = [] # Ensure resources is initialized here
+                    for res_obj in search_service_results: # res_obj is a Resource instance
+                        resources.append({
+                            "title": res_obj.title, 
+                            "url": res_obj.url, 
+                            "type": res_obj.resource_type, # Access attribute
+                            "snippet": res_obj.description # Access attribute
+                        })
                     search_service_used = True
                     self.logger.info(f"Found {len(resources)} resources for '{skill}' via search service.")
                 else:
-                    self.logger.warning(f"Search service returned no results for query: {search_query}")
+                    self.logger.warning(f"Search service returned no results for skill: {skill}, proficiency: {proficiency_level}")
             else:
                 self.logger.warning("Search service is not available.")
 
