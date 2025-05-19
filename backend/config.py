@@ -24,13 +24,6 @@ def get_logger(name: str) -> logging.Logger:
     Returns:
         logging.Logger: Configured logger instance
     """
-    # Get the logger for the specific module name
     logger = logging.getLogger(name)
-    
-    # The level and handlers are inherited from the root logger setup in main.py.
-    # We don't need to set the level again here unless we want this specific logger
-    # to have a different level than the root logger.
-    # log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
-    # logger.setLevel(getattr(logging, log_level, logging.INFO))
     
     return logger 

@@ -10,16 +10,14 @@ import time
 from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime, timedelta
 import httpx
-import backoff
 from dotenv import load_dotenv
+import backoff 
 
-# Load environment variables
 load_dotenv()
 
-# Default configuration
 DEFAULT_SEARCH_PROVIDER = "serper"
 SERPER_KEY = os.environ.get("SERPER_API_KEY", "")
-SEARCH_CACHE_TTL = 3600  # need this or nah?
+SEARCH_CACHE_TTL = 3600 
 
 class SearchProvider:
     """Base class for search providers."""
