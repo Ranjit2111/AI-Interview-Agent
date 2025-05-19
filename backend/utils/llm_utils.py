@@ -78,24 +78,22 @@ def invoke_chain_with_error_handling(
             if isinstance(result, dict) and output_key in result:
                 extracted_value = result[output_key]
                 logger.debug(f"Extracted output key '{output_key}': {str(extracted_value)[:100]}...")
-                # Special handling if the extracted value is a JSON string that needs parsing
                 if isinstance(extracted_value, str):
                     parsed_json = parse_json_with_fallback(extracted_value, None, logger)
                     if parsed_json is not None:
-                        return parsed_json # Return parsed JSON if successful
-                return extracted_value # Return original value otherwise
+                        return parsed_json
+                return extracted_value
             else:
                 logger.error(f"Output key '{output_key}' not found in {chain_name} result: {result}")
                 return default_value
         else:
-            # If no specific output key, assume the result might be a dict containing a JSON string
             if isinstance(result, dict) and len(result) == 1:
                  first_value = next(iter(result.values()))
                  if isinstance(first_value, str):
                      parsed_json = parse_json_with_fallback(first_value, None, logger)
                      if parsed_json is not None:
-                         return parsed_json # Return parsed JSON if successful
-            return result # Return the full result dict otherwise
+                         return parsed_json
+            return result
 
     except Exception as e:
         logger.exception(f"Error invoking {chain_name}: {e}")
@@ -106,7 +104,6 @@ def extract_field_safely(data: Dict[str, Any], field_name: str, expected_type: t
     """Extracts a field from a dictionary safely, checking type and providing a default."""
     value = data.get(field_name, default_value)
     if not isinstance(value, expected_type):
-        # Log warning or handle type mismatch if necessary
         return default_value
     return value
 

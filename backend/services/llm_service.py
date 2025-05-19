@@ -3,7 +3,6 @@ Provides a centralized service for accessing the Large Language Model.
 """
 
 import os
-import logging
 from typing import Optional
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -64,7 +63,7 @@ class LLMService:
                 raise
         return self._llm
 
-# Example usage (optional)
+
 if __name__ == '__main__':
     try:
         llm_service = LLMService()

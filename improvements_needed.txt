@@ -3,3 +3,19 @@ At the start of the interview, the interviewer starts off twice, I should make i
 Towards the end, the interviewer seems to abruptly cut the interview, it should give some sort of conclusion like, good to chat with you, we'll discuss with the team and inform you of our decision.
 Skill assessor and coach agents can be improved.
 add tools for agents to work with
+
+
+#Todo:
+1. Check and remove root - main.py
+2. Check and remove backend/tests/
+3. explore config.py
+4. Remove openAPI.json
+5. backend/services/__init__.py seems to be very important, should we move it somewhere else
+- initialize_services() seems to be important as it initializes a lot of functions from utils and services.
+6. reset_session() isn't used anywhere, see what that is and deal with it
+7. may have to remove _create_introduction() as it makes the intro redundant
+
+
+Done:
+- Removed document_generator file and its references from the codebase
+- Removed tests folder

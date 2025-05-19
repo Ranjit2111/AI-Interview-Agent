@@ -17,10 +17,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Default configuration
-DEFAULT_SEARCH_PROVIDER = "serpapi"
-SERPAPI_KEY = os.environ.get("SERPAPI_API_KEY", "")
+DEFAULT_SEARCH_PROVIDER = "serper"
 SERPER_KEY = os.environ.get("SERPER_API_KEY", "")
-SEARCH_CACHE_TTL = 3600  # Cache search results for 1 hour
+SEARCH_CACHE_TTL = 3600  # need this or nah?
 
 class SearchProvider:
     """Base class for search providers."""
@@ -41,51 +40,6 @@ class SearchProvider:
             Search results
         """
         raise NotImplementedError("Subclasses must implement search method")
-
-
-class SerpApiProvider(SearchProvider):
-    """SerpAPI search provider."""
-    
-    def __init__(self, api_key: Optional[str] = None):
-        """Initialize the SerpAPI provider."""
-        super().__init__(api_key or SERPAPI_KEY)
-        self.base_url = "https://serpapi.com/search"
-    
-    @backoff.on_exception(backoff.expo, 
-                         (httpx.HTTPError, httpx.TimeoutException),
-                         max_tries=3)
-    async def search(self, query: str, **kwargs) -> Dict[str, Any]:
-        """
-        Perform a search using SerpAPI.
-        
-        Args:
-            query: Search query string
-            **kwargs: Additional search parameters
-            
-        Returns:
-            Search results in SerpAPI format
-        """
-        if not self.api_key:
-            raise ValueError("SerpAPI key not provided")
-        
-        # Default search parameters
-        params = {
-            "q": query,
-            "api_key": self.api_key,
-            "engine": "google",
-            "num": kwargs.get("num_results", 10),
-            "gl": kwargs.get("country", "us"),
-            "hl": kwargs.get("language", "en"),
-        }
-        
-        # Add optional parameters
-        if "safe" in kwargs:
-            params["safe"] = kwargs["safe"]
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.get(self.base_url, params=params)
-            response.raise_for_status()
-            return response.json()
 
 
 class SerperProvider(SearchProvider):
@@ -113,7 +67,6 @@ class SerperProvider(SearchProvider):
         if not self.api_key:
             raise ValueError("Serper.dev API key not provided")
         
-        # Default search parameters
         params = {
             "q": query,
             "num": kwargs.get("num_results", 10),
@@ -192,33 +145,24 @@ class SearchService:
     
     def __init__(
         self,
-        provider_name: str = DEFAULT_SEARCH_PROVIDER,
-        api_key: Optional[str] = None,
         logger: Optional[logging.Logger] = None
     ):
         """
         Initialize the search service.
         
         Args:
-            provider_name: Name of the search provider (serpapi or serper)
-            api_key: API key for the provider
             logger: Logger instance
         """
         self.logger = logger or logging.getLogger(__name__)
         
         # Initialize provider
-        if provider_name.lower() == "serpapi":
-            self.provider = SerpApiProvider(api_key)
-        elif provider_name.lower() == "serper":
-            self.provider = SerperProvider(api_key)
-        else:
-            raise ValueError(f"Unsupported search provider: {provider_name}")
+        self.provider = SerperProvider()
         
         # Initialize cache
         self._search_cache = {}
         self._search_cache_timestamps = {}
         
-        self.logger.info(f"Initialized search service with {provider_name} provider")
+        self.logger.info(f"Initialized search service with Serper provider")
     
     async def search_resources(
         self,
@@ -349,45 +293,8 @@ class SearchService:
         """
         resources = []
         
-        # Handle SerpAPI results
-        if "organic_results" in search_results:
-            organic_results = search_results["organic_results"]
-            
-            for result in organic_results:
-                # Extract basic information
-                title = result.get("title", "")
-                url = result.get("link", "")
-                snippet = result.get("snippet", "")
-                
-                if not (title and url):
-                    continue
-                
-                # Determine resource type
-                resource_type = self._classify_resource_type(title, url, snippet)
-                
-                # Calculate relevance score
-                relevance_score = self._calculate_relevance(
-                    title, url, snippet, skill, proficiency_level, job_role
-                )
-                
-                # Create resource
-                resource = Resource(
-                    title=title,
-                    url=url,
-                    description=snippet,
-                    resource_type=resource_type,
-                    source="serpapi",
-                    relevance_score=relevance_score,
-                    metadata={
-                        "position": result.get("position"),
-                        "displayed_link": result.get("displayed_link")
-                    }
-                )
-                
-                resources.append(resource)
-        
         # Handle Serper results
-        elif "organic" in search_results:
+        if "organic" in search_results:
             organic_results = search_results["organic"]
             
             for result in organic_results:

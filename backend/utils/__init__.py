@@ -4,7 +4,6 @@ Contains helper functions and common utilities.
 """
 
 from .event_bus import Event, EventBus, EventType
-from .docs_generator import generate_static_docs
 from .llm_utils import (
     format_conversation_history,
     parse_json_with_fallback,
