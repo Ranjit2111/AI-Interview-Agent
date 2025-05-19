@@ -42,3 +42,4 @@ msgpack>=1.0.5
 tqdm>=4.65.0
 loguru>=0.7.0
 tenacity>=8.2.2 
+backoff >= 2.2.0

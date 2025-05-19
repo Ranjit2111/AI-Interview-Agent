@@ -7,7 +7,7 @@ add tools for agents to work with
 
 #Todo:
 1. Check and remove root - main.py
-2. Check and remove backend/tests/
+2. Check and remove backend/tests/ ✅
 3. explore config.py
 4. Remove openAPI.json
 5. backend/services/__init__.py seems to be very important, should we move it somewhere else

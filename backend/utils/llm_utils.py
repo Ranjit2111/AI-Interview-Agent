@@ -23,14 +23,12 @@ def format_conversation_history(history: List[Dict[str, Any]]) -> str:
 def parse_json_with_fallback(json_string: str, default_value: Any, logger: logging.Logger) -> Any:
     """Safely parses a JSON string, returning a default value on failure."""
     try:
-        # Attempt to find JSON within potential markdown code blocks
         match = re.search(r"```(json)?\n(.*?)\n```", json_string, re.DOTALL | re.IGNORECASE)
         if match:
             json_string_extracted = match.group(2).strip()
             logger.debug(f"Extracted JSON from markdown block: {json_string_extracted[:100]}...")
             return json.loads(json_string_extracted)
         else:
-            # If no markdown block found, try parsing the whole string
             logger.debug(f"Attempting to parse JSON directly: {json_string[:100]}...")
             return json.loads(json_string)
     except json.JSONDecodeError as e:
@@ -98,17 +96,3 @@ def invoke_chain_with_error_handling(
     except Exception as e:
         logger.exception(f"Error invoking {chain_name}: {e}")
         return default_value
-
-
-def extract_field_safely(data: Dict[str, Any], field_name: str, expected_type: type = str, default_value: Any = None) -> Any:
-    """Extracts a field from a dictionary safely, checking type and providing a default."""
-    value = data.get(field_name, default_value)
-    if not isinstance(value, expected_type):
-        return default_value
-    return value
-
-def calculate_average_scores(scores: List[Union[int, float]]) -> float:
-    """Calculates the average of a list of scores, handling empty lists."""
-    if not scores:
-        return 0.0
-    return sum(scores) / len(scores) 

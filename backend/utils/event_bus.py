@@ -129,17 +129,13 @@ class EventBus:
         Args:
             event: The event to publish
         """
-        # Store in history
         self.event_history.append(event)
         
-        # Trim history if it gets too large
         if len(self.event_history) > self.max_history_size:
             self.event_history = self.event_history[-self.max_history_size:]
         
-        # Notify subscribers
         event_type = event.event_type
         
-        # Call specific subscribers for this event type
         if event_type in self.subscribers:
             for callback in self.subscribers[event_type]:
                 try:
@@ -147,7 +143,6 @@ class EventBus:
                 except Exception as e:
                     self.logger.exception(f"Error in subscriber callback for event type {event_type}: {e}")
         
-        # Notify wildcard subscribers
         if "*" in self.subscribers:
             for callback in self.subscribers["*"]:
                 try:
