@@ -1,0 +1,90 @@
+# Interviewer Agent Documentation
+
+## Core Functions
+
+### _setup_llm_chains()
+Sets up LangChain chains for different purposes:
+- Job specific question generation
+- Next action determination
+- Response formatting
+
+### _generate_questions()
+Generates initial interview questions:
+- Creates a mix of generic and job-specific questions
+- Respects question count limit
+- Adapts to interview style
+
+### _determine_and_generate_next_action(context: AgentContext)
+Determines the next action in the interview:
+Inputs:
+- context: Current interview context
+Outputs:
+- Dict containing:
+  - action_type: "ask_follow_up" | "ask_new_question" | "end_interview"
+  - next_question_text: The question to ask
+  - justification: Reason for the action
+  - newly_covered_topics: List of topics covered
+
+### _handle_session_start(event: Event)
+Handles session initialization:
+- Resets agent state
+- Updates configuration from event data
+- Generates initial questions
+
+### _handle_session_end(event: Event)
+Handles session termination:
+- Sets state to COMPLETED
+- Cleans up resources
+
+### _handle_session_reset(event: Event)
+Resets the interview session:
+- Resets all counters and state
+- Clears question history
+
+### process(context: AgentContext)
+Main processing function:
+Inputs:
+- context: Current interview context
+Outputs:
+- Dict containing:
+  - role: "assistant"
+  - agent: "interviewer"
+  - content: Response content
+  - response_type: Type of response
+  - timestamp: Current timestamp
+  - metadata: Additional information
+
+## State Management
+
+The interview progresses through states:
+1. INITIALIZING: Setting up interview
+2. INTRODUCING: Presenting introduction
+3. QUESTIONING: Conducting interview
+4. COMPLETED: Interview finished
+
+## Design Decisions
+
+1. **State Machine Pattern**
+   - Clear separation of interview phases
+   - Predictable state transitions
+   - Easy to extend with new states
+
+2. **Event-Driven Architecture**
+   - Loose coupling between components
+   - Easy to add new event handlers
+   - Flexible communication between agents
+
+3. **LLM Chain Separation**
+   - Different chains for different purposes
+   - Better error handling
+   - Easier to maintain and update
+
+4. **Configuration Management**
+   - Flexible interview style
+   - Adaptable to different job roles
+   - Configurable question count and difficulty
+
+5. **Error Handling**
+   - Graceful fallbacks
+   - Detailed logging
+   - State recovery mechanisms 
