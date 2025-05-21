@@ -24,27 +24,23 @@ class EventType(str, enum.Enum):
 
     # Core Interaction
     USER_MESSAGE = "user_message" # Published by AgentSessionManager when user message received
-    ASSISTANT_RESPONSE = "assistant_response" # Published by AgentSessionManager after getting agent response
-
-    # Agent Specific - Interviewer
-    INTERVIEWER_RESPONSE = "interviewer_response" # Published by InterviewerAgent (contains question)
-    INTERVIEW_COMPLETED = "interview_completed" # Published by InterviewerAgent when done
-    INTERVIEW_SUMMARY = "interview_summary" # Published by Interviewer or Session Manager with interview summary
-
-    # Agent Specific - Coach
-    COACHING_REQUEST = "coaching_request" # Published via ServiceSessionManager proxy, handled by CoachAgent
-    COACH_FEEDBACK = "coach_feedback"     # Published by CoachAgent with feedback
-    COACH_ANALYSIS = "coach_analysis"     # Published by CoachAgent with structured analysis
-
-    # Data / Service Events
-    TRANSCRIPT_CREATED = "transcript_created" # Published by TranscriptService
-    TRANSCRIPT_UPDATED = "transcript_updated" # Published by TranscriptService
-    TRANSCRIPT_DELETED = "transcript_deleted" # Published by TranscriptService
-    SESSION_PERSISTED = "session_persisted" # Optional: Published by ServiceSessionManager after successful save
+    ASSISTANT_RESPONSE = "assistant_response" # Published by AgentSessionManager for Interviewer & Coach
 
     # Generic Events
     ERROR = "error"                 # Published on errors
-    STATUS_UPDATE = "status_update" # Generic status update
+    # STATUS_UPDATE = "status_update" # Generic status update - REMOVED as unused
+
+    # --- REMOVED Event Types ---
+    # INTERVIEWER_RESPONSE = "interviewer_response" 
+    # INTERVIEW_COMPLETED = "interview_completed" 
+    # INTERVIEW_SUMMARY = "interview_summary" 
+    # COACHING_REQUEST = "coaching_request" 
+    # COACH_FEEDBACK = "coach_feedback"     
+    # COACH_ANALYSIS = "coach_analysis"     
+    # TRANSCRIPT_CREATED = "transcript_created" 
+    # TRANSCRIPT_UPDATED = "transcript_updated" 
+    # TRANSCRIPT_DELETED = "transcript_deleted" 
+    # SESSION_PERSISTED = "session_persisted" 
 
 
 @dataclass
