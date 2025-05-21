@@ -10,49 +10,47 @@ from typing import Optional, Dict, Any, List
 from pathlib import Path
 import logging
 import asyncio
-import json
+import html
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Form, Query
 from fastapi.responses import JSONResponse, StreamingResponse, Response
 import httpx
+import boto3 
+from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError # Added for AWS Polly
 
 logger = logging.getLogger(__name__)
 
-# Check for AssemblyAI API key
 ASSEMBLYAI_API_KEY = os.environ.get("ASSEMBLYAI_API_KEY", "")
 
-KOKORO_API_URL = os.environ.get("KOKORO_API_URL") # Removed default, should be set by setup
 
-# Dictionary to store speech processing tasks
+AWS_REGION = os.environ.get("AWS_REGION")
+polly_client = None
+
+if AWS_REGION:
+    try:
+        polly_client = boto3.client(
+            "polly",
+            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
+            region_name=os.getenv("AWS_REGION")
+        )
+        logger.info(f"Successfully initialized AWS Polly client in region {AWS_REGION}.")
+    except (NoCredentialsError, PartialCredentialsError) as e:
+        logger.error(f"AWS credentials not found or incomplete. Please configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY. Error: {e}")
+        polly_client = None # Ensure client is None if initialization fails
+    except ClientError as e:
+        logger.error(f"AWS ClientError initializing Polly client: {e}. Check AWS permissions and region.")
+        polly_client = None
+    except Exception as e:
+        logger.error(f"Failed to initialize AWS Polly client: {e}")
+        polly_client = None # Ensure client is None for any other init error
+else:
+    logger.warning("AWS_REGION environment variable not set. AWS Polly TTS service will be unavailable.")
+
+
 speech_tasks = {}
 
-# Create router
 router = APIRouter()
-
-# Shared httpx client for TTS requests
-tts_client = httpx.AsyncClient(timeout=60.0) # Increased timeout for potentially long synthesis
-
-# Helper to check TTS service health
-async def is_tts_service_available():
-    if not KOKORO_API_URL:
-        logger.warning("KOKORO_API_URL environment variable is not set. TTS service is disabled.")
-        return False
-    try:
-        response = await tts_client.get(f"{KOKORO_API_URL}/health")
-        response.raise_for_status() # Raise exception for 4xx or 5xx status codes
-        logger.info("Kokoro TTS service is healthy.")
-        return True
-    except (httpx.RequestError, httpx.HTTPStatusError) as e:
-        logger.error(f"Kokoro TTS service check failed: {e}")
-        return False
-
-# Initialize Kokoro TTS client # REMOVED old initialization block
-# kokoro_client = None
-# try:
-#     kokoro_client = KokoroClient(base_url=KOKORO_API_URL)
-#     logger.info("Successfully initialized Kokoro TTS client")
-# except Exception as e:
-#     logger.warning(f"Failed to initialize Kokoro TTS client: {e}")
 
 async def transcribe_with_assemblyai(audio_file_path: str, task_id: str):
     """
@@ -239,302 +237,198 @@ async def check_transcription_status(task_id: str):
 @router.get("/api/text-to-speech/voices")
 async def get_available_voices():
     """
-    Get a list of available TTS voices from the Kokoro server.
+    Get a list of available TTS voices from the Amazon Polly.
 
     Returns:
         JSON response with voice list or error message.
     """
-    if not KOKORO_API_URL:
+    if not polly_client:
         raise HTTPException(
             status_code=503,
-            detail="TTS service URL not configured. Set KOKORO_API_URL environment variable."
+            detail="TTS service (Amazon Polly) not configured or unavailable. Check AWS_REGION and credentials."
         )
 
     try:
-        response = await tts_client.get(f"{KOKORO_API_URL}/v1/audio/voices")
-        response.raise_for_status()
-        voices_data = response.json() # Should be a list of dicts, but might be list of strings or a dict
+        response = await asyncio.to_thread(polly_client.describe_voices)
+        # response = polly_client.describe_voices() # If not in async context or FastAPI handles it
         
-        logger.debug(f"Received voices data: {voices_data}")
         formatted_voices = []
+        if response and 'Voices' in response:
+            for voice in response['Voices']:
+                formatted_voices.append({
+                    "id": voice.get("Id", "unknown_voice"),
+                    "name": voice.get("Name", "Unknown Voice"),
+                    "language": voice.get("LanguageCode", "unknown"),
+                    "description": f"{voice.get('Gender', 'Unknown gender')} voice. Engine(s): {', '.join(voice.get('SupportedEngines', []))}",
+                    "gender": voice.get("Gender", "unknown").lower()
+                })
         
-        # Handle different response formats
-        if isinstance(voices_data, list):
-            # Original expected format: list of voice objects or strings
-            for voice_item in voices_data:
-                if isinstance(voice_item, dict):
-                    # Handle expected dictionary structure
-                    formatted_voices.append({
-                        "id": voice_item.get("name", "unknown_voice"),
-                        "name": voice_item.get("name", "Unknown Voice"),
-                        "language": voice_item.get("language", "unknown"),
-                        "description": voice_item.get("description", "No description available"),
-                        "gender": voice_item.get("gender", "unknown")
-                    })
-                elif isinstance(voice_item, str):
-                    # Handle unexpected list of strings structure
-                    formatted_voices.append({
-                        "id": voice_item, # Use the string as ID
-                        "name": voice_item.replace("_", " ").title(), # Format name from ID
-                        "language": "unknown", # Cannot determine language
-                        "description": "Description unavailable",
-                        "gender": "unknown"
-                    })
-                else:
-                    logger.warning(f"Unexpected item type in voices list: {type(voice_item)}")
-        elif isinstance(voices_data, dict):
-            # New format: might be a dict with a 'voices' key or similar
-            # Look for common keys that might contain the voice list
-            possible_keys = ["voices", "data", "results", "models"]
-            voice_list = None
-            
-            # Try to find a list of voices in any of the common keys
-            for key in possible_keys:
-                if key in voices_data and isinstance(voices_data[key], list):
-                    voice_list = voices_data[key]
-                    logger.info(f"Found voices list under key: {key}")
-                    break
-                    
-            # If we found a list, process it
-            if voice_list:
-                for voice_item in voice_list:
-                    if isinstance(voice_item, dict):
-                        formatted_voices.append({
-                            "id": voice_item.get("name", voice_item.get("id", "unknown_voice")),
-                            "name": voice_item.get("name", voice_item.get("id", "Unknown Voice")),
-                            "language": voice_item.get("language", "unknown"),
-                            "description": voice_item.get("description", "No description available"),
-                            "gender": voice_item.get("gender", "unknown")
-                        })
-                    elif isinstance(voice_item, str):
-                        formatted_voices.append({
-                            "id": voice_item,
-                            "name": voice_item.replace("_", " ").title(),
-                            "language": "unknown",
-                            "description": "Description unavailable",
-                            "gender": "unknown"
-                        })
-            # If no list found in common keys, try using the dict keys themselves as voice IDs
-            elif len(voices_data) > 0:
-                logger.info(f"Using dictionary keys as voice IDs, found {len(voices_data)} voices")
-                for key, value in voices_data.items():
-                    voice_name = key
-                    # If the value is a dict, it might contain additional voice info
-                    voice_info = value if isinstance(value, dict) else {}
-                    formatted_voices.append({
-                        "id": key,
-                        "name": voice_info.get("name", key.replace("_", " ").title()),
-                        "language": voice_info.get("language", "unknown"),
-                        "description": voice_info.get("description", "No description available"),
-                        "gender": voice_info.get("gender", "unknown")
-                    })
-            else:
-                logger.error(f"Could not find voice list in dictionary response: {voices_data}")
-                # Return a default voice if we can't find any
-                formatted_voices = [{
-                    "id": "am_michael",
-                    "name": "Default Voice",
-                    "language": "en",
-                    "description": "Default voice (API response could not be parsed)",
-                    "gender": "unknown"
-                }]
-        else:
-             logger.error(f"Unexpected data structure for voices response: {type(voices_data)}")
-             # Instead of failing, provide at least one default voice
+        if not formatted_voices:
+             logger.warning("No voices returned from Polly or response format unexpected.")
+             # Provide a default or raise error, consistent with old behavior (provides default)
+             # For Polly, it's better to be accurate if service is up but no voices listed.
+             # However, to maintain a similar fallback for UI if it expects *something*:
              formatted_voices = [{
-                 "id": "am_michael",
-                 "name": "Default Voice",
-                 "language": "en",
-                 "description": "Default voice (API response could not be parsed)",
-                 "gender": "unknown"
+                 "id": "Matthew", # Example Polly Voice ID
+                 "name": "Default Voice (Matthew)",
+                 "language": "en-US",
+                 "description": "Default voice (if API response was empty or failed to parse)",
+                 "gender": "male"
              }]
+             # If API call was successful but no voices, it's an issue.
+             # If call itself failed, earlier error handling would catch it.
 
         return JSONResponse({"voices": formatted_voices})
 
-    except httpx.RequestError as e:
-        logger.error(f"Error contacting TTS service for voices: {e}")
+    except ClientError as e:
+        logger.error(f"Error contacting Amazon Polly for voices: {e}")
         raise HTTPException(
-            status_code=503,
-            detail=f"TTS service unavailable: {e}"
-        )
-    except httpx.HTTPStatusError as e:
-        logger.error(f"Error response from TTS service for voices: {e.response.status_code} - {e.response.text}")
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=f"TTS service error: {e.response.text}"
+            status_code=getattr(e.response, 'get', lambda x, y: y)('Error', {}).get('Code', 503), # Try to get AWS error code
+            detail=f"Amazon Polly service error: {e.response.get('Error', {}).get('Message', str(e))}"
         )
     except Exception as e:
-        logger.exception("Unexpected error getting TTS voices")
+        logger.exception("Unexpected error getting TTS voices from Polly")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.post("/api/text-to-speech")
 async def text_to_speech(
     text: str = Form(...),
-    voice_id: str = Form("am_michael"),  # Default voice matches server default
-    speed: float = Form(1.0, ge=0.5, le=2.0), # Added validation from server
-    # pitch: float = Form(1.0), # REMOVED - Not supported by server
-    # format: str = Form("mp3") # REMOVED - Server returns WAV
+    voice_id: str = Form("Matthew"),  # Default Polly voice (e.g., Matthew for en-US)
+    speed: float = Form(1.0, ge=0.5, le=2.0), # Speed control via SSML
 ):
     """
-    Synthesize speech from text using the Kokoro TTS server.
+    Synthesize speech from text using Amazon Polly.
 
     Args:
         text: Text to synthesize.
-        voice_id: ID (name) of the voice to use (e.g., 'am_michael').
-        speed: Speech speed (0.5 to 2.0).
+        voice_id: ID (name) of the Polly voice to use (e.g., 'Matthew').
+        speed: Speech speed (0.5 to 2.0), converted to SSML prosody rate.
 
     Returns:
-        Audio data as a WAV file response.
+        Audio data as an MP3 file response.
     """
-    if not KOKORO_API_URL:
+    if not polly_client:
         raise HTTPException(
             status_code=503,
-            detail="TTS service URL not configured. Set KOKORO_API_URL environment variable."
+            detail="TTS service (Amazon Polly) not configured or unavailable. Check AWS_REGION and credentials."
         )
 
-    payload = {
-        "model": "kokoro",  # Use the documented model field, default to 'kokoro'
-        "input": text,      # Use 'input' instead of 'text'
-        "voice": voice_id,
-        "response_format": "wav", # Explicitly request WAV format
-        "speed": speed,
-        "stream": False      # Disable streaming for this endpoint
-    }
-    logger.info(f"Sending TTS request to {KOKORO_API_URL}/v1/audio/speech with voice: {voice_id}, speed: {speed}")
+    escaped_text = html.escape(text)
+    
+    # SSML for speed control. Polly rate is percentage.
+    # "medium" is default (100%). "slow" ~85%, "x-slow" ~70%. "fast" ~120%, "x-fast" ~150%.
+    # We can map the float speed to a percentage.
+    speed_percentage = int(speed * 100)
+    ssml_text = f'<speak><prosody rate="{speed_percentage}%">{escaped_text}</prosody></speak>'
+    
+    logger.info(f"Sending TTS request to Amazon Polly with voice: {voice_id}, speed: {speed} ({speed_percentage}%)")
+
+
 
     try:
-        response = await tts_client.post(f"{KOKORO_API_URL}/v1/audio/speech", json=payload) # Corrected endpoint
-        response.raise_for_status() # Check for 4xx/5xx errors
-
-        # Check content type (should be audio/wav)
-        content_type = response.headers.get("content-type")
-        if content_type != "audio/wav":
-            logger.error(f"Unexpected content type from TTS server: {content_type}. Response: {response.text}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"TTS server returned unexpected content type: {content_type}"
-            )
-
-        # Return the raw audio data with the correct content type
-        return Response(content=response.content, media_type="audio/wav")
-
-    except httpx.RequestError as e:
-        logger.error(f"Error contacting TTS service for synthesis: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail=f"TTS service unavailable: {e}"
+        response = await asyncio.to_thread(
+            polly_client.synthesize_speech,
+            Text=ssml_text,
+            OutputFormat="mp3",
+            VoiceId=voice_id,
+            TextType="ssml",
+            Engine="neural" # Or 'neural' if preferred and voice supports it
         )
-    except httpx.HTTPStatusError as e:
-        error_detail = f"TTS service error: {e.response.text}"
-        try:
-            # Attempt to parse JSON error detail from server
-            error_json = e.response.json()
-            error_detail = error_json.get("detail", error_detail)
-        except json.JSONDecodeError:
-            pass # Use raw text if not JSON
-        logger.error(f"Error response from TTS service for synthesis: {e.response.status_code} - {error_detail}")
+        
+        audio_stream = response.get("AudioStream")
+        if audio_stream:
+            audio_content = audio_stream.read()
+            audio_stream.close() # Important to close the stream
+            return Response(content=audio_content, media_type="audio/mpeg")
+        else:
+            logger.error(f"No AudioStream in Polly response: {response}")
+            raise HTTPException(status_code=500, detail="TTS server returned no audio data.")
+
+    except ClientError as e:
+        error_code = getattr(e.response, 'get', lambda x, y: y)('Error', {}).get('Code', 500)
+        error_message = e.response.get('Error', {}).get('Message', str(e))
+        logger.error(f"Amazon Polly service error during synthesis: {error_code} - {error_message}")
         raise HTTPException(
-            status_code=e.response.status_code,
-            detail=error_detail
+            status_code=int(error_code) if isinstance(error_code, str) and error_code.isdigit() else 503,
+            detail=f"Amazon Polly service error: {error_message}"
         )
     except Exception as e:
-        logger.exception("Unexpected error during text-to-speech synthesis")
+        logger.exception("Unexpected error during text-to-speech synthesis with Polly")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-# Optional: Consider removing or adapting this streaming endpoint if true streaming isn't implemented/needed.
-# For now, it will behave like the non-streaming endpoint.
 @router.post("/api/text-to-speech/stream")
 async def stream_text_to_speech(
     text: str = Form(...),
-    voice_id: str = Form("am_michael"),  # Default voice
+    voice_id: str = Form("Matthew"),  # Default Polly voice
     speed: float = Form(1.0, ge=0.5, le=2.0),
-    # pitch: float = Form(1.0) # REMOVED
 ):
     """
-    Synthesize speech from text and stream the audio (currently returns full WAV).
+    Synthesize speech from text using Amazon Polly and stream the audio.
 
     Args:
         text: Text to synthesize.
         voice_id: ID (name) of the voice to use.
-        speed: Speech speed (0.5 to 2.0).
+        speed: Speech speed (0.5 to 2.0), converted to SSML prosody rate.
 
     Returns:
-        StreamingResponse containing WAV audio data.
+        StreamingResponse containing MP3 audio data.
     """
-    # This implementation currently mirrors the non-streaming version
-    # because the custom server returns the full WAV at once.
-    # A true streaming implementation would require server-side changes
-    # and different handling here (iterating over response chunks).
-    if not KOKORO_API_URL:
+    if not polly_client:
         raise HTTPException(
             status_code=503,
-            detail="TTS service URL not configured. Set KOKORO_API_URL environment variable."
+            detail="TTS service (Amazon Polly) not configured or unavailable. Check AWS_REGION and credentials."
         )
 
-    payload = {
-        "model": "kokoro", # Use the documented model field, default to 'kokoro'
-        "input": text,     # Use 'input' instead of 'text'
-        "voice": voice_id,
-        "response_format": "wav", # Explicitly request WAV format
-        "speed": speed,
-        "stream": True     # Ensure streaming is enabled for this endpoint
-    }
-    logger.info(f"Sending Streaming TTS request to {KOKORO_API_URL}/v1/audio/speech with voice: {voice_id}, speed: {speed}")
+    escaped_text = html.escape(text)
+    speed_percentage = int(speed * 100)
+    ssml_text = f'<speak><prosody rate="{speed_percentage}%">{escaped_text}</prosody></speak>'
 
+    logger.info(f"Sending Streaming TTS request to Amazon Polly with voice: {voice_id}, speed: {speed} ({speed_percentage}%)")
+    
     try:
-        # Use a context manager for the request to ensure resources are cleaned up
-        async with tts_client.stream("POST", f"{KOKORO_API_URL}/v1/audio/speech", json=payload) as response: # Corrected endpoint
-            response.raise_for_status()
-
-            content_type = response.headers.get("content-type")
-            if content_type != "audio/wav":
-                 logger.error(f"Unexpected content type from TTS streaming endpoint: {content_type}.")
-                 # Need to read the error response body if possible
-                 error_body = await response.aread()
-                 raise HTTPException(
-                     status_code=500,
-                     detail=f"TTS server returned unexpected content type '{content_type}': {error_body.decode()}"
-                 )
-
-            # Stream the response content
-            # Although the server sends it all at once now, this structure
-            # allows for future true streaming if the server is updated.
-            async def generator():
-                async for chunk in response.aiter_bytes():
-                    yield chunk
-
-            return StreamingResponse(generator(), media_type="audio/wav")
-
-    except httpx.RequestError as e:
-        logger.error(f"Error contacting TTS service for streaming synthesis: {e}")
-        raise HTTPException(
-            status_code=503,
-            detail=f"TTS service unavailable: {e}"
+        # boto3's synthesize_speech is blocking, so run in thread for async handler
+        # However, its AudioStream is iterable, suitable for StreamingResponse
+        response = await asyncio.to_thread(
+            polly_client.synthesize_speech,
+            Text=ssml_text,
+            OutputFormat="mp3",
+            VoiceId=voice_id,
+            TextType="ssml",
+            Engine="standard" # Or 'neural'
         )
-    except httpx.HTTPStatusError as e:
-        error_detail = f"TTS service error"
-        try:
-            # Attempt to read error detail from the response body
-            error_body = await e.response.aread()
-            error_detail = error_body.decode()
-            # Try parsing JSON detail if possible
-            try:
-                 error_json = json.loads(error_detail)
-                 error_detail = error_json.get("detail", error_detail)
-            except json.JSONDecodeError:
-                 pass # Use raw text if not JSON
-        except Exception:
-             pass # Ignore if reading body fails
 
-        logger.error(f"Error response from TTS service for streaming synthesis: {e.response.status_code} - {error_detail}")
+        audio_stream = response.get("AudioStream")
+
+        if not audio_stream:
+            logger.error(f"No AudioStream in Polly streaming response: {response}")
+            raise HTTPException(status_code=500, detail="TTS server returned no audio data for streaming.")
+
+        async def generator(stream):
+            try:
+                for chunk in stream:
+                    yield chunk
+            finally:
+                stream.close() # Ensure stream is closed
+
+        return StreamingResponse(generator(audio_stream), media_type="audio/mpeg")
+
+    except ClientError as e:
+        error_code = getattr(e.response, 'get', lambda x, y: y)('Error', {}).get('Code', 500)
+        error_message = e.response.get('Error', {}).get('Message', str(e))
+        logger.error(f"Amazon Polly service error during streaming synthesis: {error_code} - {error_message}")
+        # If error occurs before streaming starts, this is fine.
+        # If error occurs *during* streaming, client might get partial response then error.
+        # Boto3's stream is typically read fully by `synthesize_speech` before this point,
+        # unless OutputFormat='pcm' then streamed. For 'mp3', it's usually delivered as a whole.
+        # The `StreamingBody` itself is an iterator over chunks of the already synthesized speech.
         raise HTTPException(
-            status_code=e.response.status_code,
-            detail=error_detail
+            status_code=int(error_code) if isinstance(error_code, str) and error_code.isdigit() else 503,
+            detail=f"Amazon Polly service error: {error_message}"
         )
     except Exception as e:
-        logger.exception("Unexpected error during streaming text-to-speech synthesis")
+        logger.exception("Unexpected error during streaming text-to-speech synthesis with Polly")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,8 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { InterviewStartRequest } from '@/services/api';
-import { UploadCloud, BriefcaseBusiness, Building2, FileText, Settings, Users, MessageSquare } from 'lucide-react';
+import { InterviewStartRequest, api } from '@/services/api';
+import { UploadCloud, BriefcaseBusiness, Building2, FileText, Settings, Users, MessageSquare, Loader2 } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
 
 interface InterviewConfigProps {
   onSubmit: (config: InterviewStartRequest) => void;
@@ -22,39 +22,73 @@ const InterviewConfig: React.FC<InterviewConfigProps> = ({ onSubmit, isLoading }
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
   const [questionCount, setQuestionCount] = useState(5);
   const [company, setCompany] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
+  const { toast } = useToast();
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check if the file is a .txt, .pdf, or .docx file
-    const validTypes = ['text/plain', 'application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const validTypes = [
+      'text/plain',
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
     if (!validTypes.includes(file.type)) {
-      alert('Please upload a .txt, .pdf, or .docx file');
+      toast({
+        title: "Unsupported File Type",
+        description: "Please upload a .txt, .pdf, or .docx file.",
+        variant: "destructive",
+      });
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        setResumeContent(event.target.result as string);
-      }
-    };
-
     if (file.type === 'text/plain') {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setResumeContent(event.target.result as string);
+          toast({ title: "Success", description: "TXT file content loaded into textarea." });
+        }
+      };
       reader.readAsText(file);
     } else {
-      // For PDF and DOCX, we would normally need server-side processing
-      // For now, just alert the user that we can't parse it client-side
-      alert('For PDF and DOCX files, we currently support uploading but can only extract text server-side. Please paste your resume text manually for now.');
+      setIsUploading(true);
+      try {
+        const response = await api.uploadResumeFile(file);
+        if (response.resume_text) {
+          setResumeContent(response.resume_text);
+          toast({
+            title: "Resume Processed",
+            description: `${response.filename} content extracted and loaded. Message: ${response.message}`,
+          });
+        } else {
+          toast({
+            title: "Processing Issue",
+            description: response.message || "Could not extract text from file.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : "Failed to upload and process resume.";
+        toast({
+          title: "Upload Error",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        console.error("Resume upload error:", error);
+      } finally {
+        setIsUploading(false);
+      }
     }
+    e.target.value = ' ';
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!jobRole.trim()) {
-      alert('Job Role is required');
+      toast({ title: "Missing Field", description: "Job Role is required.", variant: "destructive" });
       return;
     }
     
@@ -136,19 +170,28 @@ const InterviewConfig: React.FC<InterviewConfigProps> = ({ onSubmit, isLoading }
             <div className="flex flex-col gap-2">
               <Textarea
                 id="resume"
-                placeholder="Paste your resume content here..."
+                placeholder="Paste your resume content here or upload a file below..."
                 value={resumeContent}
                 onChange={(e) => setResumeContent(e.target.value)}
                 rows={6}
                 className="glass-effect border-white/10 bg-black/50 focus:border-purple-500/50 focus:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition-all duration-300"
               />
               <div className="flex items-center">
-                <span className="text-sm text-gray-400 mr-2">Or upload a file:</span>
+                 {isUploading ? (
+                  <div className="flex items-center text-sm text-purple-400">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing resume...
+                  </div>
+                ) : (
+                  <span className="text-sm text-gray-400 mr-2">Or upload a file (TXT, PDF, DOCX):</span>
+                )}
                 <Input
                   type="file"
-                  accept=".txt,.pdf,.docx"
+                  id="resume-upload-input"
+                  accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
                   onChange={handleFileUpload}
-                  className="max-w-xs glass-effect border-white/10 bg-black/50 text-gray-300 focus:border-purple-500/50 focus:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition-all duration-300"
+                  disabled={isUploading}
+                  className="max-w-xs glass-effect border-white/10 bg-black/50 text-gray-300 focus:border-purple-500/50 focus:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition-all duration-300 file:mr-2 file:py-1 file:px-2 file:rounded-sm file:border-0 file:text-xs file:bg-purple-600/30 file:text-purple-300 hover:file:bg-purple-600/50"
                 />
               </div>
             </div>

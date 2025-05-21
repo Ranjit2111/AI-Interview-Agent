@@ -22,7 +22,7 @@ echo.
 echo Installing essential backend dependencies...
 cd backend
 call .venv\Scripts\activate
-
+call pip install -r requirements.txt
 :: Deactivate virtual environment
 call deactivate
 cd ..
@@ -38,11 +38,6 @@ if not exist backend\.env (
     )
 )
 
-echo.
-echo Starting Kokoro TTS service...
-start cmd /k "cd /d D:\\Kokoro\\Kokoro-FastAPI\\docker\\gpu && docker compose up"
-echo Kokoro TTS service starting in a separate window. Check that window for status.
-cd /d "%PROJECT_ROOT%"
 
 echo.
 echo Starting backend server...
