@@ -1,0 +1,125 @@
+# Skill Assessor Agent Documentation
+
+## Core Functions
+
+### _setup_llm_chains()
+Sets up LangChain chains for different purposes:
+- Skill extraction
+- Proficiency assessment
+- Resource suggestion
+- Skill profile generation
+
+### _extract_skills(response: str)
+Extracts skills from text:
+Inputs:
+- response: Text to analyze
+Outputs:
+- List of skill dictionaries with name, category, and confidence
+
+### _assess_proficiency(skill: str, context: str)
+Assesses skill proficiency:
+Inputs:
+- skill: Skill to assess
+- context: Context for assessment
+Outputs:
+- Dictionary with proficiency level, confidence, and justification
+
+### _suggest_resources(skill: str, proficiency_level: str)
+Suggests learning resources:
+Inputs:
+- skill: Target skill
+- proficiency_level: Current proficiency
+Outputs:
+- List of resource dictionaries
+
+### generate_skill_profile()
+Generates comprehensive skill profile:
+Inputs:
+- None (uses internal state)
+Outputs:
+- Dictionary with structured skill profile
+
+### _handle_interviewer_response(event: Event)
+Handles interviewer messages:
+Inputs:
+- event: Event containing interviewer message
+Outputs:
+- None (updates internal state)
+
+### _handle_user_response(event: Event)
+Handles user responses:
+Inputs:
+- event: Event containing user response
+Outputs:
+- None (triggers analysis)
+
+### _handle_interview_summary(event: Event)
+Handles interview summary:
+Inputs:
+- event: Event containing interview summary
+Outputs:
+- None (generates final profile)
+
+### _handle_session_start(event: Event)
+Handles session initialization:
+Inputs:
+- event: Session start event
+Outputs:
+- None (resets state and updates config)
+
+### _handle_session_reset(event: Event)
+Handles session reset:
+Inputs:
+- event: Session reset event
+Outputs:
+- None (resets state)
+
+### process(context: AgentContext)
+Main processing function:
+Inputs:
+- context: Current agent context
+Outputs:
+- None (primarily event-driven)
+
+## Design Decisions
+
+1. **Skill Assessment System**
+   - Hierarchical skill categories
+   - Multiple proficiency levels
+   - Confidence scoring
+   - Evidence-based assessment
+
+2. **Event-Driven Architecture**
+   - Reactive to interview events
+   - Loose coupling
+   - Flexible communication
+
+3. **Resource Management**
+   - Caching for efficiency
+   - Multiple resource types
+   - Proficiency-based suggestions
+
+4. **Robust Error Handling**
+   - Fallback mechanisms
+   - Default responses
+   - Detailed logging
+
+5. **State Management**
+   - Session tracking
+   - Skill history
+   - Performance monitoring
+
+6. **Modular Design**
+   - Separate assessment chains
+   - Clear responsibility separation
+   - Easy to extend
+
+7. **Data Persistence**
+   - Skill tracking
+   - Resource caching
+   - Profile generation
+
+8. **Configuration Management**
+   - Role-based skills
+   - Technical focus options
+   - Customizable thresholds 

@@ -1,0 +1,149 @@
+# Coach Agent Documentation
+
+## Core Functions
+
+### _setup_llm_chains()
+Sets up LangChain chains for different purposes:
+- Tips generation
+- Response templates
+- STAR method evaluation
+- Performance analysis
+- Communication assessment
+- Completeness evaluation
+- Personalized feedback
+- Performance metrics
+
+### _generate_improvement_tips_tool(focus_area: str, context: str)
+Generates improvement tips for specific areas:
+Inputs:
+- focus_area: Area to focus on
+- context: Performance context
+Outputs:
+- Tips text
+
+### _generate_response_template_tool(question_type: str, example_question: str, job_role: str)
+Generates response templates:
+Inputs:
+- question_type: Type of question
+- example_question: Example question
+- job_role: Target job role
+Outputs:
+- Response template
+
+### _evaluate_star_method(question: str, answer: str)
+Evaluates STAR method application:
+Inputs:
+- question: Interview question
+- answer: Candidate's answer
+Outputs:
+- Dictionary with STAR evaluation results
+
+### _evaluate_communication_skills(question: str, answer: str)
+Evaluates communication skills:
+Inputs:
+- question: Interview question
+- answer: Candidate's answer
+Outputs:
+- Dictionary with communication assessment
+
+### _evaluate_response_completeness(question: str, answer: str, job_role: str)
+Evaluates answer completeness:
+Inputs:
+- question: Interview question
+- answer: Candidate's answer
+- job_role: Target job role
+Outputs:
+- Dictionary with completeness evaluation
+
+### _generate_personalized_feedback(job_role: str, experience_level: str, strengths: List[str], areas_for_improvement: List[str], learning_style: str, question: str, answer: str, star_evaluation: Dict, communication_assessment: Dict, response_completeness: Dict)
+Generates personalized feedback:
+Inputs:
+- Multiple parameters for personalization
+Outputs:
+- Dictionary with personalized feedback
+
+### track_performance(question: str, answer: str, previous_evaluations: List[Dict])
+Tracks performance over time:
+Inputs:
+- question: Current question
+- answer: Current answer
+- previous_evaluations: List of past evaluations
+Outputs:
+- Dictionary with performance metrics
+
+### _handle_interviewer_message(event: Event)
+Handles interviewer messages:
+Inputs:
+- event: Event containing interviewer message
+Outputs:
+- None (updates internal state)
+
+### _handle_user_message(event: Event)
+Handles user messages:
+Inputs:
+- event: Event containing user message
+Outputs:
+- None (updates internal state)
+
+### _handle_interview_summary(event: Event)
+Handles interview summary:
+Inputs:
+- event: Event containing interview summary
+Outputs:
+- None (generates and publishes coaching summary)
+
+### _handle_coaching_request(event: Event)
+Handles coaching requests:
+Inputs:
+- event: Event containing coaching request
+Outputs:
+- None (generates and publishes response)
+
+### process(context: AgentContext)
+Main processing function:
+Inputs:
+- context: Current agent context
+Outputs:
+- Dictionary with coaching results
+
+## Design Decisions
+
+1. **Modular Evaluation System**
+   - Separate evaluation chains for different aspects
+   - Easy to add new evaluation types
+   - Better error isolation
+
+2. **Event-Driven Architecture**
+   - Loose coupling between components
+   - Flexible communication
+   - Easy to extend functionality
+
+3. **Comprehensive Feedback System**
+   - Multiple feedback types
+   - Personalized recommendations
+   - Progress tracking
+
+4. **Robust Error Handling**
+   - Default responses for failures
+   - Detailed logging
+   - Graceful degradation
+
+5. **Flexible Configuration**
+   - Configurable coaching focus
+   - Adjustable feedback verbosity
+   - Customizable evaluation criteria
+
+6. **Performance Tracking**
+   - Historical analysis
+   - Progress monitoring
+   - Achievement tracking
+
+7. **Template-Based Responses**
+   - Consistent feedback format
+   - Easy to modify templates
+   - Structured output
+
+8. **State Management**
+   - Clear state transitions
+   - Session tracking
+   - History maintenance 

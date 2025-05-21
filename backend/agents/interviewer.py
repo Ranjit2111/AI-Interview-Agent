@@ -1,6 +1,5 @@
 """
 Interviewer agent responsible for conducting interview sessions.
-This agent asks questions, evaluates answers, and provides feedback.
 """
 
 import json
@@ -12,14 +11,14 @@ from enum import Enum
 from datetime import datetime
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate # Keep
-from langchain.chains import LLMChain # Keep
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
 
 
 try:
-    from backend.agents.base import BaseAgent, AgentContext # Keep
-    from backend.utils.event_bus import Event, EventBus, EventType # Keep & Add EventType
-    from backend.services.llm_service import LLMService # Added
+    from backend.agents.base import BaseAgent, AgentContext
+    from backend.utils.event_bus import Event, EventBus, EventType
+    from backend.services.llm_service import LLMService
     from backend.agents.config_models import InterviewStyle
     from backend.agents.templates.interviewer_templates import (
         INTERVIEWER_SYSTEM_PROMPT,
@@ -29,13 +28,13 @@ try:
         RESPONSE_FORMAT_TEMPLATE
     )
     from backend.utils.llm_utils import (
-        invoke_chain_with_error_handling, # Keep
-        format_conversation_history, # Keep
-        parse_json_with_fallback # Added
+        invoke_chain_with_error_handling,
+        format_conversation_history,
+        parse_json_with_fallback
     )
 except ImportError:
-    from .base import BaseAgent, AgentContext # Keep
-    from ..utils.event_bus import Event, EventBus # Keep
+    from .base import BaseAgent, AgentContext
+    from ..utils.event_bus import Event, EventBus
     from ..agents.config_models import InterviewStyle
     from .templates.interviewer_templates import (
         INTERVIEWER_SYSTEM_PROMPT,
@@ -45,12 +44,11 @@ except ImportError:
         RESPONSE_FORMAT_TEMPLATE
     )
     from ..utils.llm_utils import (
-        invoke_chain_with_error_handling, # Keep
-        format_conversation_history, # Keep
-        parse_json_with_fallback # Added
+        invoke_chain_with_error_handling,
+        format_conversation_history,
+        parse_json_with_fallback
     )
 
-# Keep InterviewState Enum (simplified)
 class InterviewState(Enum):
     """Enum representing the simplified states of an interview."""
     INITIALIZING = "initializing"
@@ -65,7 +63,6 @@ class InterviewerAgent(BaseAgent):
     
     The interviewer agent is responsible for:
     - Generating and asking appropriate interview questions
-    - Evaluating candidate answers
     - Maintaining interview flow and context
     - Adapting to the specified interview style
     
@@ -78,16 +75,15 @@ class InterviewerAgent(BaseAgent):
     
     def __init__(
         self,
-        llm_service: LLMService, # Changed from api_key, model_name
+        llm_service: LLMService, 
         event_bus: Optional[EventBus] = None,
         logger: Optional[logging.Logger] = None,
-        # Parameters below are typically set via session_config or events
         interview_style: InterviewStyle = InterviewStyle.FORMAL,
         job_role: str = "",
         job_description: str = "",
         resume_content: str = "",
         difficulty_level: str = "medium",
-        question_count: int = 15, # Reduced default for quicker tests
+        question_count: int = 15,
         company_name: Optional[str] = None
     ):
         """
@@ -107,7 +103,6 @@ class InterviewerAgent(BaseAgent):
         """
         super().__init__(llm_service=llm_service, event_bus=event_bus, logger=logger)
         
-        # Initialize with defaults, _handle_session_start will update from config/event
         self.interview_style = interview_style
         self.job_role = job_role
         self.job_description = job_description
@@ -122,15 +117,12 @@ class InterviewerAgent(BaseAgent):
         self.current_question: Optional[str] = None
         self.areas_covered: List[str] = []
         
-        # Setup LLM chains using self.llm from llm_service
         self._setup_llm_chains()
         
-        # Subscribe to relevant events using EventType
-        # NOTE: Subscription moved here for clarity, ensure _setup_llm_chains is called first if needed
-        # It's safe here as _setup_llm_chains only uses self.llm which is set in super().__init__
-        self.subscribe(EventType.SESSION_START, self._handle_session_start) # Changed from interview_start
-        self.subscribe(EventType.SESSION_END, self._handle_session_end) # Changed from interview_end
-        self.subscribe(EventType.SESSION_RESET, self._handle_session_reset) # Added for state reset
+
+        self.subscribe(EventType.SESSION_START, self._handle_session_start)
+        self.subscribe(EventType.SESSION_END, self._handle_session_end) 
+        self.subscribe(EventType.SESSION_RESET, self._handle_session_reset)
     
     def _get_system_prompt(self) -> str:
         """
@@ -139,7 +131,6 @@ class InterviewerAgent(BaseAgent):
         Returns:
             System prompt string
         """
-        # Ensure required fields have fallbacks if somehow empty
         job_role = self.job_role or "[Job Role Not Specified]"
         interview_style = self.interview_style.value if self.interview_style else InterviewStyle.FORMAL.value
         resume_content = self.resume_content or "[Resume Not Provided]"
@@ -155,25 +146,19 @@ class InterviewerAgent(BaseAgent):
     
     def _setup_llm_chains(self) -> None:
         """Set up LangChain chains using self.llm."""
-        # Chain for generating the initial list of job-specific questions
         self.job_specific_question_chain = LLMChain(
             llm=self.llm,
             prompt=PromptTemplate.from_template(JOB_SPECIFIC_TEMPLATE),
-            # output_key="questions_json" # Handled by invoke_chain_with_error_handling
         )
         
-        # Chain for deciding the next action and generating the question dynamically
         self.next_action_chain = LLMChain(
             llm=self.llm,
             prompt=PromptTemplate.from_template(NEXT_ACTION_TEMPLATE),
-            # output_key="action_json"
         )
         
-        # Chain for formatting responses based on style
         self.response_formatter_chain = LLMChain(
             llm=self.llm,
             prompt=PromptTemplate.from_template(RESPONSE_FORMAT_TEMPLATE),
-            # output_key="formatted_text"
         )
     
     def _generate_questions(self) -> None:
