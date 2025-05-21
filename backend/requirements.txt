@@ -3,12 +3,6 @@ langchain-core>=0.1.28
 langchain-community>=0.0.10
 langchain-google-genai>=0.0.3
 
-# PDF processing
-PyMuPDF==1.21.1
-python-docx==0.8.11
-pypdf==3.17.1
-pdfplumber==0.7.4
-
 # Web framework - necessary for our FastAPI backend
 fastapi==0.95.0
 uvicorn[standard]==0.22.0
@@ -18,11 +12,7 @@ python-multipart==0.0.7
 
 alembic>=1.9.0
 faiss-cpu>=1.7.4
-# sqlite3 is part of the Python standard library and shouldn't be installed via pip
-# sqlite3>=3.7.17; python_version < "3.11"
-# sqlite3 for Python 3.11+ is included in standard library
 
-# Embeddings and vector storage
 sentence-transformers>=2.2.2
 numpy==1.23.5
 scipy==1.10.0
@@ -43,3 +33,6 @@ tqdm>=4.65.0
 loguru>=0.7.0
 tenacity>=8.2.2 
 backoff >= 2.2.0
+
+pymupdf>=1.21.1
+python-docx>=1.0.0
