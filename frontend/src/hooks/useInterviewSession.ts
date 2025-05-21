@@ -1,18 +1,31 @@
-
 import { useState } from 'react';
-import { AgentResponse, InterviewStartRequest, api } from '../services/api';
+import { AgentResponse, InterviewStartRequest, api, PerTurnFeedbackItem } from '../services/api';
 import { useToast } from '@/hooks/use-toast';
+
+// Define a more specific type for Coach Feedback content if desired
+export interface CoachFeedbackContent {
+  conciseness?: string;
+  completeness?: string;
+  technical_accuracy_depth?: string;
+  contextual_alignment?: string;
+  fixes_improvements?: string;
+  star_support?: string;
+  [key: string]: string | undefined;
+}
 
 export interface Message {
   role: 'user' | 'assistant';
-  content: string;
+  content: string | CoachFeedbackContent; // Can be string or CoachFeedbackContent object
+  agent?: 'interviewer' | 'coach';      // Optional agent field
+  response_type?: string; // To store response_type from backend if needed
+  timestamp?: string;     // To store timestamp
 }
 
-export type InterviewState = 'idle' | 'configuring' | 'interviewing' | 'completed';
+export type InterviewState = 'idle' | 'configuring' | 'interviewing' | 'reviewing_feedback' | 'completed';
 
 export interface InterviewResults {
   coachingSummary: any;
-  skillProfile: any;
+  perTurnFeedback?: PerTurnFeedbackItem[];
 }
 
 export function useInterviewSession() {
@@ -52,25 +65,30 @@ export function useInterviewSession() {
     if (!message.trim()) return;
 
     try {
-      // Add user message to the list
-      const userMessage: Message = { role: 'user', content: message };
+      const userMessage: Message = { 
+        role: 'user', 
+        content: message,
+        timestamp: new Date().toISOString() // Add timestamp for user message
+      };
       setMessages((prev) => [...prev, userMessage]);
       
       setIsLoading(true);
       
-      // Send the message to the API
-      const response = await api.sendMessage({ message });
+      // Expecting a single AgentResponse from the API now
+      const response: AgentResponse = await api.sendMessage({ message });
       
-      // Add the agent's response
-      const agentMessage: Message = { role: 'assistant', content: response.content };
+      const agentMessage: Message = {
+        role: response.role as 'assistant', 
+        agent: response.agent, 
+        content: response.content, 
+        response_type: response.response_type,
+        timestamp: response.timestamp
+      };
       setMessages((prev) => [...prev, agentMessage]);
 
-      // Automatically play TTS if a voice is selected
-      if (selectedVoice) {
+      if (selectedVoice && response.agent === 'interviewer' && typeof response.content === 'string') {
         playTextToSpeech(response.content);
       }
-      
-      return response;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to send message';
       toast({
@@ -89,11 +107,12 @@ export function useInterviewSession() {
       const response = await api.endInterview();
       
       setResults({
-        coachingSummary: response.results.coaching_summary,
-        skillProfile: response.results.skill_profile,
+        coachingSummary: response.results,
+        perTurnFeedback: response.per_turn_feedback
       });
       
-      setState('completed');
+      // Transition to a new state for reviewing per-turn feedback first
+      setState('reviewing_feedback');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to end interview';
       toast({
@@ -119,6 +138,12 @@ export function useInterviewSession() {
         description: message,
         variant: 'destructive',
       });
+    }
+  };
+
+  const proceedToFinalSummary = () => {
+    if (state === 'reviewing_feedback') {
+      setState('completed');
     }
   };
 
@@ -154,6 +179,7 @@ export function useInterviewSession() {
       endInterview,
       resetInterview,
       setSelectedVoice,
+      proceedToFinalSummary,
     }
   };
 }

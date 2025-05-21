@@ -34,9 +34,11 @@ class UserInput(BaseModel):
 class AgentResponse(BaseModel):
     """Standard response structure from agent interactions."""
     role: str
-    content: str
+    content: Any
+    agent: Optional[str] = None
     response_type: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    timestamp: Optional[str] = None
 
 class HistoryResponse(BaseModel):
     """Response for conversation history."""
@@ -53,6 +55,7 @@ class ResetResponse(BaseModel):
 class EndResponse(BaseModel):
     """Response for ending the interview."""
     results: Dict[str, Any]
+    per_turn_feedback: Optional[List[Dict[str, str]]] = None
 
 def create_agent_api(app):
     """Creates and registers agent API routes."""
@@ -103,14 +106,12 @@ def create_agent_api(app):
             if not agent_manager:
                 raise HTTPException(status_code=500, detail="Agent Manager not initialized")
 
-            # Construct context for the agent
-            # History is managed internally by agent_manager after process_message call
-            # We just need to trigger the processing of the new message
-            # The agent's process method should handle history update and context creation internally now
-            agent_response = agent_manager.process_message(message=user_input.message)
+            # agent_manager.process_message now returns a single interviewer response dict
+            interviewer_response_dict = agent_manager.process_message(message=user_input.message)
 
-            logger.info(f"Agent generated response: {agent_response}")
-            return AgentResponse(**agent_response)
+            logger.info(f"Agent generated response: {interviewer_response_dict}")
+            # FastAPI will validate this dict against AgentResponse model
+            return interviewer_response_dict
 
         except Exception as e:
             logger.exception(f"Error processing message: {e}")
@@ -119,7 +120,8 @@ def create_agent_api(app):
     @router.post("/end", response_model=EndResponse)
     async def end_interview(request: Request):
         """
-        Manually ends the current interview session and retrieves final results.
+        Manually ends the current interview session and retrieves final results,
+        including per-turn feedback and overall summary.
         """
         logger.info("Received request to end interview.")
         try:
@@ -127,12 +129,14 @@ def create_agent_api(app):
             if not agent_manager:
                 raise HTTPException(status_code=500, detail="Agent Manager not initialized")
 
-            # Call the agent manager's end method
-            final_results = agent_manager.end_interview()
-            logger.info(f"Interview ended. Final results: {final_results}")
+            final_session_results = agent_manager.end_interview()
+            logger.info(f"Interview ended. Final results from manager: {final_session_results}")
 
-            # Note: No database saving happens here anymore
-            return EndResponse(results=final_results)
+            # Construct the EndResponse, FastAPI will validate
+            return EndResponse(
+                results=final_session_results.get("coaching_summary", {}), # Keep original structure for results
+                per_turn_feedback=final_session_results.get("per_turn_feedback", [])
+            )
 
         except Exception as e:
             logger.exception(f"Error ending interview: {e}")

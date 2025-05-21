@@ -62,7 +62,7 @@ class AgentMessageResponse(BaseModel):
     interviewer_response: InterviewerResponse = Field(..., description="The interviewer's response (e.g., next question).")
     coach_feedback: Optional[CoachAnswerFeedback] = Field(None, description="Feedback from the CoachAgent on the user's last answer.")
     # event_type: Optional[str] = Field(None, description="Indicator of the current phase or event, e.g., 'interview_turn', 'feedback_provided'.") # Optional, can be added if useful for frontend
-    
+
     class Config:
         from_attributes = True
 
@@ -83,7 +83,7 @@ class FinalCoachingSummary(BaseModel):
     resource_search_topics: List[str] = Field(default_factory=list, description="Specific topics for resource searches.")
     recommended_resources: Optional[List[Dict[str, Any]]] = Field(None, description="Curated resources based on search topics (populated by orchestrator).")
     error: Optional[str] = Field(None, description="Error message if final summary generation failed.")
-    
+
     class Config:
         from_attributes = True
 

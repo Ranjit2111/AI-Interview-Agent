@@ -510,7 +510,6 @@ class InterviewerAgent(BaseAgent):
                 response_data["content"] = "Thank you for your time. This concludes the interview."
                 response_data["response_type"] = "closing"
                 self.logger.info("Interview concluded based on ReAct decision.")
-                self.publish_event(EventType.INTERVIEW_COMPLETED, {"reason": action_result.get("justification")})
             elif next_question:
                 self.current_question = next_question
                 self.asked_question_count += 1
@@ -521,14 +520,12 @@ class InterviewerAgent(BaseAgent):
                     "justification": action_result.get("justification")
                 }
                 self.logger.info(f"Generated question #{self.asked_question_count} via ReAct: {self.current_question[:100]}...")
-                self.publish_event(EventType.INTERVIEWER_RESPONSE, {"question": self.current_question, "question_number": self.asked_question_count})
             else:
                 # Handle error case where action requires a question but none was generated
                 self.logger.error("ReAct chain decided to ask a question but did not provide text.")
                 self.current_state = InterviewState.COMPLETED
                 response_data["content"] = "It seems we've reached a natural stopping point. Thank you for your time."
                 response_data["response_type"] = "closing"
-                self.publish_event(EventType.INTERVIEW_COMPLETED, {"reason": "Error generating next question"})
 
         elif self.current_state == InterviewState.COMPLETED:
             response_data["content"] = "The interview has already concluded."

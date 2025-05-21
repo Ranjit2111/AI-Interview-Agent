@@ -1,4 +1,3 @@
-
 // API service for all backend interactions
 const API_BASE_URL = 'http://localhost:8000';
 
@@ -16,18 +15,30 @@ export interface UserInput {
   message: string;
 }
 
+// This interface should match the structure returned by the /interview/message endpoint,
+// which is based on the dictionary constructed in AgentSessionManager.process_message
 export interface AgentResponse {
-  role: string;
-  content: string;
-  response_type: string;
-  metadata: any;
+  role: 'user' | 'assistant' | 'system'; // Role can be user, assistant, or system
+  agent?: 'interviewer' | 'coach';      // Optional: specifies the agent type for assistant messages
+  content: any;                         // Can be string (interviewer) or object (coach feedback)
+  response_type?: string;               // e.g., 'question', 'coaching_feedback', 'introduction', 'closing'
+  metadata?: Record<string, any>;       // Any additional metadata
+  timestamp?: string;                   // ISO string timestamp
+  processing_time?: number;             // Optional processing time
+  is_error?: boolean;                   // If it's a system error message
+}
+
+export interface PerTurnFeedbackItem {
+  question: string;
+  answer: string;
+  feedback: string;
 }
 
 export interface EndResponse {
   results: {
     coaching_summary: any;
-    skill_profile: any;
   };
+  per_turn_feedback?: PerTurnFeedbackItem[];
 }
 
 export interface HistoryResponse {
