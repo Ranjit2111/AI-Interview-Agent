@@ -41,6 +41,12 @@ export interface EndResponse {
   per_turn_feedback?: PerTurnFeedbackItem[];
 }
 
+export interface ResumeUploadServerResponse { // Interface for the new endpoint's response
+  filename: string;
+  resume_text: string;
+  message: string;
+}
+
 export interface HistoryResponse {
   history: any[];
 }
@@ -121,6 +127,20 @@ export const api = {
   resetInterview: async (): Promise<ResetResponse> => {
     const response = await fetch(`${API_BASE_URL}/interview/reset`, {
       method: 'POST',
+    });
+    return handleResponse(response);
+  },
+  
+  // File Processing API
+  uploadResumeFile: async (file: File): Promise<ResumeUploadServerResponse> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/files/upload-resume`, {
+      method: 'POST',
+      body: formData,
+      // Note: Do not set Content-Type header when using FormData with fetch,
+      // the browser will set it correctly including the boundary.
     });
     return handleResponse(response);
   },

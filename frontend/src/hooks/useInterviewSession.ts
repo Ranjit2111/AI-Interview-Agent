@@ -42,13 +42,8 @@ export function useInterviewSession() {
       await api.startInterview(config);
       setState('interviewing');
       
-      // Add first message from system to indicate the interview has started
-      const firstMessage: Message = {
-        role: 'assistant',
-        content: `Hello! I'll be your interviewer today for the ${config.job_role} position${config.company_name ? ` at ${config.company_name}` : ''}. Let's get started with the interview.`,
-      };
-      
-      setMessages([firstMessage]);
+      // Initialize with empty messages array, the first message will come from the backend
+      setMessages([]);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to start interview';
       toast({
