@@ -73,13 +73,7 @@ class CoachAgent(BaseAgent):
         self.job_description = job_description or ""
         
         self._setup_llm_chains()
-        
-        # Basic subscriptions (can be expanded if needed)
-        if self.event_bus:
-            # self.event_bus.subscribe(EventType.USER_MESSAGE, self._handle_user_response_for_coaching)
-            # self.event_bus.subscribe(EventType.INTERVIEW_COMPLETED, self._handle_interview_completed_for_summary)
-            pass # Subscriptions will be driven by Orchestrator for now
-
+    
     def _setup_llm_chains(self) -> None:
         """
         Set up LangChain chains for the agent's tasks.
@@ -89,13 +83,13 @@ class CoachAgent(BaseAgent):
         self.evaluate_answer_chain = LLMChain(
             llm=self.llm,
             prompt=PromptTemplate.from_template(EVALUATE_ANSWER_TEMPLATE),
-            output_key="evaluation_json" # Expecting a JSON string
+            output_key="evaluation_text" 
         )
         
         self.final_summary_chain = LLMChain(
             llm=self.llm,
             prompt=PromptTemplate.from_template(FINAL_SUMMARY_TEMPLATE),
-            output_key="summary_json" # Expecting a JSON string
+            output_key="summary_json"
         )
         self.logger.info("CoachAgent: LLM chains setup complete.")
 
@@ -105,19 +99,18 @@ class CoachAgent(BaseAgent):
         answer: str, 
         justification: Optional[str], 
         conversation_history: List[Dict[str, Any]]
-    ) -> Dict[str, str]:
+    ) -> str:
         """
         Evaluates a single question-answer pair in the context of the interview.
-
+        
         Args:
             question: The interview question asked.
             answer: The user's answer to the question.
             justification: The InterviewerAgent's rationale for the next question (or current state).
             conversation_history: The full conversation history for broader context.
-
+            
         Returns:
-            A dictionary containing feedback across multiple dimensions.
-            Example: {"conciseness": "Feedback...", "completeness": "Feedback..."}
+            A string containing conversational coaching feedback.
         """
         self.logger.info(f"CoachAgent evaluating answer for question: {question[:50]}...")
         
@@ -136,40 +129,40 @@ class CoachAgent(BaseAgent):
             "justification": justification_str
         }
 
-        raw_evaluation = invoke_chain_with_error_handling(
+        llm_output = invoke_chain_with_error_handling(
             self.evaluate_answer_chain,
             inputs,
             self.logger,
             "EvaluateAnswerChain",
-            output_key="evaluation_json"
+            output_key="evaluation_text"
         )
 
-        parsed_evaluation = parse_json_with_fallback(
-            raw_evaluation, 
-            default_value={
-                "conciseness": "Error: Could not generate conciseness feedback.",
-                "completeness": "Error: Could not generate completeness feedback.",
-                "technical_accuracy_depth": "Error: Could not generate technical feedback.",
-                "contextual_alignment": "Error: Could not generate alignment feedback.",
-                "fixes_improvements": "Error: Could not generate improvement suggestions.",
-                "star_support": "Error: Could not generate STAR feedback."
-            },
-            logger=self.logger
-        )
+        default_evaluation_error_string = "Error: Could not generate coaching feedback for this answer."
+
+        if isinstance(llm_output, str) and llm_output.strip():
+            # If we got a non-empty string, use it.
+            # The new template asks for direct text, so llm_output should ideally be the string.
+            feedback_text = llm_output
+        elif isinstance(llm_output, dict) and 'evaluation_text' in llm_output and isinstance(llm_output['evaluation_text'], str):
+            # Fallback if the chain still wraps output in a dict with the output_key
+            feedback_text = llm_output['evaluation_text']
+        elif isinstance(llm_output, dict) and 'text' in llm_output and isinstance(llm_output['text'], str):
+            # Common fallback if LLM directly outputs under a 'text' key
+            feedback_text = llm_output['text']
+        else:
+            self.logger.error(f"EvaluateAnswerChain returned an unexpected type or empty content: {type(llm_output)}. Using default error string.")
+            feedback_text = default_evaluation_error_string
         
-        if not isinstance(parsed_evaluation, dict): # Ensure it's a dict
-             parsed_evaluation = {"error": "Evaluation output was not a valid dictionary."}
-
-        self.logger.debug(f"CoachAgent - Evaluation generated: {parsed_evaluation}")
-        return parsed_evaluation
+        self.logger.debug(f"CoachAgent - Evaluation generated: {feedback_text[:200]}...") # Log a snippet
+        return feedback_text
 
     def generate_final_summary(self, conversation_history: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Generates a final coaching summary at the end of the interview.
-
+        
         Args:
             conversation_history: The full conversation history of the interview.
-
+            
         Returns:
             A dictionary containing the final summary, including patterns,
             strengths, weaknesses, improvement areas, and recommended resources.
@@ -184,7 +177,10 @@ class CoachAgent(BaseAgent):
             "conversation_history": history_str
         }
 
-        raw_summary = invoke_chain_with_error_handling(
+        # invoke_chain_with_error_handling might return a dict (if JSON parsed successfully within it),
+        # a string (if output_key pointed to a non-JSON string, or if parsing failed there but returned original string),
+        # or None (if chain failed badly or key not found).
+        llm_output = invoke_chain_with_error_handling(
             self.final_summary_chain,
             inputs,
             self.logger,
@@ -192,42 +188,38 @@ class CoachAgent(BaseAgent):
             output_key="summary_json"
         )
 
-        parsed_summary = parse_json_with_fallback(
-            raw_summary,
-            default_value={
-                "patterns_tendencies": "Error: Could not generate patterns/tendencies feedback.",
-                "strengths": "Error: Could not generate strengths feedback.",
-                "weaknesses": "Error: Could not generate weaknesses feedback.",
-                "improvement_focus_areas": "Error: Could not generate improvement focus areas.",
-                "resource_search_topics": []
-            },
-            logger=self.logger
-        )
-        if not isinstance(parsed_summary, dict): # Ensure it's a dict
-            parsed_summary = {"error": "Final summary output was not a valid dictionary."}
+        default_summary_error = {
+            "patterns_tendencies": "Error: Could not generate patterns/tendencies feedback.",
+            "strengths": "Error: Could not generate strengths feedback.",
+            "weaknesses": "Error: Could not generate weaknesses feedback.",
+            "improvement_focus_areas": "Error: Could not generate improvement focus areas.",
+            "resource_search_topics": []
+        }
 
-        # The plan mentions the assistant (Gemini) uses the search tool.
-        # CoachAgent will prepare the search topics from parsed_summary.get("resource_search_topics", [])
-        # The actual search and adding results will be handled by the orchestrating assistant (Gemini).
-        # For now, we just return the LLM-generated topics.
+        parsed_summary: Dict[str, Any]
+        if isinstance(llm_output, dict):
+            parsed_summary = llm_output
+        elif isinstance(llm_output, str):
+            parsed_summary = parse_json_with_fallback(
+                llm_output,
+                default_summary_error,
+                logger=self.logger
+            )
+        else: # llm_output is None or some other unexpected type
+            self.logger.error(f"FinalSummaryChain returned an unexpected type or None: {type(llm_output)}. Using default error values.")
+            parsed_summary = default_summary_error
         
-        # Ensure 'recommended_resources' is initialized if search topics are present,
-        # so Orchestrator/Gemini knows where to inject search results.
+        if not isinstance(parsed_summary, dict):
+            self.logger.warning(f"Parsed summary is not a dict ({type(parsed_summary)}), falling back to default error dict.")
+            parsed_summary = default_summary_error
+
+
         if "resource_search_topics" in parsed_summary and parsed_summary["resource_search_topics"]:
             parsed_summary["recommended_resources"] = [] # Placeholder for Gemini to fill
 
         self.logger.debug(f"CoachAgent - Final summary (pre-search) generated: {parsed_summary}")
         return parsed_summary
 
-    # Optional: Add event handlers if CoachAgent needs to react to events directly
-    # def _handle_user_response_for_coaching(self, event: Event):
-    #     # This would be triggered if Orchestrator isn't explicitly calling evaluate_answer
-    #     pass
-
-    # def _handle_interview_completed_for_summary(self, event: Event):
-    #     # This would be triggered if Orchestrator isn't explicitly calling generate_final_summary
-    #     pass
-        
     def process(self, context: AgentContext) -> Any:
         """
         Main processing function for the CoachAgent.
@@ -240,4 +232,4 @@ class CoachAgent(BaseAgent):
         # if context.last_event and context.last_event.event_type == EventType.COACHING_REQUEST:
         #    return self._handle_specific_coaching_request(context.last_event.data)
         return {"status": "CoachAgent processed context, but primary logic is in specific methods."}
-
+            

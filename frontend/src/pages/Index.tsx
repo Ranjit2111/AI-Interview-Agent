@@ -1,10 +1,10 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { useInterviewSession } from '@/hooks/useInterviewSession';
 import Header from '@/components/Header';
 import InterviewConfig from '@/components/InterviewConfig';
 import InterviewSession from '@/components/InterviewSession';
 import InterviewResults from '@/components/InterviewResults';
+import PerTurnFeedbackReview from '@/components/PerTurnFeedbackReview';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, Sparkles, Zap, BarChart3, Bot, Github, Linkedin, Twitter, Mail } from 'lucide-react';
 
@@ -209,8 +209,8 @@ const Index = () => {
                     
                     <div className="glass-effect p-5 rounded-xl hover:border-pink-500/20 hover:shadow-pink-500/10 transition-all duration-300 halo-glow perspective-card">
                       <BarChart3 className="text-pink-400 mb-3 h-6 w-6" />
-                      <h3 className="font-bold text-lg text-gray-200">Skill Analytics</h3>
-                      <p className="text-gray-400 text-sm mt-2">Detailed analysis of your communication and interview skills</p>
+                      <h3 className="font-bold text-lg text-gray-200">In-depth Feedback</h3>
+                      <p className="text-gray-400 text-sm mt-2">Receive comprehensive analysis of your performance and targeted advice.</p>
                     </div>
                   </div>
                 </div>
@@ -250,25 +250,27 @@ const Index = () => {
         )}
         
         {state === 'interviewing' && (
-          <div className="flex-1 flex flex-col h-[calc(100vh-64px)]">
-            <InterviewSession
-              messages={messages}
-              isLoading={isLoading}
-              onSendMessage={actions.sendMessage}
-              onEndInterview={actions.endInterview}
-              onVoiceSelect={actions.setSelectedVoice}
-            />
-          </div>
+          <InterviewSession 
+            messages={messages}
+            isLoading={isLoading}
+            onSendMessage={actions.sendMessage}
+            onEndInterview={actions.endInterview}
+            onVoiceSelect={actions.setSelectedVoice}
+          />
+        )}
+
+        {state === 'reviewing_feedback' && results?.perTurnFeedback && (
+          <PerTurnFeedbackReview 
+            feedbackItems={results.perTurnFeedback}
+            onProceedToSummary={actions.proceedToFinalSummary}
+          />
         )}
         
-        {state === 'completed' && results && (
-          <div className="flex-1 py-8 bg-gradient-to-b from-black to-gray-900/50">
-            <InterviewResults
-              coachingSummary={results.coachingSummary}
-              skillProfile={results.skillProfile}
-              onStartNewInterview={actions.resetInterview}
-            />
-          </div>
+        {state === 'completed' && results?.coachingSummary && (
+          <InterviewResults 
+            coachingSummary={results.coachingSummary} 
+            onStartNewInterview={actions.resetInterview} 
+          />
         )}
       </main>
     </div>

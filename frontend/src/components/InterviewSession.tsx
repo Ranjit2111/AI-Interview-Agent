@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Loader } from 'lucide-react';
+import { Send, Mic, Loader, Bot, User, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import VoiceRecorder from './VoiceRecorder';
 import AudioPlayer from './AudioPlayer';
+import CoachFeedbackDisplay from './CoachFeedbackDisplay';
 import { Message } from '@/hooks/useInterviewSession';
 
 interface InterviewSessionProps {
@@ -54,6 +55,18 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
     console.log("Input state updated to:", text);
   };
 
+  const getAgentDisplayName = (message: Message) => {
+    if (message.role === 'user') return 'You';
+    if (message.agent === 'coach') return 'Coach';
+    return 'Interviewer';
+  };
+
+  const getAgentIcon = (message: Message) => {
+    if (message.role === 'user') return <User className="h-5 w-5 mr-2" />;
+    if (message.agent === 'coach') return <Brain className="h-5 w-5 mr-2" />;
+    return <Bot className="h-5 w-5 mr-2" />;
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b border-white/10 bg-black/50 backdrop-blur-lg z-10 shadow-lg">
@@ -91,21 +104,42 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       {/* Messages area */}
       <ScrollArea className="flex-1 p-4 bg-gradient-to-b from-black/40 to-gray-900/20 relative z-10">
         <div className="space-y-4 max-w-3xl mx-auto">
-          {messages.map((message, index) => (
-            <Card
-              key={index}
-              className={`p-4 transition-all duration-500 backdrop-blur-md border shadow-lg perspective-card ${
-                message.role === 'user'
-                  ? 'ml-auto bg-black/30 border-white/5 hover:border-purple-500/20 max-w-[80%] animate-slide-in-right'
-                  : 'bg-black/40 border-white/10 hover:border-cyan-500/20 max-w-[80%] animate-fade-in'
-              }`}
-            >
-              <div className={`text-sm font-medium mb-1 ${message.role === 'user' ? 'text-purple-400' : 'text-cyan-400'}`}>
-                {message.role === 'user' ? 'You' : 'Interviewer'}
-              </div>
-              <div className="whitespace-pre-wrap text-gray-100">{message.content}</div>
-            </Card>
-          ))}
+          {messages.map((message, index) => {
+            const isUser = message.role === 'user';
+            const isCoach = message.agent === 'coach';
+            
+            let cardClasses = 'p-4 transition-all duration-500 backdrop-blur-md border shadow-lg perspective-card max-w-[80%]';
+            let nameColor = 'text-cyan-400';
+            let icon = <Bot className="h-5 w-5 mr-2 flex-shrink-0" />;
+
+            if (isUser) {
+              cardClasses += ' ml-auto bg-black/30 border-white/5 hover:border-purple-500/20 animate-slide-in-right';
+              nameColor = 'text-purple-400';
+              icon = <User className="h-5 w-5 mr-2 flex-shrink-0" />;
+            } else if (isCoach) {
+              cardClasses += ' bg-black/30 border-yellow-500/30 hover:border-yellow-400/40 animate-fade-in';
+              nameColor = 'text-yellow-400';
+              icon = <Brain className="h-5 w-5 mr-2 flex-shrink-0" />;
+            } else {
+              cardClasses += ' bg-black/40 border-white/10 hover:border-cyan-500/20 animate-fade-in';
+            }
+
+            return (
+              <Card key={index} className={cardClasses}>
+                <div className={`flex items-center text-sm font-medium mb-2 ${nameColor}`}>
+                  {icon}
+                  {getAgentDisplayName(message)}
+                </div>
+                {isCoach && typeof message.content === 'object' ? (
+                  <CoachFeedbackDisplay feedback={message.content as any} />
+                ) : (
+                  <div className="whitespace-pre-wrap text-gray-100">
+                    {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>

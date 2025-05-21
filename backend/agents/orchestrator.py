@@ -30,6 +30,7 @@ class AgentSessionManager:
     def __init__(self, llm_service: LLMService, event_bus: EventBus, logger: logging.Logger, session_config: SessionConfig):
         self.session_config = session_config
         self.conversation_history: List[Dict[str, Any]] = []
+        self.per_turn_coaching_feedback_log: List[Dict[str, Any]] = []
         
         self.logger = logger
         self.event_bus = event_bus
@@ -93,7 +94,7 @@ class AgentSessionManager:
     def process_message(self, message: str) -> Dict[str, Any]:
         """
         Processes a user message, routes it primarily to the InterviewerAgent,
-        and returns the agent's response. Other agents listen via events.
+        and returns the agent's response. Per-turn coaching feedback is collected internally.
         Now assumes only one user (local).
         """
         start_time = datetime.utcnow()
@@ -162,7 +163,7 @@ class AgentSessionManager:
             ))
             self.logger.info(f"Interviewer response generated in {duration:.2f} seconds. Type: {response_type}")
 
-            # Now, call CoachAgent to evaluate the user's answer
+            # Now, call CoachAgent to evaluate the user's answer and collect feedback
             if question_that_was_answered and user_message_data.get("content"):
                 coach_agent = self._get_agent("coach")
                 if coach_agent:
@@ -170,43 +171,49 @@ class AgentSessionManager:
                     try:
                         justification_for_new_question = interviewer_metadata.get("justification")
                         
-                        coach_start_time = datetime.utcnow()
-                        coaching_feedback = coach_agent.evaluate_answer(
+                        # coach_agent.evaluate_answer now returns a string
+                        coaching_feedback_string = coach_agent.evaluate_answer(
                             question=question_that_was_answered,
                             answer=user_message_data["content"],
                             justification=justification_for_new_question,
-                            conversation_history=self.conversation_history # Pass full history up to this point
+                            conversation_history=self.conversation_history 
                         )
-                        coach_end_time = datetime.utcnow()
-                        coach_duration = (coach_end_time - coach_start_time).total_seconds()
-                        self.api_call_count += 1 # Count Coach's process as one call
+                        
+                        if coaching_feedback_string and not coaching_feedback_string.startswith("Error:"):
+                            self.logger.info(f"CoachAgent successfully generated feedback string: {coaching_feedback_string[:100]}...")
+                            self.per_turn_coaching_feedback_log.append({
+                                "question": question_that_was_answered,
+                                "answer": user_message_data["content"],
+                                "feedback": coaching_feedback_string
+                            })
+                        else:
+                            self.logger.warning(f"CoachAgent returned empty or error feedback: {coaching_feedback_string}")
+                            # Optionally store error feedback if needed for the review phase
+                            self.per_turn_coaching_feedback_log.append({
+                                "question": question_that_was_answered,
+                                "answer": user_message_data["content"],
+                                "feedback": coaching_feedback_string or "Coach feedback was not generated for this turn."
+                            })
 
-                        coach_feedback_message = {
-                            "role": "assistant",
-                            "agent": "coach",
-                            "content": coaching_feedback, # This is a dict as per new CoachAgent
-                            "response_type": "coaching_feedback",
-                            "timestamp": coach_end_time.isoformat(),
-                            "processing_time": coach_duration,
-                            "metadata": {"coached_question": question_that_was_answered}
-                        }
-                        self.conversation_history.append(coach_feedback_message)
-                        self.event_bus.publish(Event(
-                            event_type=EventType.ASSISTANT_RESPONSE, # Or a new EventType.COACH_CYCLE_FEEDBACK
-                            source='CoachAgent', # Source is now CoachAgent
-                            data={"response": coach_feedback_message}
-                        ))
-                        self.logger.info(f"CoachAgent feedback generated in {coach_duration:.2f} seconds.")
                     except Exception as coach_e:
                         self.logger.exception(f"Error during CoachAgent evaluate_answer: {coach_e}")
-                        # Optionally, add an error message to history from coach
+                        self.per_turn_coaching_feedback_log.append({
+                            "question": question_that_was_answered,
+                            "answer": user_message_data["content"],
+                            "feedback": "An error occurred while generating coach feedback for this turn."
+                        })
                 else:
                     self.logger.warning("Coach agent could not be loaded to provide feedback.")
+                    self.per_turn_coaching_feedback_log.append({
+                        "question": question_that_was_answered, # Still log Q&A even if coach fails to load
+                        "answer": user_message_data["content"],
+                        "feedback": "Coach agent was not available to provide feedback for this turn."
+                    })
+            else:
+                self.logger.info("Skipping coach feedback as conditions not met (e.g., no prior question or user answer).")
             
-            # The primary return is still the interviewer's response to the user.
-            # The coaching feedback is added to history and published as an event.
-            # UI/client would typically listen for all ASSISTANT_RESPONSE events.
-            return assistant_response_data
+            # The API now expects only the interviewer's response during the interview.
+            return assistant_response_data # This is the interviewer's response
 
         except Exception as e:
             self.logger.exception(f"Error processing message: {e}")
@@ -246,93 +253,65 @@ class AgentSessionManager:
             data={}
         ))
 
+        # Ensure coaching_summary is initialized as a dict for robustness
         final_results = {
             "status": "Interview Ended",
-            "coaching_summary": None
+            "coaching_summary": { "error": "Coaching summary not generated yet." }, 
+            "per_turn_feedback": self.per_turn_coaching_feedback_log
         }
 
         try:
             coach_agent = self._get_agent("coach")
-            if coach_agent: # Removed hasattr check, will rely on method presence
-                # The generate_final_summary in the new CoachAgent takes conversation_history directly
-                coaching_summary = coach_agent.generate_final_summary(self.conversation_history)
-                final_results["coaching_summary"] = coaching_summary
-                self.logger.info("Generated final coaching summary.")
+            if coach_agent: 
+                coaching_summary_content = coach_agent.generate_final_summary(self.conversation_history)
                 
-                # If CoachAgent identified search topics, this is where Gemini would perform searches
-                # and augment the coaching_summary before it's returned/persisted.
-                if isinstance(coaching_summary, dict) and coaching_summary.get("resource_search_topics"):
-                    search_topics = coaching_summary.get("resource_search_topics", [])
-                    recommended_resources_list = [] # Initialize list to store all search results
+                if coaching_summary_content:
+                    self.logger.info(f"CoachAgent generated final summary (pre-search): {json.dumps(coaching_summary_content, indent=2)}")
+                    final_results["coaching_summary"] = coaching_summary_content # Assign the actual summary
+                else:
+                    self.logger.warning("CoachAgent returned an empty final summary. Using error placeholder.")
+                    final_results["coaching_summary"] = {"error": "CoachAgent returned an empty final summary."}
+                
+                # Resource search logic (remains the same)
+                if isinstance(final_results["coaching_summary"], dict) and final_results["coaching_summary"].get("resource_search_topics"):
+                    search_topics = final_results["coaching_summary"].get("resource_search_topics", [])
+                    recommended_resources_list = [] 
 
-                    if search_topics: # Ensure there are topics to search for
+                    if search_topics: 
                         self.logger.info(f"CoachAgent suggested resource search topics: {search_topics}")
-                        
-                        # --- Integration of web_search tool ---
-                        for topic in search_topics[:3]: # Limit to a few topics to avoid too many searches
+                        for topic in search_topics[:3]: 
                             self.logger.info(f"Performing web search for topic: {topic}")
                             try:
-                                # This is where the Gemini model (the one processing this overall request)
-                                # would make the actual web_search tool call.
-                                # The results would then be used to populate 'search_results_for_topic'.
-                                
-                                # SIMULATING Gemini making the call and receiving results:
-                                # Based on the previous tool calls, I will construct the results here.
+                                # SIMULATED WEB SEARCH (as before)
                                 search_results_for_topic = []
                                 if topic == "effective communication in interviews":
                                     search_results_for_topic = [
-                                        {
-                                            "title": "The Essential Interview Questions for Communication Skills", 
-                                            "url": "https://www.metaview.ai/resources/interview-questions/communication-skills", 
-                                            "snippet": "Whether you're hiring marketers, engineers, product managers—or anything in between—strong communication skills are a must-have for virtually any role..."
-                                        },
-                                        {
-                                            "title": "The Art of Effective Communication: Keys to a Successful ...", 
-                                            "url": "https://www.acceptmed.com/blog/the-art-of-effective-communication-keys-to-a-successful-interview", 
-                                            "snippet": "Effective communication is a cornerstone of success in medical school interviews. Beyond what you say, how you say it can significantly impact your performance..."
-                                        },
-                                        {
-                                            "title": "What is Your Communication Style Interview Question", 
-                                            "url": "https://topinterview.com/interview-advice/communication-style-interview-question-answer", 
-                                            "snippet": "Every interviewer from every company across the globe will ask some type of question that will evaluate and test your communication skills."
-                                        }
+                                        {"title": "Essential Interview Questions for Communication", "url": "#", "snippet": "..."},
                                     ]
                                 elif topic == "STAR method for behavioral questions":
                                     search_results_for_topic = [
-                                        {
-                                            "title": "Using the STAR method for your next behavioral interview ...", 
-                                            "url": "https://capd.mit.edu/resources/the-star-method-for-behavioral-interviews/", 
-                                            "snippet": "S.T.A.R. is a useful acronym and an effective formula for structuring your behavioral interview response."
-                                        },
-                                        {
-                                            "title": "30 star method interview questions to prepare for", 
-                                            "url": "https://www.betterup.com/blog/star-interview-method", 
-                                            "snippet": "Known as the STAR interview method, this technique is a way of concisely answering certain job interview questions using specific, real-life examples."
-                                        },
-                                        {
-                                            "title": "Behavioral Interviewing & The STAR Approach: Northwestern ...", 
-                                            "url": "https://www.northwestern.edu/careers/jobs-internships/interviewing/the-star-approach.html", 
-                                            "snippet": "Most employers use behavioral interviewing, which is based on the idea that past behavior predicts future performance."
-                                        }
+                                        {"title": "Using the STAR method effectively", "url": "#", "snippet": "..."},
                                     ]
                                 
                                 if search_results_for_topic:
                                     recommended_resources_list.append({
                                         "topic": topic,
-                                        "resources": search_results_for_topic[:3] # Take top 3 for this topic
+                                        "resources": search_results_for_topic[:3]
                                     })
                                     self.logger.info(f"Found {len(search_results_for_topic[:3])} resources for topic: {topic}")
-
                             except Exception as e:
                                 self.logger.error(f"Error performing web search for topic '{topic}': {e}")
                         
-                        if recommended_resources_list: # Check if any resources were found overall
-                            coaching_summary["recommended_resources"] = recommended_resources_list
-                            self.logger.info(f"Added {len(recommended_resources_list)} topics with resources to coaching summary.")
+                        if recommended_resources_list: 
+                            self.logger.info(f"Populated recommended resources: {json.dumps(recommended_resources_list, indent=2)}")
+                            # Ensure coaching_summary is a dict before adding to it
+                            if not isinstance(final_results["coaching_summary"], dict):
+                                final_results["coaching_summary"] = {}
+                            final_results["coaching_summary"]["recommended_resources"] = recommended_resources_list
                         else:
-                            self.logger.info("No resources found for the given topics.")
-                            coaching_summary["recommended_resources"] = [] # Ensure the key exists, even if empty
-
+                            if not isinstance(final_results["coaching_summary"], dict):
+                                final_results["coaching_summary"] = {}
+                            final_results["coaching_summary"]["recommended_resources"] = [] 
             else:
                 self.logger.warning("Coach agent not found. Final coaching summary cannot be generated.")
                 final_results["coaching_summary"] = {"error": "Coach agent not available to generate summary."}
@@ -364,6 +343,7 @@ class AgentSessionManager:
         """Resets the session state, including history and agent instances."""
         self.logger.warning(f"Resetting Agent Session Manager state")
         self.conversation_history = []
+        self.per_turn_coaching_feedback_log = []
         self._agents = {}
         
         self.response_times = []
