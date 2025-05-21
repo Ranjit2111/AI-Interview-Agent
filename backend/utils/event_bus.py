@@ -36,12 +36,6 @@ class EventType(str, enum.Enum):
     COACH_FEEDBACK = "coach_feedback"     # Published by CoachAgent with feedback
     COACH_ANALYSIS = "coach_analysis"     # Published by CoachAgent with structured analysis
 
-    # Agent Specific - Skill Assessor
-    SKILL_ASSESSMENT = "skill_assessment" # Published by SkillAssessorAgent (e.g., with final profile or updates)
-    SKILL_EXTRACTED = "skill_extracted" # Published when a skill is identified in the user's response
-    # SKILL_IDENTIFIED = "skill_identified" # Potentially useful for real-time feedback, but maybe covered by SKILL_ASSESSMENT
-    # SKILL_ASSESSED = "skill_assessed"
-
     # Data / Service Events
     TRANSCRIPT_CREATED = "transcript_created" # Published by TranscriptService
     TRANSCRIPT_UPDATED = "transcript_updated" # Published by TranscriptService

@@ -27,8 +27,3 @@ class SessionConfig(BaseModel):
     difficulty: str = "medium"
     target_question_count: int = 5
     company_name: Optional[str] = None
-
-    # Add pydantic config if needed, e.g., for ORM mode compatibility if used elsewhere
-    # class Config:
-    #     orm_mode = True # Pydantic v1
-    #     from_attributes = True # Pydantic v2 

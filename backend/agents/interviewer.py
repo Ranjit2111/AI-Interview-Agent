@@ -516,7 +516,10 @@ class InterviewerAgent(BaseAgent):
                 self.asked_question_count += 1
                 response_data["content"] = self.current_question
                 response_data["response_type"] = "question"
-                response_data["metadata"] = {"question_number": self.asked_question_count}
+                response_data["metadata"] = {
+                    "question_number": self.asked_question_count,
+                    "justification": action_result.get("justification")
+                }
                 self.logger.info(f"Generated question #{self.asked_question_count} via ReAct: {self.current_question[:100]}...")
                 self.publish_event(EventType.INTERVIEWER_RESPONSE, {"question": self.current_question, "question_number": self.asked_question_count})
             else:
