@@ -14,8 +14,8 @@ add tools for agents to work with
 - initialize_services() seems to be important as it initializes a lot of functions from utils and services.
 6. reset_session() isn't used anywhere, see what that is and deal with it
 7. may have to remove _create_introduction() as it makes the intro redundant
-
-
+8. Remove target_question_count, the agent dynamically decides and finishes the interview or atleast make the target count not strict
+The generic questions are used to fill the gap between job_specific_questions and target_question_count.. so deal with it
 Done:
 - Removed document_generator file and its references from the codebase
 - Removed tests folder

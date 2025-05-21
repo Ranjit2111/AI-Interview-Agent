@@ -189,7 +189,6 @@ class InterviewerAgent(BaseAgent):
     def _generate_generic_questions(self) -> List[str]:
         """Generate generic questions (non-LLM based)."""
         generic_questions = []
-        # Define question templates for different interview styles
         question_templates = {
             InterviewStyle.FORMAL: [
                 "Can you describe your experience with {technology}?",
@@ -220,7 +219,6 @@ class InterviewerAgent(BaseAgent):
                 "What metrics and tools do you use to ensure {quality_aspect} in your technical work?",
             ]
         }
-        # Define template variables based on job role (simplified example)
         template_vars = {
             "Software Engineer": {
                 "technology": ["React", "Python", "cloud infrastructure", "REST APIs", "microservices"],
