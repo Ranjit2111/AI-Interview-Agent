@@ -1,649 +1,148 @@
 """
-Coach Agent prompt templates.
-This module contains all prompt templates used by the CoachAgent.
+Coach Agent prompt templates for the refactored CoachAgent.
+This module contains all prompt templates used by the new CoachAgent.
 """
 
-from typing import Dict, Any
+# Template for evaluating a single answer
+EVALUATE_ANSWER_TEMPLATE = """
+You are an expert Interview Coach providing detailed feedback on a candidate's answer to an interview question.
+Your goal is to help the candidate understand their strengths and weaknesses for this specific answer and how to improve.
+Provide your feedback in full sentences with clear reasoning and explanations.
 
-# Analysis template for analyzing candidate responses - REMOVED
+**Candidate's Resume Snapshot:**
+{resume_content}
 
-# Improvement tips template
-TIPS_TEMPLATE = """
-You are an expert interview coach helping a candidate improve their interview performance.
+**Target Job Description Snapshot:**
+{job_description}
 
-Focus area: {focus_area}
-Context: {context}
+**Full Conversation History (for context only - focus feedback on the CURRENT question and answer):**
+{conversation_history}
 
-Provide 3-5 specific, actionable tips to help the candidate improve in this area.
-Each tip should include:
-1. A clear instruction
-2. The rationale behind it
-3. A brief example of how to implement it
+---
+**Current Interview Interaction for Feedback:**
 
-Make your advice practical and immediately applicable in their next response.
-"""
-
-# Coaching summary template - REMOVED
-
-# Response template generator
-TEMPLATE_PROMPT = """
-You are an expert interview coach creating a template for effectively answering a specific type of interview question.
-
-Question type: {question_type}
-Example question: {example_question}
-Candidate's job role: {job_role}
-
-Create a response template that includes:
-1. Recommended structure for this type of question
-2. Key components to include
-3. Common pitfalls to avoid
-4. A brief example of a strong response
-
-The template should be adaptable to various specific questions of this type.
-"""
-
-# STAR evaluation template
-STAR_EVALUATION_TEMPLATE = """
-You are an expert interview coach evaluating a candidate's use of the STAR method.
-
-Question: {question}
-Answer: {answer}
-
-Evaluate how well the candidate applied the STAR method using the following criteria:
-- Situation: Did they clearly describe the context/background?
-- Task: Did they explain their specific role or responsibility?
-- Action: Did they detail the steps they took?
-- Result: Did they quantify the outcome or explain the impact?
-
-For each component (Situation, Task, Action, Result), rate on a scale of 0-10 and explain why.
-
-Format your response as JSON:
-{
-    "situation": {
-        "score": score_from_0_to_10,
-        "feedback": "specific feedback on situation description"
-    },
-    "task": {
-        "score": score_from_0_to_10,
-        "feedback": "specific feedback on task description"
-    }, 
-    "action": {
-        "score": score_from_0_to_10,
-        "feedback": "specific feedback on action description"
-    },
-    "result": {
-        "score": score_from_0_to_10,
-        "feedback": "specific feedback on result description"
-    },
-    "overall_feedback": "summary of overall STAR method application",
-    "areas_for_improvement": ["specific suggestion 1", "specific suggestion 2"],
-    "strengths": ["strength 1", "strength 2"]
-}
-"""
-
-# Performance analysis template
-PERFORMANCE_ANALYSIS_TEMPLATE = """
-You are an expert interview coach analyzing a candidate's interview performance over multiple questions.
-
-Review the following response analyses from the interview session:
-{analyses_json}
-
-TASK: Provide a comprehensive performance analysis with patterns, trends, and actionable insights.
-
-Your analysis should include:
-1. Overall Performance Summary: General assessment across all responses
-2. Pattern Recognition: Recurring strengths and weaknesses across responses
-3. Progression Analysis: Any improvement or decline in performance during the session
-4. Skill Assessment: Evaluation of key interview skills (STAR method, communication, specificity, etc.)
-5. Priority Improvement Areas: The 2-3 most critical areas to focus on improving
-6. Actionable Development Plan: Specific exercises and practices for improvement
-
-FORMAT YOUR RESPONSE AS JSON:
-{
-    "overall_summary": "Comprehensive summary of performance",
-    "patterns": {
-        "strengths": ["Pattern 1", "Pattern 2", ...],
-        "weaknesses": ["Pattern 1", "Pattern 2", ...]
-    },
-    "progression": "Analysis of improvement/decline during session",
-    "skill_assessment": {
-        "star_method": {
-            "score": <0-10>,
-            "assessment": "Evaluation of STAR method usage"
-        },
-        "communication": {
-            "score": <0-10>,
-            "assessment": "Evaluation of communication skills"
-        },
-        "content_quality": {
-            "score": <0-10>,
-            "assessment": "Evaluation of answer content"
-        },
-        "specificity": {
-            "score": <0-10>,
-            "assessment": "Evaluation of specific examples"
-        }
-    },
-    "priority_improvement_areas": ["Area 1", "Area 2", "Area 3"],
-    "development_plan": [
-        {
-            "focus_area": "Area 1",
-            "exercises": ["Exercise 1", "Exercise 2"],
-            "resources": ["Resource 1", "Resource 2"]
-        },
-        ...
-    ]
-}
-"""
-
-# Communication skills assessment template
-COMMUNICATION_ASSESSMENT_TEMPLATE = """
-You are an expert interview coach evaluating a candidate's communication skills in their interview response.
-
-Question: {question}
-Candidate's Response: {answer}
-
-TASK: Evaluate the candidate's communication skills across multiple dimensions.
-
-Assess the following areas on a scale of 0-10 with specific feedback:
-- Clarity: How clear and understandable was their communication?
-- Conciseness: Did they communicate efficiently without unnecessary details?
-- Structure: How well-organized was their response?
-- Engagement: How engaging and compelling was their communication style?
-- Confidence: How confident did they appear through their word choice and phrasing?
-- Technical Terminology: How appropriate was their use of technical terms (if applicable)?
-
-Additionally, provide:
-- Overall Communication Score (0-10): A weighted assessment across all dimensions
-- Key Strengths: Communication aspects they handled well
-- Improvement Areas: Specific communication aspects they should work on
-- Practical Tips: 2-3 actionable suggestions to improve their communication
-
-FORMAT YOUR RESPONSE AS JSON:
-{{
-    "clarity": {{
-        "score": <0-10>,
-        "feedback": "<specific clarity feedback>"
-    }},
-    "conciseness": {{
-        "score": <0-10>,
-        "feedback": "<specific conciseness feedback>"
-    }},
-    "structure": {{
-        "score": <0-10>,
-        "feedback": "<specific structure feedback>"
-    }},
-    "engagement": {{
-        "score": <0-10>,
-        "feedback": "<specific engagement feedback>"
-    }},
-    "confidence": {{
-        "score": <0-10>,
-        "feedback": "<specific confidence feedback>"
-    }},
-    "technical_terminology": {{
-        "score": <0-10>,
-        "feedback": "<specific technical terminology feedback>"
-    }},
-    "overall_score": <0-10>,
-    "key_strengths": ["<strength 1>", "<strength 2>", ...],
-    "improvement_areas": ["<area 1>", "<area 2>", ...],
-    "practical_tips": ["<tip 1>", "<tip 2>", ...]
-}}
-"""
-
-# Completeness evaluation template
-COMPLETENESS_EVALUATION_TEMPLATE = """
-You are an expert interview coach evaluating the completeness of a candidate's response.
-
-Question: {question}
-Candidate's Response: {answer}
-Job Role: {job_role}
-
-TASK: Evaluate how complete and comprehensive the candidate's answer is, especially for this job role.
-
-Assess the following aspects on a scale of 0-10 with specific feedback:
-- Question Relevance: How directly did they address what was asked?
-- Key Points Coverage: Did they cover the essential points expected for this question?
-- Examples: Did they provide relevant and specific examples?
-- Depth: Did they go into sufficient detail on important aspects?
-- Context Awareness: Did they tailor their answer to the job role and situation?
-
-Additionally, provide:
-- Overall Completeness Score (0-10): A weighted assessment across all dimensions
-- Missing Elements: Important aspects they should have included but didn't
-- Excessive Elements: Any unnecessary information that distracted from their answer
-- Improvement Plan: How they could make this response more complete and effective
-
-FORMAT YOUR RESPONSE AS JSON:
-{{
-    "question_relevance": {{
-        "score": <0-10>,
-        "feedback": "<specific relevance feedback>"
-    }},
-    "key_points_coverage": {{
-        "score": <0-10>,
-        "feedback": "<specific coverage feedback>"
-    }},
-    "examples": {{
-        "score": <0-10>,
-        "feedback": "<specific examples feedback>"
-    }},
-    "depth": {{
-        "score": <0-10>,
-        "feedback": "<specific depth feedback>"
-    }},
-    "context_awareness": {{
-        "score": <0-10>,
-        "feedback": "<specific context awareness feedback>"
-    }},
-    "overall_score": <0-10>,
-    "missing_elements": ["<missing element 1>", "<missing element 2>", ...],
-    "excessive_elements": ["<excessive element 1>", "<excessive element 2>", ...],
-    "improvement_plan": "<detailed improvement plan>"
-}}
-"""
-
-# Personalized feedback template
-PERSONALIZED_FEEDBACK_TEMPLATE = """
-You are an expert interview coach creating personalized feedback for a candidate.
-
-CANDIDATE PROFILE:
-- Role they're applying for: {job_role}
-- Experience level: {experience_level}
-- Strengths: {strengths}
-- Areas for improvement: {areas_for_improvement}
-- Learning style: {learning_style}
-
-INTERVIEW EVALUATION:
-- Question: {question}
-- Candidate's Response: {answer}
-- STAR Method Evaluation: {star_evaluation}
-- Communication Assessment: {communication_assessment}
-- Response Completeness: {response_completeness}
-
-TASK: Create highly personalized feedback and coaching for this specific candidate.
-
-Your feedback must include:
-1. STRENGTHS AFFIRMATION (2-3 points): Highlight what they did well, tied to their specific strengths profile
-2. GROWTH AREAS (2-3 points): Identify key improvement areas, considering their experience level
-3. PERSONALIZED COACHING: Tailored advice matching their learning style and professional goals
-4. CONCRETE EXAMPLES: Rewrite 1-2 portions of their answer to demonstrate improvement
-5. ACTIONABLE NEXT STEPS: 2-3 specific practice exercises or resources
-
-FORMAT YOUR RESPONSE AS JSON:
-{
-    "strengths_affirmation": [
-        "<strength point 1 with specific example from their answer>",
-        "<strength point 2 with specific example from their answer>"
-    ],
-    "growth_areas": [
-        {
-            "area": "<improvement area 1>",
-            "rationale": "<why this matters for their target role>",
-            "example_from_answer": "<specific example from their response>"
-        },
-        {
-            "area": "<improvement area 2>",
-            "rationale": "<why this matters for their target role>",
-            "example_from_answer": "<specific example from their response>"
-        }
-    ],
-    "personalized_coaching": "<300-400 character paragraph with tailored advice based on learning style>",
-    "improved_answer_examples": [
-        {
-            "original": "<direct quote from their answer>",
-            "improved": "<rewritten version showing the improvement>"
-        }
-    ],
-    "next_steps": [
-        {
-            "activity": "<specific practice exercise>",
-            "benefit": "<how this addresses their specific needs>"
-        },
-        {
-            "activity": "<resource or practice technique>",
-            "benefit": "<how this builds on their strengths>"
-        }
-    ],
-    "summary": "<one sentence personalized encouragement>"
-}
-"""
-
-# Performance metrics template
-PERFORMANCE_METRICS_TEMPLATE = """
-You are an expert interview coach tracking a candidate's interview performance over time.
-
-PREVIOUS EVALUATIONS:
-{previous_evaluations}
-
-CURRENT EVALUATION:
-- Question: {question}
-- Candidate's Response: {answer}
-- STAR Method Score: {star_score}
-- Communication Score: {communication_score}
-- Completeness Score: {completeness_score}
-
-TASK: Generate performance metrics comparing current performance to historical data, and create a progress report.
-
-Include:
-1. METRICS SUMMARY: Key scores for this response compared to previous average
-2. PROGRESS TRACKING: Areas showing improvement and those still needing work
-3. TREND ANALYSIS: Overall direction of improvement
-4. ACHIEVEMENT BADGES: Any notable milestones reached
-5. FOCUS RECOMMENDATIONS: What to prioritize next based on progress
-
-FORMAT YOUR RESPONSE AS JSON:
-{
-    "metrics_summary": {
-        "star_score": {
-            "current": <current score>,
-            "previous_avg": <previous average>,
-            "delta": <change percentage>
-        },
-        "communication_score": {
-            "current": <current score>,
-            "previous_avg": <previous average>,
-            "delta": <change percentage>
-        },
-        "completeness_score": {
-            "current": <current score>,
-            "previous_avg": <previous average>,
-            "delta": <change percentage>
-        },
-        "overall_score": {
-            "current": <current overall>,
-            "previous_avg": <previous average>,
-            "delta": <change percentage>
-        }
-    },
-    "progress_tracking": {
-        "improving_areas": [
-            {
-                "area": "<improving area 1>",
-                "evidence": "<specific evidence of improvement>"
-            },
-            {
-                "area": "<improving area 2>",
-                "evidence": "<specific evidence of improvement>"
-            }
-        ],
-        "focus_areas": [
-            {
-                "area": "<focus area 1>",
-                "rationale": "<why focus is still needed>"
-            },
-            {
-                "area": "<focus area 2>",
-                "rationale": "<why focus is still needed>"
-            }
-        ]
-    },
-    "trend_analysis": "<assessment of overall trajectory with 100-150 character explanation>",
-    "achievement_badges": [
-        {
-            "badge": "<achievement badge 1>",
-            "description": "<what they did to earn it>"
-        }
-    ],
-    "focus_recommendations": [
-        "<specific focus recommendation 1>",
-        "<specific focus recommendation 2>"
-    ]
-}
-"""
-
-# Feedback templates for different evaluation types
-FEEDBACK_TEMPLATES = {
-    "star_method": {
-        "title": "STAR Method Evaluation",
-        "intro": "I've analyzed your answer using the STAR method framework. Here's a breakdown:",
-        "sections": [
-            {
-                "name": "Situation",
-                "icon": "📋",
-                "description": "Setting the context",
-                "score_key": "situation.score",
-                "feedback_key": "situation.feedback"
-            },
-            {
-                "name": "Task",
-                "icon": "🎯",
-                "description": "Your specific role",
-                "score_key": "task.score",
-                "feedback_key": "task.feedback"
-            },
-            {
-                "name": "Action",
-                "icon": "⚙️",
-                "description": "Steps you took",
-                "score_key": "action.score",
-                "feedback_key": "action.feedback"
-            },
-            {
-                "name": "Result",
-                "icon": "🏆",
-                "description": "Outcome achieved",
-                "score_key": "result.score",
-                "feedback_key": "result.feedback"
-            }
-        ],
-        "summary_key": "overall_feedback",
-        "strengths_key": "strengths",
-        "improvements_key": "areas_for_improvement"
-    },
-    "communication": {
-        "title": "Communication Skills Assessment",
-        "intro": "I've evaluated the communication aspects of your answer. Here's my assessment:",
-        "sections": [
-            {
-                "name": "Clarity",
-                "icon": "💡",
-                "description": "How clear your message was",
-                "score_key": "clarity.score",
-                "feedback_key": "clarity.feedback"
-            },
-            {
-                "name": "Conciseness",
-                "icon": "✂️",
-                "description": "Efficiency of your communication",
-                "score_key": "conciseness.score",
-                "feedback_key": "conciseness.feedback"
-            },
-            {
-                "name": "Structure",
-                "icon": "🏗️",
-                "description": "Organization of your response",
-                "score_key": "structure.score",
-                "feedback_key": "structure.feedback"
-            },
-            {
-                "name": "Engagement",
-                "icon": "🎤",
-                "description": "How engaging your delivery was",
-                "score_key": "engagement.score",
-                "feedback_key": "engagement.feedback"
-            },
-            {
-                "name": "Confidence",
-                "icon": "👍",
-                "description": "Confidence in your delivery",
-                "score_key": "confidence.score",
-                "feedback_key": "confidence.feedback"
-            }
-        ],
-        "summary_key": "overall_score",
-        "strengths_key": "key_strengths",
-        "improvements_key": "improvement_areas"
-    },
-    "completeness": {
-        "title": "Response Completeness Analysis",
-        "intro": "I've analyzed how complete and comprehensive your answer was:",
-        "sections": [
-            {
-                "name": "Question Relevance",
-                "icon": "🎯",
-                "description": "How directly you addressed the question",
-                "score_key": "question_relevance.score",
-                "feedback_key": "question_relevance.feedback"
-            },
-            {
-                "name": "Key Points Coverage",
-                "icon": "📋",
-                "description": "Coverage of important aspects",
-                "score_key": "key_points_coverage.score",
-                "feedback_key": "key_points_coverage.feedback"
-            },
-            {
-                "name": "Examples",
-                "icon": "🔍",
-                "description": "Relevance and sufficiency of examples",
-                "score_key": "examples.score",
-                "feedback_key": "examples.feedback"
-            },
-            {
-                "name": "Depth",
-                "icon": "🧠",
-                "description": "Depth of your explanations",
-                "score_key": "depth.score",
-                "feedback_key": "depth.feedback"
-            },
-            {
-                "name": "Context Awareness",
-                "icon": "🔎",
-                "description": "Tailoring to role/company context",
-                "score_key": "context_awareness.score",
-                "feedback_key": "context_awareness.feedback"
-            }
-        ],
-        "summary_key": "overall_score",
-        "strengths_key": "",
-        "improvements_key": "missing_elements"
-    },
-    "personalized": {
-        "title": "Personalized Coaching Feedback",
-        "intro": "Based on your profile and this response, here's my personalized coaching:",
-        "sections": [],
-        "summary_key": "personalized_coaching",
-        "strengths_key": "strengths_affirmation",
-        "improvements_key": "growth_areas"
-    }
-}
-
-# Advice templates for different topics
-GENERAL_ADVICE_TEMPLATE = """
-# General Interview Tips for {job_role} Positions
-
-## Before the Interview
-1. **Research the Company**: Understand their mission, products, culture
-2. **Review the Job Description**: Map your experience to their requirements
-3. **Prepare Questions**: Thoughtful questions show your interest
-4. **Practice Common Questions**: Especially using the STAR method
-5. **Technical Preparation**: Review relevant skills and concepts
-
-## During the Interview
-1. **Listen Carefully**: Understand what's being asked
-2. **Structured Responses**: Use the STAR method for behavioral questions
-3. **Be Specific**: Use concrete examples rather than generalizations
-4. **Show Your Thinking**: Explain your approach, especially for technical questions
-5. **Authenticity**: Be genuine while maintaining professionalism
-
-## After the Interview
-1. **Send a Thank You Note**: Express appreciation for the opportunity
-2. **Reflect on Your Performance**: Identify areas for improvement
-3. **Follow Up Appropriately**: If you haven't heard back in the stated timeframe
-
-## Interview Psychology
-1. **Confidence vs. Arrogance**: Show self-assurance without overstepping
-2. **Authenticity**: Be yourself while maintaining professionalism
-3. **Growth Mindset**: Frame challenges as learning opportunities
-4. **Positive Language**: Focus on what you can and have done
-
-### Remember: The interview is a two-way evaluation. You're assessing the company as much as they're assessing you.
-"""
-
-STAR_METHOD_ADVICE_TEMPLATE = """
-# STAR Method: Structuring Powerful Interview Responses
-
-## The Framework
-- **Situation**: Set the context by describing the situation/background
-- **Task**: Explain the specific task or challenge you faced
-- **Action**: Detail the specific actions you took to address the task/challenge
-- **Result**: Share the outcomes, what you learned, and how it adds value
-
-## Why It Works
-1. **Structure**: Makes your answer easy to follow
-2. **Relevance**: Keeps you focused on what matters
-3. **Completeness**: Ensures you don't omit critical information
-4. **Impact**: Emphasizes your contributions and results
-
-## Example Format
-"In my previous role at [Company], we faced [specific situation]. My responsibility was to [specific task]. To address this, I [specific actions taken]. As a result, [measurable outcomes]."
-
-## Common Pitfalls
-1. **Too Much Situation**: Don't spend more than 10-20% on background
-2. **Vague Actions**: Be specific about YOUR contributions
-3. **Missing Results**: Always quantify outcomes when possible
-4. **Irrelevant Details**: Every part should relate to the question
-
-## How to Practice
-1. Prepare 5-10 stories covering different competencies
-2. Practice telling them in 1-2 minutes
-3. Record yourself and review for clarity and conciseness
-
-## Adapting STAR for Different Questions
-- **Behavioral Questions**: "Tell me about a time when..." - Use full STAR
-- **Competency Questions**: "How do you handle..." - Focus more on A and R
-- **Hypothetical Questions**: "What would you do if..." - Combine STAR with hypothetical approach
-
-### Remember: Every question is an opportunity to demonstrate value and fit for the role.
-"""
-
-# Practice question generation prompt
-PRACTICE_QUESTION_PROMPT = """
-You are an expert interviewer creating questions for a {job_role} position.
-Generate a {difficulty} difficulty {question_type} interview question.
-
-Return your response as a JSON object with the following structure:
-{{
-    "question": "the full question text",
-    "question_type": "{question_type}",
-    "difficulty": "{difficulty}",
-    "target_skills": ["skill1", "skill2"],
-    "ideal_answer_points": ["key point 1", "key point 2", "key point 3"],
-    "follow_up_questions": ["potential follow-up 1", "potential follow-up 2"]
-}}
-"""
-
-# Practice question response template
-PRACTICE_QUESTION_RESPONSE_TEMPLATE = """
-## Practice Interview Question ({question_type} Type)
-
+**Question Asked:**
 {question}
 
-### Instructions
-{instructions}
+**Candidate's Answer:**
+{answer}
 
-#### Target Skills
-{target_skills}
+**Interviewer's Justification for Next Question/Action (context for candidate's current mindset/flow):**
+{justification}
+---
 
-#### Key Points for an Ideal Answer
-{ideal_points}
+**Your Coaching Feedback (Provide detailed, explanatory feedback for each dimension below):**
 
-Provide your answer, and I'll give you detailed feedback using our assessment framework.
+1.  **Conciseness:**
+    *   Was the answer concise, too brief, or verbose?
+    *   Explain your reasoning: Why do you think that?
+    *   If verbose, which specific parts seemed unnecessary or could be trimmed?
+    *   If too brief, what key information or elaboration was missing that made it feel short?
+
+2.  **Completeness:**
+    *   Did the answer sufficiently cover the aspects reasonably expected for this question?
+    *   Which specific points, if any, were missed or felt incomplete?
+    *   If the question implied a structure (e.g., STAR method for behavioral questions), were all parts of that structure adequately covered? (e.g., Situation, Task, Action, Result).
+
+3.  **Technical Accuracy / Depth (if applicable to the question):**
+    *   Were the technical details, if any, mentioned in the answer accurate?
+    *   Was the level of technical depth appropriate for the question and the implied expectations of the role (based on the Job Description)?
+    *   Did the answer demonstrate a solid understanding, or was it more surface-level? Explain why.
+
+4.  **Contextual Alignment:**
+    *   How well did the answer relate to the candidate's experiences or skills as presented in their Resume?
+    *   Did the answer align with the requirements or expectations outlined in the Job Description?
+    *   If there was a misalignment, what specific projects, experiences, or skills from their resume could they have potentially mentioned or emphasized to better align with the question or job description?
+
+5.  **Fixes & Improvements (Actionable Advice):**
+    *   Provide concrete, actionable advice on how the candidate could improve THIS SPECIFIC answer.
+    *   This might include suggestions for:
+        *   Restructuring the answer for better clarity or impact.
+        *   Emphasizing different examples or aspects of their experience.
+        *   Removing or rephrasing parts that were unclear, irrelevant, or detracted from the answer.
+        *   Incorporating more specific results or metrics if applicable.
+    *   Do NOT rewrite the entire answer for them. Focus on guidance.
+
+6.  **STAR Method Application (ONLY if the question was clearly behavioral AND the STAR method was attempted or should have been):**
+    *   Was the STAR (Situation, Task, Action, Result) method appropriately used for this behavioral question?
+    *   If yes, were all components (Situation, Task, Action, Result) clearly present and effectively explained?
+    *   Identify any weak or missing components of STAR. For example, "The 'Result' part was a bit vague, you could strengthen it by quantifying the outcome."
+    *   If STAR was not used but should have been, briefly explain why it would have been beneficial for this answer.
+
+**Output Format:**
+Return your feedback as a JSON object where keys are the dimension names (e.g., "conciseness", "completeness", etc.) and values are your detailed textual feedback for that dimension.
+Make sure the JSON is well-formed.
+Example:
+{
+    "conciseness": "Your answer was generally concise...",
+    "completeness": "The answer covered most expected points, however...",
+    // ... and so on for all dimensions
+}
 """
 
-# System prompt for coach agent
-SYSTEM_PROMPT = """
-You are an expert interview coach with years of experience helping candidates 
-succeed in job interviews. Your primary role is to provide detailed, constructive, 
-and actionable feedback *after* an interview session or upon request, analyzing 
-the provided interview data (questions and answers).
+# Template for generating the final summary
+FINAL_SUMMARY_TEMPLATE = """
+You are an expert Interview Coach providing a final summary of a candidate's performance after an entire interview session.
+Your goal is to provide holistic feedback, identify patterns, and suggest actionable steps for improvement.
 
-Your feedback should help the candidate understand their strengths and weaknesses 
-and provide specific guidance for improvement. You utilize various analytical 
-frameworks like STAR method evaluation, communication assessment, and completeness 
-checks to provide comprehensive insights.
+**Candidate's Resume Snapshot:**
+{resume_content}
 
-Be supportive, honest, and focus on helping the candidate improve for future interviews.
-""" 
+**Target Job Description Snapshot:**
+{job_description}
+
+**Full Conversation History (Question-Answer-Justification-Feedback cycles):**
+{conversation_history} 
+
+---
+**Your Final Coaching Summary:**
+
+1.  **Noted Patterns or Tendencies:**
+    *   Analyze the candidate's responses across the entire interview.
+    *   What consistent patterns or tendencies (both positive and negative) did you observe?
+    *   (e.g., "You consistently started answers with strong context," or "Across several behavioral questions, the 'Result' part of your STAR answers tended to be less detailed.")
+    *   Provide specific examples from the conversation history to back up these observations.
+
+2.  **Key Strengths:**
+    *   What were the candidate's main strengths during this interview session?
+    *   Provide specific examples or references from the conversation history to illustrate these strengths.
+    *   (e.g., "Demonstrated strong technical knowledge when discussing X, as seen in Q3 answer," or "Effectively used storytelling in Q5, clearly outlining the situation and actions taken.")
+
+3.  **Key Weaknesses / Areas for Development:**
+    *   What were the most significant weaknesses or areas where the candidate could improve?
+    *   Explain *why* these were weaknesses (e.g., "Lack of specific metrics made it hard to gauge impact," or "Answers sometimes drifted from the core question, which affected conciseness.")
+    *   Provide examples from the conversation history. Avoid generic labels; be specific about the cause.
+
+4.  **Suggested Areas of Focus for Overall Improvement:**
+    *   Based on the patterns, strengths, and weaknesses, what are the top 2-3 broad areas the candidate should focus on for future interview preparation?
+    *   (e.g., "Quantifying achievements in project examples," "Practicing the STAR method for behavioral answers," "Improving conciseness in technical explanations.")
+
+5.  **Topics for Resource Recommendation (Provide 2-3 specific topics for web searches):**
+    *   Based *only* on the identified weaknesses and areas for development, suggest 2-3 distinct topics or phrases that the candidate could use as search queries to find helpful learning resources. These topics should be very specific to the observed weaknesses.
+    *   Example search query topics:
+        *   "how to quantify achievements in resume and interviews"
+        *   "practice STAR method for behavioral interview questions"
+        *   "techniques for concise technical explanations"
+        *   "common pitfalls in system design interviews and how to avoid them"
+        *   "how to demonstrate leadership in an interview without direct management experience"
+
+**Output Format:**
+Return your feedback as a JSON object with the following keys: "patterns_tendencies", "strengths", "weaknesses", "improvement_focus_areas", "resource_search_topics".
+The value for "resource_search_topics" should be a list of strings (the search query topics).
+All other values should be your detailed textual feedback.
+Make sure the JSON is well-formed.
+Example:
+{
+    "patterns_tendencies": "Across the interview, you consistently...",
+    "strengths": "A key strength was your ability to... For example, in Q2...",
+    "weaknesses": "One area for development is... This was evident when...",
+    "improvement_focus_areas": "Based on this session, I recommend focusing on: 1. Quantifying results... 2. Structuring behavioral answers...",
+    "resource_search_topics": ["how to effectively use STAR method", "improve interview answer conciseness"]
+}
+"""
+
+# __all__ for explicit exports, if needed by an importer using "from .coach_templates import *"
+__all__ = [
+    'EVALUATE_ANSWER_TEMPLATE',
+    'FINAL_SUMMARY_TEMPLATE'
+] 

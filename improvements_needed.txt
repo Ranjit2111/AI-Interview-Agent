@@ -17,5 +17,10 @@ add tools for agents to work with
 8. Remove target_question_count, the agent dynamically decides and finishes the interview or atleast make the target count not strict
 The generic questions are used to fill the gap between job_specific_questions and target_question_count.. so deal with it
 Done:
+9. the interviewer agent should mainly ask questions based on the job description
+10. is there a need for new_topics_covered in interviewer agent
+10. coach coaches on each pair and can incorporate the justification given by the interviwer agent for its response
+
+
 - Removed document_generator file and its references from the codebase
 - Removed tests folder

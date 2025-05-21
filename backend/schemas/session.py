@@ -31,11 +31,38 @@ class UserMessage(BaseModel):
     class Config:
         from_attributes = True
 
-class CoachingRequestData(BaseModel):
-    """Schema for data sent in a coaching request."""
-    request_type: str = Field(..., description="Type of coaching requested (e.g., 'tips', 'practice_question', 'template')")
-    details: Optional[Dict[str, Any]] = Field(None, description="Specific details for the request (e.g., focus area for tips, question type)")
+class CoachAnswerFeedback(BaseModel):
+    """Schema for structured feedback on a single answer from CoachAgent."""
+    conciseness: str = Field(..., description="Feedback on the conciseness of the answer.")
+    completeness: str = Field(..., description="Feedback on the completeness of the answer.")
+    technical_accuracy_depth: str = Field(..., description="Feedback on technical accuracy and depth.")
+    contextual_alignment: str = Field(..., description="Feedback on alignment with resume and job description.")
+    fixes_improvements: str = Field(..., description="Actionable advice for improving the answer.")
+    star_support: str = Field(..., description="Feedback on the use of STAR method, if applicable.")
+    error: Optional[str] = Field(None, description="Error message if feedback generation failed for this answer.")
 
+    class Config:
+        from_attributes = True
+
+class InterviewerResponse(BaseModel):
+    """Schema for the interviewer's part of the response."""
+    content: str = Field(..., description="The question or statement from the interviewer.")
+    response_type: str = Field(..., description="Type of response (e.g., 'question', 'closing_statement').")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata, e.g., question number, justification.")
+
+    class Config:
+        from_attributes = True
+
+class AgentMessageResponse(BaseModel):
+    """
+    Schema for the combined response after a user message is processed.
+    Includes the interviewer's next response and the coach's feedback on the user's last answer.
+    """
+    session_id: str = Field(..., description="The ID of the current session.")
+    interviewer_response: InterviewerResponse = Field(..., description="The interviewer's response (e.g., next question).")
+    coach_feedback: Optional[CoachAnswerFeedback] = Field(None, description="Feedback from the CoachAgent on the user's last answer.")
+    # event_type: Optional[str] = Field(None, description="Indicator of the current phase or event, e.g., 'interview_turn', 'feedback_provided'.") # Optional, can be added if useful for frontend
+    
     class Config:
         from_attributes = True
 
@@ -47,12 +74,24 @@ class SessionStartResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class FinalCoachingSummary(BaseModel):
+    """Schema for the detailed final coaching summary from CoachAgent."""
+    patterns_tendencies: str = Field(..., description="Observed patterns and tendencies in candidate's responses.")
+    strengths: str = Field(..., description="Key strengths demonstrated by the candidate.")
+    weaknesses: str = Field(..., description="Key weaknesses or areas for development.")
+    improvement_focus_areas: str = Field(..., description="Suggested areas to focus on for improvement.")
+    resource_search_topics: List[str] = Field(default_factory=list, description="Specific topics for resource searches.")
+    recommended_resources: Optional[List[Dict[str, Any]]] = Field(None, description="Curated resources based on search topics (populated by orchestrator).")
+    error: Optional[str] = Field(None, description="Error message if final summary generation failed.")
+    
+    class Config:
+        from_attributes = True
+
 class SessionEndResponse(BaseModel):
     """Schema for the response when ending a session."""
     status: str = Field(..., description="Status message (e.g., 'Interview Ended')")
     session_id: str = Field(..., description="The ID of the session that ended")
-    coaching_summary: Optional[Dict[str, Any]] = Field(None, description="Final coaching summary JSON")
-    skill_profile: Optional[Dict[str, Any]] = Field(None, description="Final skill assessment profile JSON")
+    coaching_summary: Optional[FinalCoachingSummary] = Field(None, description="Final coaching summary object.")
 
     class Config:
         from_attributes = True
