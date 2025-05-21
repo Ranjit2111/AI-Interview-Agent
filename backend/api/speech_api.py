@@ -320,11 +320,11 @@ async def text_to_speech(
     # "medium" is default (100%). "slow" ~85%, "x-slow" ~70%. "fast" ~120%, "x-fast" ~150%.
     # We can map the float speed to a percentage.
     speed_percentage = int(speed * 100)
-    ssml_text = f'<speak><prosody rate="{speed_percentage}%">{escaped_text}</prosody></speak>'
+    
+    # Add a brief initial pause using <break> tag to prevent the first words from being cut off
+    ssml_text = f'<speak><break time="250ms"/><prosody rate="{speed_percentage}%">{escaped_text}</prosody></speak>'
     
     logger.info(f"Sending TTS request to Amazon Polly with voice: {voice_id}, speed: {speed} ({speed_percentage}%)")
-
-
 
     try:
         response = await asyncio.to_thread(
@@ -333,7 +333,7 @@ async def text_to_speech(
             OutputFormat="mp3",
             VoiceId=voice_id,
             TextType="ssml",
-            Engine="neural" # Or 'neural' if preferred and voice supports it
+            Engine="generative" # Or 'generative' if preferred and voice supports it
         )
         
         audio_stream = response.get("AudioStream")
@@ -383,7 +383,9 @@ async def stream_text_to_speech(
 
     escaped_text = html.escape(text)
     speed_percentage = int(speed * 100)
-    ssml_text = f'<speak><prosody rate="{speed_percentage}%">{escaped_text}</prosody></speak>'
+    
+    # Add initial pause to prevent first words from being cut off
+    ssml_text = f'<speak><break time="250ms"/><prosody rate="{speed_percentage}%">{escaped_text}</prosody></speak>'
 
     logger.info(f"Sending Streaming TTS request to Amazon Polly with voice: {voice_id}, speed: {speed} ({speed_percentage}%)")
     
@@ -396,7 +398,7 @@ async def stream_text_to_speech(
             OutputFormat="mp3",
             VoiceId=voice_id,
             TextType="ssml",
-            Engine="standard" # Or 'neural'
+            Engine="generative" # Or 'generative'
         )
 
         audio_stream = response.get("AudioStream")
