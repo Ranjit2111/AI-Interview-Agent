@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Loader, Bot, User, Brain } from 'lucide-react';
+import { Send, Mic, Loader, Bot, User, Brain, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
-import VoiceRecorder from './VoiceRecorder';
+import VoiceInputToggle from './VoiceInputToggle';
 import AudioPlayer from './AudioPlayer';
 import CoachFeedbackDisplay from './CoachFeedbackDisplay';
 import { Message } from '@/hooks/useInterviewSession';
@@ -51,8 +51,27 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
 
   const handleTranscriptionComplete = (text: string) => {
     console.log("handleTranscriptionComplete called with text:", text);
-    setInput(text);
-    console.log("Input state updated to:", text);
+    
+    // Append the new transcription to existing input, with proper spacing
+    setInput(prevInput => {
+      const trimmedText = text.trim();
+      if (!trimmedText) return prevInput;
+      
+      const currentText = prevInput.trim();
+      if (currentText === '') {
+        // If input is empty, just use the new text
+        return trimmedText;
+      } else {
+        // Append with a space separator
+        return currentText + ' ' + trimmedText;
+      }
+    });
+    
+    console.log("Input state updated by appending:", text);
+  };
+
+  const handleClearInput = () => {
+    setInput('');
   };
 
   const getAgentDisplayName = (message: Message) => {
@@ -146,29 +165,43 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
 
       {/* Input area */}
       <div className="p-4 border-t border-white/10 bg-black/60 backdrop-blur-lg shadow-[0_-4px_20px_rgba(0,0,0,0.2)] relative z-10">
-        <div className="flex items-end gap-3 max-w-3xl mx-auto">
-          <div className="flex-1 relative group">
-            <Textarea
-              placeholder="Type your answer here..."
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyPress}
-              disabled={isLoading}
-              className="min-h-[50px] bg-gray-900/70 border-gray-700/70 text-gray-100 focus:border-interview-secondary shadow-sm rounded-lg resize-none hover:border-gray-600 focus:shadow-[0_0_15px_rgba(168,85,247,0.2)]"
-            />
-            <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-cyan-500/20 to-purple-600/20 -z-10 opacity-0 group-focus-within:opacity-100 blur-xl transition-opacity"></div>
+        <div className="flex flex-col gap-3 max-w-3xl mx-auto">
+          <div className="flex items-end gap-3 w-full">
+            <div className="flex-1 relative group">
+              <Textarea
+                placeholder="Type your answer here..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyPress}
+                disabled={isLoading}
+                className="min-h-[50px] bg-gray-900/70 border-gray-700/70 text-gray-100 focus:border-interview-secondary shadow-sm rounded-lg resize-none hover:border-gray-600 focus:shadow-[0_0_15px_rgba(168,85,247,0.2)] pr-10"
+              />
+              {/* Clear button - only show when there's text */}
+              {input.trim() && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearInput}
+                  className="absolute top-2 right-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-200 hover:bg-gray-700/50"
+                  title="Clear text"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+              <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-cyan-500/20 to-purple-600/20 -z-10 opacity-0 group-focus-within:opacity-100 blur-xl transition-opacity"></div>
+            </div>
+            <Button
+              onClick={handleSend}
+              disabled={!input.trim() || isLoading}
+              className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 shadow-lg hover:shadow-purple-500/20 transition-all duration-300"
+            >
+              {isLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
           </div>
-          <VoiceRecorder
+          <VoiceInputToggle
             onTranscriptionComplete={handleTranscriptionComplete}
             isDisabled={isLoading}
           />
-          <Button
-            onClick={handleSend}
-            disabled={!input.trim() || isLoading}
-            className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 shadow-lg hover:shadow-purple-500/20 transition-all duration-300"
-          >
-            {isLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
         </div>
       </div>
     </div>
