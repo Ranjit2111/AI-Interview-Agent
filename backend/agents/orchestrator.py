@@ -122,12 +122,9 @@ class AgentSessionManager:
             
             agent_context = self._get_agent_context()
 
-            # Get the question that was just answered by the user for the CoachAgent
-            # This assumes user_message_data is the current answer.
-            # The question is the last assistant message from the interviewer.
+
             question_that_was_answered = None
-            if len(self.conversation_history) > 1: # Need at least user message + previous assistant message
-                # Iterate backwards from the second to last message (before current user_message_data)
+            if len(self.conversation_history) > 1:
                 for i in range(len(self.conversation_history) - 2, -1, -1):
                     prev_msg = self.conversation_history[i]
                     if prev_msg.get("role") == "assistant" and prev_msg.get("agent") == "interviewer":
@@ -143,7 +140,7 @@ class AgentSessionManager:
             duration = (interviewer_response_timestamp - start_time).total_seconds() # Recalculate duration up to this point
             # self.response_times.append(duration) # This might be more complex now with multiple agent turns
             # self.total_response_time += duration
-            self.api_call_count += 1 # Count Interviewer's process as one call
+            self.api_call_count += 1 
 
             assistant_response_data = {
                 "role": "assistant",
@@ -157,13 +154,12 @@ class AgentSessionManager:
             self.conversation_history.append(assistant_response_data)
 
             self.event_bus.publish(Event(
-                event_type=EventType.ASSISTANT_RESPONSE, # Main response from interviewer
+                event_type=EventType.ASSISTANT_RESPONSE, 
                 source='AgentSessionManager',
                 data={"response": assistant_response_data}
             ))
             self.logger.info(f"Interviewer response generated in {duration:.2f} seconds. Type: {response_type}")
 
-            # Now, call CoachAgent to evaluate the user's answer and collect feedback
             if question_that_was_answered and user_message_data.get("content"):
                 coach_agent = self._get_agent("coach")
                 if coach_agent:
@@ -171,7 +167,6 @@ class AgentSessionManager:
                     try:
                         justification_for_new_question = interviewer_metadata.get("justification")
                         
-                        # coach_agent.evaluate_answer now returns a string
                         coaching_feedback_string = coach_agent.evaluate_answer(
                             question=question_that_was_answered,
                             answer=user_message_data["content"],
@@ -188,7 +183,6 @@ class AgentSessionManager:
                             })
                         else:
                             self.logger.warning(f"CoachAgent returned empty or error feedback: {coaching_feedback_string}")
-                            # Optionally store error feedback if needed for the review phase
                             self.per_turn_coaching_feedback_log.append({
                                 "question": question_that_was_answered,
                                 "answer": user_message_data["content"],
@@ -205,15 +199,14 @@ class AgentSessionManager:
                 else:
                     self.logger.warning("Coach agent could not be loaded to provide feedback.")
                     self.per_turn_coaching_feedback_log.append({
-                        "question": question_that_was_answered, # Still log Q&A even if coach fails to load
+                        "question": question_that_was_answered, 
                         "answer": user_message_data["content"],
                         "feedback": "Coach agent was not available to provide feedback for this turn."
                     })
             else:
                 self.logger.info("Skipping coach feedback as conditions not met (e.g., no prior question or user answer).")
             
-            # The API now expects only the interviewer's response during the interview.
-            return assistant_response_data # This is the interviewer's response
+            return assistant_response_data 
 
         except Exception as e:
             self.logger.exception(f"Error processing message: {e}")
@@ -253,7 +246,6 @@ class AgentSessionManager:
             data={}
         ))
 
-        # Ensure coaching_summary is initialized as a dict for robustness
         final_results = {
             "status": "Interview Ended",
             "coaching_summary": { "error": "Coaching summary not generated yet." }, 
@@ -267,12 +259,11 @@ class AgentSessionManager:
                 
                 if coaching_summary_content:
                     self.logger.info(f"CoachAgent generated final summary (pre-search): {json.dumps(coaching_summary_content, indent=2)}")
-                    final_results["coaching_summary"] = coaching_summary_content # Assign the actual summary
+                    final_results["coaching_summary"] = coaching_summary_content 
                 else:
                     self.logger.warning("CoachAgent returned an empty final summary. Using error placeholder.")
                     final_results["coaching_summary"] = {"error": "CoachAgent returned an empty final summary."}
                 
-                # Resource search logic (remains the same)
                 if isinstance(final_results["coaching_summary"], dict) and final_results["coaching_summary"].get("resource_search_topics"):
                     search_topics = final_results["coaching_summary"].get("resource_search_topics", [])
                     recommended_resources_list = [] 
@@ -282,7 +273,6 @@ class AgentSessionManager:
                         for topic in search_topics[:3]: 
                             self.logger.info(f"Performing web search for topic: {topic}")
                             try:
-                                # SIMULATED WEB SEARCH (as before)
                                 search_results_for_topic = []
                                 if topic == "effective communication in interviews":
                                     search_results_for_topic = [

@@ -1,13 +1,6 @@
 """
 Coach agent module for providing feedback and guidance to users during interview preparation.
 This agent analyzes interview performance and offers personalized advice for improvement.
-
-TODO: Further Refactoring Plan:
-  - Extract more template strings to coach_templates.py
-  - Move method groups (evaluation methods, feedback methods, etc.) to separate modules
-  - Modularize event handling code
-  - Standardize error handling across all methods
-  - Consider further splitting the CoachAgent class into smaller focused classes
 """
 
 import logging
@@ -117,7 +110,6 @@ class CoachAgent(BaseAgent):
         question_str = question or "No question provided."
         answer_str = answer or "No answer provided."
         justification_str = justification or "No justification provided."
-        # Limit history string length to avoid overly large prompts for single answer eval
         history_str = format_conversation_history(conversation_history, max_messages=10, max_content_length=200)
 
         inputs = {
@@ -140,14 +132,10 @@ class CoachAgent(BaseAgent):
         default_evaluation_error_string = "Error: Could not generate coaching feedback for this answer."
 
         if isinstance(llm_output, str) and llm_output.strip():
-            # If we got a non-empty string, use it.
-            # The new template asks for direct text, so llm_output should ideally be the string.
             feedback_text = llm_output
         elif isinstance(llm_output, dict) and 'evaluation_text' in llm_output and isinstance(llm_output['evaluation_text'], str):
-            # Fallback if the chain still wraps output in a dict with the output_key
             feedback_text = llm_output['evaluation_text']
         elif isinstance(llm_output, dict) and 'text' in llm_output and isinstance(llm_output['text'], str):
-            # Common fallback if LLM directly outputs under a 'text' key
             feedback_text = llm_output['text']
         else:
             self.logger.error(f"EvaluateAnswerChain returned an unexpected type or empty content: {type(llm_output)}. Using default error string.")
@@ -169,7 +157,7 @@ class CoachAgent(BaseAgent):
         """
         self.logger.info("CoachAgent generating final summary...")
         
-        history_str = format_conversation_history(conversation_history) # Full history for summary
+        history_str = format_conversation_history(conversation_history)
 
         inputs = {
             "resume_content": self.resume_content or "Not provided.",
@@ -177,9 +165,6 @@ class CoachAgent(BaseAgent):
             "conversation_history": history_str
         }
 
-        # invoke_chain_with_error_handling might return a dict (if JSON parsed successfully within it),
-        # a string (if output_key pointed to a non-JSON string, or if parsing failed there but returned original string),
-        # or None (if chain failed badly or key not found).
         llm_output = invoke_chain_with_error_handling(
             self.final_summary_chain,
             inputs,
@@ -205,7 +190,7 @@ class CoachAgent(BaseAgent):
                 default_summary_error,
                 logger=self.logger
             )
-        else: # llm_output is None or some other unexpected type
+        else:
             self.logger.error(f"FinalSummaryChain returned an unexpected type or None: {type(llm_output)}. Using default error values.")
             parsed_summary = default_summary_error
         
@@ -215,8 +200,7 @@ class CoachAgent(BaseAgent):
 
 
         if "resource_search_topics" in parsed_summary and parsed_summary["resource_search_topics"]:
-            parsed_summary["recommended_resources"] = [] # Placeholder for Gemini to fill
-
+            parsed_summary["recommended_resources"] = [] 
         self.logger.debug(f"CoachAgent - Final summary (pre-search) generated: {parsed_summary}")
         return parsed_summary
 
@@ -228,8 +212,5 @@ class CoachAgent(BaseAgent):
         This method can be kept minimal or used for event-driven actions if any remain.
         """
         self.logger.info("CoachAgent process() called. Currently, actions are primarily driven by direct method calls from Orchestrator.")
-        # Example: If there were specific coaching requests handled via events:
-        # if context.last_event and context.last_event.event_type == EventType.COACHING_REQUEST:
-        #    return self._handle_specific_coaching_request(context.last_event.data)
         return {"status": "CoachAgent processed context, but primary logic is in specific methods."}
             

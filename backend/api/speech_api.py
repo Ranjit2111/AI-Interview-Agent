@@ -336,6 +336,7 @@ async def websocket_stream_endpoint(websocket: WebSocket):
             endpointing=True,
             vad_events=True,  # Enable Voice Activity Detection events
             utterance_end_ms="1000",  # Wait 1 second of silence before finalizing an utterance
+            filler_words=True,  # Enable transcription of filler words (uh, um, ahh, etc.)
             # NOTE: Do NOT specify encoding and sample_rate for containerized audio (WebM)
             # Deepgram will automatically read these from the container header
             # encoding="linear16",  # Removed for WebM compatibility
@@ -599,61 +600,10 @@ async def websocket_stream_endpoint(websocket: WebSocket):
                 logger.error(f"Error finishing Deepgram connection: {e}")
 
 
-@router.get("/api/text-to-speech/voices")
-async def get_available_voices():
-    """
-    Get a list of available TTS voices from the Amazon Polly.
-
-    Returns:
-        JSON response with voice list or error message.
-    """
-    if not polly_client:
-        raise HTTPException(
-            status_code=503,
-            detail="TTS service (Amazon Polly) not configured or unavailable. Check AWS_REGION and credentials."
-        )
-
-    try:
-        response = await asyncio.to_thread(polly_client.describe_voices)
-        
-        formatted_voices = []
-        if response and 'Voices' in response:
-            for voice in response['Voices']:
-                formatted_voices.append({
-                    "id": voice.get("Id", "unknown_voice"),
-                    "name": voice.get("Name", "Unknown Voice"),
-                    "language": voice.get("LanguageCode", "unknown"),
-                    "description": f"{voice.get('Gender', 'Unknown gender')} voice. Engine(s): {', '.join(voice.get('SupportedEngines', []))}",
-                    "gender": voice.get("Gender", "unknown").lower()
-                })
-        
-        if not formatted_voices:
-             logger.warning("No voices returned from Polly or response format unexpected.")
-             formatted_voices = [{
-                 "id": "Matthew",
-                 "name": "Default Voice (Matthew)",
-                 "language": "en-US",
-                 "description": "Default voice (if API response was empty or failed to parse)",
-                 "gender": "male"
-             }]
-
-        return JSONResponse({"voices": formatted_voices})
-
-    except ClientError as e:
-        logger.error(f"Error contacting Amazon Polly for voices: {e}")
-        raise HTTPException(
-            status_code=getattr(e.response, 'get', lambda x, y: y)('Error', {}).get('Code', 503),
-            detail=f"Amazon Polly service error: {e.response.get('Error', {}).get('Message', str(e))}"
-        )
-    except Exception as e:
-        logger.exception("Unexpected error getting TTS voices from Polly")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-
 @router.post("/api/text-to-speech")
 async def text_to_speech(
     text: str = Form(...),
-    voice_id: str = Form("Matthew"),  # Default Polly voice (e.g., Matthew for en-US)
+    voice_id: str = Form("Matthew"),  # Always use Matthew as default voice
     speed: float = Form(1.0, ge=0.5, le=2.0), # Speed control via SSML
 ):
     """
@@ -717,7 +667,7 @@ async def text_to_speech(
 @router.post("/api/text-to-speech/stream")
 async def stream_text_to_speech(
     text: str = Form(...),
-    voice_id: str = Form("Matthew"),  # Default Polly voice
+    voice_id: str = Form("Matthew"),  # Always use Matthew as default voice
     speed: float = Form(1.0, ge=0.5, le=2.0),
 ):
     """
