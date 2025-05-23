@@ -234,9 +234,8 @@ class InterviewerAgent(BaseAgent):
                 "challenge": ["clean messy data", "deploy a model", "interpret complex results"],
                 "quality_aspect": ["model accuracy", "reproducibility", "interpretability"]
             },
-            # Add more roles as needed
         }
-        role_vars = template_vars.get(self.job_role, template_vars["Software Engineer"]) # Default to SWE
+        role_vars = template_vars.get(self.job_role, template_vars["Software Engineer"])
         style_templates = question_templates.get(self.interview_style, question_templates[InterviewStyle.FORMAL])
         
         possible_questions = []
@@ -251,7 +250,6 @@ class InterviewerAgent(BaseAgent):
             except KeyError as e:
                  self.logger.warning(f"Missing key {e} for template: {template}")
         
-        # Add some general questions independent of role/style
         general_questions = [
             "What attracted you to this position?",
             "Where do you see yourself professionally in five years?",
@@ -280,10 +278,9 @@ class InterviewerAgent(BaseAgent):
             inputs,
             self.logger,
             "Job Specific Question Chain",
-            output_key="questions_json" # Expecting a JSON list string
+            output_key="questions_json"
         )
         
-        # The utility now handles parsing
         if isinstance(response, list):
             self.logger.info(f"Successfully generated {len(response)} specific questions.")
             return [str(q) for q in response if isinstance(q, str) and q.strip()]
@@ -296,7 +293,6 @@ class InterviewerAgent(BaseAgent):
         style_key = self.interview_style.value.lower()
         template = INTRODUCTION_TEMPLATES.get(style_key, INTRODUCTION_TEMPLATES["formal"])
         
-        # Calculate approximate duration based on question count (e.g., 3 mins per question)
         approx_duration = f"around {self.question_count * 3} minutes"
         
         return template.format(
@@ -319,7 +315,7 @@ class InterviewerAgent(BaseAgent):
             inputs,
             self.logger,
             "Response Formatter Chain",
-            output_key="formatted_text" # Expecting formatted text string
+            output_key="formatted_text" 
         )
         return response if isinstance(response, str) else content
     
@@ -336,7 +332,6 @@ class InterviewerAgent(BaseAgent):
         self.current_question = None
         self.areas_covered = []
         
-        # Update interview parameters if provided
         data = event.data
         config = data.get("config", {})
         
@@ -358,7 +353,6 @@ class InterviewerAgent(BaseAgent):
         
         self.logger.info(f"Interview configuration updated via SESSION_START event.")
         
-        # Generate initial questions
         self._generate_questions()
         self.logger.info(f"Generated {len(self.initial_questions)} initial questions during session start.")
     
@@ -368,8 +362,7 @@ class InterviewerAgent(BaseAgent):
         """
         self.logger.info(f"Handling session_end event.")
         self.current_state = InterviewState.COMPLETED
-        # Optionally, clear sensitive data like resume content here if needed
-        # self.resume_content = ""
+
     
     def _handle_session_reset(self, event: Event) -> None:
         """
@@ -414,15 +407,13 @@ class InterviewerAgent(BaseAgent):
             inputs,
             self.logger,
             "Next Action Chain",
-            output_key="action_json" # Expecting JSON string output
+            output_key="action_json"
         )
         
-        # Handle case where the response is in the 'text' field instead of 'action_json'
         if response is None and isinstance(self.next_action_chain.invoke(inputs), dict):
             raw_response = self.next_action_chain.invoke(inputs)
             self.logger.debug(f"Raw response from next_action_chain: {raw_response}")
             
-            # Check if there's a text field containing JSON
             if 'text' in raw_response and isinstance(raw_response['text'], str):
                 parsed_json = parse_json_with_fallback(raw_response['text'], None, self.logger)
                 if parsed_json is not None:
@@ -475,7 +466,6 @@ class InterviewerAgent(BaseAgent):
                 source=self.__class__.__name__,
                 data={"config": context.session_config.dict()}
             ))
-            # Transition state after handling start
             if self.initial_questions:
                 self.current_state = InterviewState.INTRODUCING
             else:
@@ -491,11 +481,9 @@ class InterviewerAgent(BaseAgent):
             response_data["response_type"] = "introduction"
             self.current_state = InterviewState.QUESTIONING
             self.logger.info("Interview introduction generated.")
-            # Publish event? Maybe not needed here as it's just an intro.
             return response_data
         
         elif self.current_state == InterviewState.QUESTIONING:
-            # Use the ReAct chain to determine the next action and question
             action_result = self._determine_and_generate_next_action(context)
             
             action_type = action_result.get("action_type")
@@ -521,7 +509,6 @@ class InterviewerAgent(BaseAgent):
                 }
                 self.logger.info(f"Generated question #{self.asked_question_count} via ReAct: {self.current_question[:100]}...")
             else:
-                # Handle error case where action requires a question but none was generated
                 self.logger.error("ReAct chain decided to ask a question but did not provide text.")
                 self.current_state = InterviewState.COMPLETED
                 response_data["content"] = "It seems we've reached a natural stopping point. Thank you for your time."

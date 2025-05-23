@@ -214,10 +214,9 @@ export interface EndResponse {
   per_turn_feedback?: PerTurnFeedbackItem[];
 }
 
-export interface ResumeUploadServerResponse { // Interface for the new endpoint's response
-  filename: string;
-  resume_text: string;
+export interface ResumeUploadServerResponse {
   message: string;
+  // Add other properties as needed based on what the server returns
 }
 
 export interface HistoryResponse {
@@ -230,12 +229,6 @@ export interface StatsResponse {
 
 export interface ResetResponse {
   message: string;
-}
-
-export interface TTSVoice {
-  id: string;
-  name: string;
-  [key: string]: any;
 }
 
 // Helper for handling response errors
@@ -344,12 +337,7 @@ export const api = {
   },
   
   // Text to Speech API
-  getVoices: async (): Promise<{ voices: TTSVoice[] }> => {
-    const response = await fetch(`${API_BASE_URL}/api/text-to-speech/voices`);
-    return handleResponse(response);
-  },
-  
-  textToSpeech: async (text: string, voiceId: string, speed?: number): Promise<Blob> => {
+  textToSpeech: async (text: string, voiceId: string = "Matthew", speed?: number): Promise<Blob> => {
     const formData = new URLSearchParams();
     formData.append('text', text);
     formData.append('voice_id', voiceId);
