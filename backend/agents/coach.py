@@ -1,6 +1,5 @@
 """
 Coach agent module for providing feedback and guidance to users during interview preparation.
-This agent analyzes interview performance and offers personalized advice for improvement.
 """
 
 import logging
@@ -9,37 +8,25 @@ from typing import Dict, Any, List, Optional
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 
-try:
-    from backend.agents.base import BaseAgent, AgentContext
-    from backend.utils.event_bus import EventBus
-    from backend.services.llm_service import LLMService
-    from backend.agents.templates.coach_templates import (
-        EVALUATE_ANSWER_TEMPLATE,
-        FINAL_SUMMARY_TEMPLATE
-    )
-    from backend.utils.llm_utils import (
-        invoke_chain_with_error_handling,
-        parse_json_with_fallback,
-        format_conversation_history
-    )
-except ImportError:
-    from .base import BaseAgent, AgentContext
-    from ..utils.event_bus import EventBus
-    from ..services.llm_service import LLMService
-    from .templates.coach_templates import (
-        EVALUATE_ANSWER_TEMPLATE,
-        FINAL_SUMMARY_TEMPLATE
-    )
-    from ..utils.llm_utils import (
-        invoke_chain_with_error_handling,
-        parse_json_with_fallback,
-        format_conversation_history
-    )
+from backend.agents.base import BaseAgent, AgentContext
+from backend.utils.event_bus import EventBus
+from backend.services.llm_service import LLMService
+from backend.agents.templates.coach_templates import (
+    EVALUATE_ANSWER_TEMPLATE,
+    FINAL_SUMMARY_TEMPLATE
+)
+from backend.utils.llm_utils import (
+    invoke_chain_with_error_handling,
+    parse_json_with_fallback,
+    format_conversation_history
+)
+from backend.utils.common import safe_get_or_default
+from backend.agents.constants import DEFAULT_VALUE_NOT_PROVIDED
+
 
 class CoachAgent(BaseAgent):
     """
-    Agent that provides detailed, contextual feedback on interview answers
-    and a final summary at the end of the interview.
+    Agent that provides detailed feedback on interview answers and final summaries.
     """
     
     def __init__(
@@ -50,16 +37,6 @@ class CoachAgent(BaseAgent):
         resume_content: Optional[str] = None,
         job_description: Optional[str] = None,
     ):
-        """
-        Initialize the coach agent.
-        
-        Args:
-            llm_service: Language model service instance.
-            event_bus: Event bus for inter-agent communication.
-            logger: Logger for recording agent activity.
-            resume_content: The candidate's resume content.
-            job_description: The job description for the target role.
-        """
         super().__init__(llm_service=llm_service, event_bus=event_bus, logger=logger)
         
         self.resume_content = resume_content or ""
@@ -68,11 +45,7 @@ class CoachAgent(BaseAgent):
         self._setup_llm_chains()
     
     def _setup_llm_chains(self) -> None:
-        """
-        Set up LangChain chains for the agent's tasks.
-        """
-        self.logger.info("CoachAgent: Initializing LLM chains...")
-        
+        """Set up LangChain chains for the agent's tasks."""
         self.evaluate_answer_chain = LLMChain(
             llm=self.llm,
             prompt=PromptTemplate.from_template(EVALUATE_ANSWER_TEMPLATE),
@@ -84,7 +57,6 @@ class CoachAgent(BaseAgent):
             prompt=PromptTemplate.from_template(FINAL_SUMMARY_TEMPLATE),
             output_key="summary_json"
         )
-        self.logger.info("CoachAgent: LLM chains setup complete.")
 
     def evaluate_answer(
         self, 
@@ -96,32 +68,12 @@ class CoachAgent(BaseAgent):
         """
         Evaluates a single question-answer pair in the context of the interview.
         
-        Args:
-            question: The interview question asked.
-            answer: The user's answer to the question.
-            justification: The InterviewerAgent's rationale for the next question (or current state).
-            conversation_history: The full conversation history for broader context.
-            
         Returns:
             A string containing conversational coaching feedback.
         """
-        self.logger.info(f"CoachAgent evaluating answer for question: {question[:50]}...")
+        inputs = self._build_evaluation_inputs(question, answer, justification, conversation_history)
         
-        question_str = question or "No question provided."
-        answer_str = answer or "No answer provided."
-        justification_str = justification or "No justification provided."
-        history_str = format_conversation_history(conversation_history, max_messages=10, max_content_length=200)
-
-        inputs = {
-            "resume_content": self.resume_content or "Not provided.",
-            "job_description": self.job_description or "Not provided.",
-            "conversation_history": history_str,
-            "question": question_str,
-            "answer": answer_str,
-            "justification": justification_str
-        }
-
-        llm_output = invoke_chain_with_error_handling(
+        response = invoke_chain_with_error_handling(
             self.evaluate_answer_chain,
             inputs,
             self.logger,
@@ -129,88 +81,102 @@ class CoachAgent(BaseAgent):
             output_key="evaluation_text"
         )
 
-        default_evaluation_error_string = "Error: Could not generate coaching feedback for this answer."
-
-        if isinstance(llm_output, str) and llm_output.strip():
-            feedback_text = llm_output
-        elif isinstance(llm_output, dict) and 'evaluation_text' in llm_output and isinstance(llm_output['evaluation_text'], str):
-            feedback_text = llm_output['evaluation_text']
-        elif isinstance(llm_output, dict) and 'text' in llm_output and isinstance(llm_output['text'], str):
-            feedback_text = llm_output['text']
-        else:
-            self.logger.error(f"EvaluateAnswerChain returned an unexpected type or empty content: {type(llm_output)}. Using default error string.")
-            feedback_text = default_evaluation_error_string
+        return self._extract_feedback_text(response)
+    
+    def _build_evaluation_inputs(
+        self, 
+        question: str, 
+        answer: str, 
+        justification: Optional[str], 
+        conversation_history: List[Dict[str, Any]]
+    ) -> Dict[str, str]:
+        """Build inputs for the evaluation chain."""
+        history_str = format_conversation_history(conversation_history, max_messages=10, max_content_length=200)
         
-        self.logger.debug(f"CoachAgent - Evaluation generated: {feedback_text[:200]}...") # Log a snippet
-        return feedback_text
+        return {
+            "resume_content": safe_get_or_default(self.resume_content, DEFAULT_VALUE_NOT_PROVIDED),
+            "job_description": safe_get_or_default(self.job_description, DEFAULT_VALUE_NOT_PROVIDED),
+            "conversation_history": history_str,
+            "question": question or "No question provided.",
+            "answer": answer or "No answer provided.",
+            "justification": justification or "No justification provided."
+        }
+    
+    def _extract_feedback_text(self, response: Any) -> str:
+        """Extract feedback text from LLM response with simplified error handling."""
+        if isinstance(response, str) and response.strip():
+            return response
+        
+        if isinstance(response, dict):
+            # Try different possible keys
+            for key in ['evaluation_text', 'text']:
+                if key in response and isinstance(response[key], str):
+                    return response[key]
+        
+        return "Could not generate coaching feedback for this answer."
 
     def generate_final_summary(self, conversation_history: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Generates a final coaching summary at the end of the interview.
         
-        Args:
-            conversation_history: The full conversation history of the interview.
-            
         Returns:
-            A dictionary containing the final summary, including patterns,
-            strengths, weaknesses, improvement areas, and recommended resources.
+            A dictionary containing the final summary with patterns, strengths, 
+            weaknesses, improvement areas, and recommended resources.
         """
-        self.logger.info("CoachAgent generating final summary...")
+        inputs = self._build_summary_inputs(conversation_history)
         
-        history_str = format_conversation_history(conversation_history)
-
-        inputs = {
-            "resume_content": self.resume_content or "Not provided.",
-            "job_description": self.job_description or "Not provided.",
-            "conversation_history": history_str
-        }
-
-        llm_output = invoke_chain_with_error_handling(
+        response = invoke_chain_with_error_handling(
             self.final_summary_chain,
             inputs,
             self.logger,
             "FinalSummaryChain",
             output_key="summary_json"
         )
-
-        default_summary_error = {
-            "patterns_tendencies": "Error: Could not generate patterns/tendencies feedback.",
-            "strengths": "Error: Could not generate strengths feedback.",
-            "weaknesses": "Error: Could not generate weaknesses feedback.",
-            "improvement_focus_areas": "Error: Could not generate improvement focus areas.",
-            "resource_search_topics": []
-        }
-
-        parsed_summary: Dict[str, Any]
-        if isinstance(llm_output, dict):
-            parsed_summary = llm_output
-        elif isinstance(llm_output, str):
-            parsed_summary = parse_json_with_fallback(
-                llm_output,
-                default_summary_error,
-                logger=self.logger
-            )
-        else:
-            self.logger.error(f"FinalSummaryChain returned an unexpected type or None: {type(llm_output)}. Using default error values.")
-            parsed_summary = default_summary_error
         
-        if not isinstance(parsed_summary, dict):
-            self.logger.warning(f"Parsed summary is not a dict ({type(parsed_summary)}), falling back to default error dict.")
-            parsed_summary = default_summary_error
-
-
-        if "resource_search_topics" in parsed_summary and parsed_summary["resource_search_topics"]:
-            parsed_summary["recommended_resources"] = [] 
-        self.logger.debug(f"CoachAgent - Final summary (pre-search) generated: {parsed_summary}")
-        return parsed_summary
+        return self._process_summary_response(response)
+    
+    def _build_summary_inputs(self, conversation_history: List[Dict[str, Any]]) -> Dict[str, str]:
+        """Build inputs for the summary chain."""
+        history_str = format_conversation_history(conversation_history)
+        
+        return {
+            "resume_content": safe_get_or_default(self.resume_content, DEFAULT_VALUE_NOT_PROVIDED),
+            "job_description": safe_get_or_default(self.job_description, DEFAULT_VALUE_NOT_PROVIDED),
+            "conversation_history": history_str
+        }
+    
+    def _process_summary_response(self, response: Any) -> Dict[str, Any]:
+        """Process the summary response with simplified error handling."""
+        default_summary = {
+            "patterns_tendencies": "Could not generate patterns/tendencies feedback.",
+            "strengths": "Could not generate strengths feedback.",
+            "weaknesses": "Could not generate weaknesses feedback.",
+            "improvement_focus_areas": "Could not generate improvement focus areas.",
+            "resource_search_topics": [],
+            "recommended_resources": []
+        }
+        
+        if isinstance(response, dict):
+            summary = response
+        elif isinstance(response, str):
+            summary = parse_json_with_fallback(response, default_summary, self.logger)
+        else:
+            return default_summary
+        
+        # Ensure it's a valid dict with required structure
+        if not isinstance(summary, dict):
+            return default_summary
+            
+        # Add recommended_resources if not present
+        if "resource_search_topics" in summary and "recommended_resources" not in summary:
+            summary["recommended_resources"] = []
+            
+        return summary
 
     def process(self, context: AgentContext) -> Any:
         """
         Main processing function for the CoachAgent.
-        For this refactor, CoachAgent primarily acts on direct calls from Orchestrator
-        (evaluate_answer, generate_final_summary) rather than through a generic process() call.
-        This method can be kept minimal or used for event-driven actions if any remain.
+        Primary logic is in specific methods called by Orchestrator.
         """
-        self.logger.info("CoachAgent process() called. Currently, actions are primarily driven by direct method calls from Orchestrator.")
-        return {"status": "CoachAgent processed context, but primary logic is in specific methods."}
+        return {"status": "CoachAgent processed context, primary logic is in specific methods."}
             

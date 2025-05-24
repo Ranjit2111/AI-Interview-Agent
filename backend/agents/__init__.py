@@ -11,13 +11,16 @@ from .interviewer import InterviewerAgent
 from .coach import CoachAgent
 
 from .orchestrator import AgentSessionManager
+from .interview_state import InterviewState, InterviewPhase
 
 __all__ = [
     'BaseAgent',
     'AgentContext',
     'InterviewerAgent',
     'CoachAgent',
-    'AgentSessionManager'
+    'AgentSessionManager',
+    'InterviewState',
+    'InterviewPhase'
 ]
 
 AGENT_REGISTRY: Dict[str, Type[BaseAgent]] = {
