@@ -18,7 +18,7 @@ from backend.agents.templates.interviewer_templates import (
     INTERVIEWER_SYSTEM_PROMPT,
     NEXT_ACTION_TEMPLATE,
     JOB_SPECIFIC_TEMPLATE,
-    INTRODUCTION_TEMPLATES
+INTRODUCTION_TEMPLATES
 )
 from backend.utils.llm_utils import (
     invoke_chain_with_error_handling,
@@ -164,11 +164,13 @@ class InterviewerAgent(BaseAgent):
             inputs,
             self.logger,
             "Job Specific Question Chain",
-            output_key="questions_json"
+            output_key="questions_json",
+            default_creator=lambda: []
         )
         
         if isinstance(response, list):
             return [str(q) for q in response if isinstance(q, str) and q.strip()]
+        
         return []
     
     def _create_introduction(self) -> str:
@@ -196,19 +198,6 @@ class InterviewerAgent(BaseAgent):
         
         if not isinstance(config, dict):
             return
-            
-        self.job_role = config.get("job_role", self.job_role)
-        self.job_description = config.get("job_description", self.job_description)
-        self.resume_content = config.get("resume_content", self.resume_content)
-        self.company_name = config.get("company_name", self.company_name)
-        self.question_count = int(config.get("target_question_count", self.question_count))
-        self.difficulty_level = config.get("difficulty", self.difficulty_level)
-        
-        try:
-            style_value = config.get("style", self.interview_style.value)
-            self.interview_style = InterviewStyle(style_value)
-        except ValueError:
-            pass  # Keep current style if invalid
     
     def _handle_session_end(self, event: Event) -> None:
         """Handle session end events."""
@@ -227,7 +216,13 @@ class InterviewerAgent(BaseAgent):
             inputs,
             self.logger,
             "Next Action Chain",
-            output_key="action_json"
+            output_key="action_json",
+            default_creator=lambda: {
+                "action_type": "ask_new_question",
+                "next_question_text": DEFAULT_FALLBACK_QUESTION,
+                "justification": "Using fallback due to LLM chain error.",
+                "newly_covered_topics": []
+            }
         )
         
         return self._process_action_response(response)
@@ -249,7 +244,7 @@ class InterviewerAgent(BaseAgent):
             "previous_question": self.state.current_question or "[No previous question]",
             "candidate_answer": last_user_message
         }
-    
+        
     def _process_action_response(self, response: Any) -> Dict[str, Any]:
         """Process and validate the action response from LLM."""
         default_action = {
@@ -278,7 +273,7 @@ class InterviewerAgent(BaseAgent):
         # Ensure newly_covered_topics is a list
         if not isinstance(response.get("newly_covered_topics"), list):
             response["newly_covered_topics"] = []
-            
+        
         return response
 
     def process(self, context: AgentContext) -> Dict[str, Any]:
@@ -312,13 +307,15 @@ class InterviewerAgent(BaseAgent):
         
         if self.state.initial_questions:
             self.state.phase = InterviewPhase.INTRODUCING
+            # Immediately proceed to introduction
+            return self._handle_introduction(response_data)
         else:
             response_data["content"] = ERROR_INTERVIEW_SETUP
             response_data["response_type"] = "error"
             self.state.phase = InterviewPhase.COMPLETED
             
         return response_data
-    
+
     def _handle_introduction(self, response_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle introduction phase."""
         response_data["content"] = self._create_introduction()

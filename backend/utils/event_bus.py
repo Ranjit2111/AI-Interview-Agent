@@ -17,30 +17,17 @@ class EventType(str, enum.Enum):
     Enumeration of event types used in the application.
     """
     # Session Lifecycle
-    SESSION_START = "session_start" # Published by AgentSessionManager on init
-    SESSION_END = "session_end"     # Published by AgentSessionManager on end_interview call
-    SESSION_RESET = "session_reset" # Published by AgentSessionManager on reset_session call
-    AGENT_LOAD = "agent_load"       # Published by AgentSessionManager when an agent is lazy-loaded
+    SESSION_START = "session_start"
+    SESSION_END = "session_end"
+    SESSION_RESET = "session_reset"
+    AGENT_LOAD = "agent_load"
 
     # Core Interaction
-    USER_MESSAGE = "user_message" # Published by AgentSessionManager when user message received
-    ASSISTANT_RESPONSE = "assistant_response" # Published by AgentSessionManager for Interviewer & Coach
+    USER_MESSAGE = "user_message"
+    ASSISTANT_RESPONSE = "assistant_response"
 
     # Generic Events
-    ERROR = "error"                 # Published on errors
-    # STATUS_UPDATE = "status_update" # Generic status update - REMOVED as unused
-
-    # --- REMOVED Event Types ---
-    # INTERVIEWER_RESPONSE = "interviewer_response" 
-    # INTERVIEW_COMPLETED = "interview_completed" 
-    # INTERVIEW_SUMMARY = "interview_summary" 
-    # COACHING_REQUEST = "coaching_request" 
-    # COACH_FEEDBACK = "coach_feedback"     
-    # COACH_ANALYSIS = "coach_analysis"     
-    # TRANSCRIPT_CREATED = "transcript_created" 
-    # TRANSCRIPT_UPDATED = "transcript_updated" 
-    # TRANSCRIPT_DELETED = "transcript_deleted" 
-    # SESSION_PERSISTED = "session_persisted" 
+    ERROR = "error"
 
 
 @dataclass
