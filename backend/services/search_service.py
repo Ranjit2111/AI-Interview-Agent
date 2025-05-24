@@ -13,6 +13,11 @@ import httpx
 from dotenv import load_dotenv
 import backoff 
 
+from .search_helpers import (
+    ResourceType, ResourceClassifier, RelevanceScorer, 
+    DomainQualityEvaluator, FallbackResourceGenerator
+)
+
 load_dotenv()
 
 DEFAULT_SEARCH_PROVIDER = "serper"
@@ -87,19 +92,6 @@ class SerperProvider(SearchProvider):
             return response.json()
 
 
-class ResourceType:
-    """Resource type enum."""
-    ARTICLE = "article"
-    COURSE = "course"
-    VIDEO = "video"
-    TUTORIAL = "tutorial"
-    DOCUMENTATION = "documentation"
-    BOOK = "book"
-    TOOL = "tool"
-    COMMUNITY = "community"
-    UNKNOWN = "unknown"
-
-
 class Resource:
     """Resource class for representing a learning resource."""
     
@@ -156,11 +148,15 @@ class SearchService:
         # Initialize provider
         self.provider = SerperProvider()
         
+        # Initialize helper components
+        self.classifier = ResourceClassifier()
+        self.relevance_scorer = RelevanceScorer()
+        
         # Initialize cache
         self._search_cache = {}
         self._search_cache_timestamps = {}
         
-        self.logger.info(f"Initialized search service with Serper provider")
+        self.logger.info("Initialized search service with helper components")
     
     async def search_resources(
         self,
@@ -198,38 +194,26 @@ class SearchService:
         try:
             # Perform search
             self.logger.info(f"Searching for resources: {query}")
-            
-            # Get raw search results
-            search_results = await self.provider.search(
-                query,
-                num_results=num_results
-            )
+            search_results = await self.provider.search(query, num_results=num_results)
             
             # Process results
             resources = self._process_search_results(
-                search_results,
-                skill,
-                proficiency_level,
-                job_role
+                search_results, skill, proficiency_level, job_role
             )
-            
-            # Sort by relevance
-            resources.sort(key=lambda x: x.relevance_score, reverse=True)
-            
-            # Limit results
-            resources = resources[:num_results]
             
             # Cache results
             if use_cache:
                 self._search_cache[cache_key] = resources
                 self._search_cache_timestamps[cache_key] = now
             
+            self.logger.info(f"Found {len(resources)} resources for: {query}")
             return resources
             
         except Exception as e:
-            self.logger.error(f"Error searching for resources: {str(e)}")
-            # Return fallback resources if search fails
-            return self._get_fallback_resources(skill, proficiency_level)
+            self.logger.error(f"Search failed for query '{query}': {e}")
+            # Return fallback resources
+            fallback_data = FallbackResourceGenerator.generate_fallback_resources(skill, proficiency_level)
+            return [Resource(**data) for data in fallback_data]
     
     def _generate_query(
         self,
@@ -238,7 +222,7 @@ class SearchService:
         job_role: Optional[str] = None
     ) -> str:
         """
-        Generate a search query based on skill and proficiency level.
+        Generate search query based on parameters.
         
         Args:
             skill: Skill to search for
@@ -248,27 +232,19 @@ class SearchService:
         Returns:
             Search query string
         """
-        level_terms = {
-            "beginner": ["beginner", "introduction", "basics", "learn", "start"],
-            "basic": ["beginner", "introduction", "basics", "learn", "start"],
-            "intermediate": ["intermediate", "improve", "practice", "tutorial"],
-            "advanced": ["advanced", "expert", "mastering", "deep dive"],
-            "expert": ["expert", "mastering", "advanced techniques", "professional"]
-        }
+        # Base query with skill and level
+        query_parts = [
+            skill,
+            proficiency_level,
+            "tutorial",
+            "learn"
+        ]
         
-        # Get appropriate level terms
-        level = proficiency_level.lower()
-        terms = level_terms.get(level, level_terms["intermediate"])
-        level_term = terms[0]
-        
-        # Base query
-        query = f"{skill} {level_term} tutorial resources"
-        
-        # Add job role context if provided
+        # Add job role if provided
         if job_role:
-            query += f" for {job_role}"
+            query_parts.append(job_role)
         
-        return query
+        return " ".join(query_parts)
     
     def _process_search_results(
         self,
@@ -278,12 +254,12 @@ class SearchService:
         job_role: Optional[str] = None
     ) -> List[Resource]:
         """
-        Process raw search results into resources.
+        Process and filter search results.
         
         Args:
-            search_results: Raw search results
-            skill: The skill being searched
-            proficiency_level: The proficiency level
+            search_results: Raw search results from provider
+            skill: Skill being searched
+            proficiency_level: Proficiency level
             job_role: Optional job role context
             
         Returns:
@@ -291,294 +267,48 @@ class SearchService:
         """
         resources = []
         
-        # Handle Serper results
-        if "organic" in search_results:
-            organic_results = search_results["organic"]
-            
-            for result in organic_results:
-                # Extract basic information
+        # Process organic results
+        organic_results = search_results.get("organic", [])
+        
+        for result in organic_results:
+            try:
                 title = result.get("title", "")
                 url = result.get("link", "")
-                snippet = result.get("snippet", "")
+                description = result.get("snippet", "")
                 
-                if not (title and url):
+                if not all([title, url, description]):
                     continue
                 
-                # Determine resource type
-                resource_type = self._classify_resource_type(title, url, snippet)
+                # Classify resource type
+                resource_type = self.classifier.classify(title, url, description)
                 
                 # Calculate relevance score
-                relevance_score = self._calculate_relevance(
-                    title, url, snippet, skill, proficiency_level, job_role
+                relevance_score = self.relevance_scorer.calculate_score(
+                    title, url, description, skill, proficiency_level, job_role
                 )
                 
                 # Create resource
                 resource = Resource(
                     title=title,
                     url=url,
-                    description=snippet,
+                    description=description,
                     resource_type=resource_type,
-                    source="serper",
+                    source="search",
                     relevance_score=relevance_score,
                     metadata={
-                        "position": result.get("position")
+                        "search_rank": len(resources),
+                        "domain_quality": DomainQualityEvaluator.get_quality_score(url)
                     }
                 )
                 
                 resources.append(resource)
         
-        return resources
-    
-    def _classify_resource_type(
-        self,
-        title: str,
-        url: str,
-        description: str
-    ) -> str:
-        """
-        Classify a resource based on its characteristics.
+            except Exception as e:
+                self.logger.warning(f"Error processing search result: {e}")
+                continue
         
-        Args:
-            title: Resource title
-            url: Resource URL
-            description: Resource description
-            
-        Returns:
-            Resource type
-        """
-        title_lower = title.lower()
-        url_lower = url.lower()
-        description_lower = description.lower()
-        
-        # Check for courses
-        course_indicators = ["course", "class", "learn", "training", "bootcamp", "academy"]
-        course_domains = ["coursera.org", "udemy.com", "edx.org", "pluralsight.com", 
-                         "linkedin.com/learning", "udacity.com", "skillshare.com"]
-        
-        if any(indicator in title_lower for indicator in course_indicators) or \
-           any(domain in url_lower for domain in course_domains):
-            return ResourceType.COURSE
-        
-        # Check for videos
-        video_indicators = ["video", "watch", "tutorial"]
-        video_domains = ["youtube.com", "vimeo.com", "youtube", "youtu.be"]
-        
-        if any(indicator in title_lower for indicator in video_indicators) or \
-           any(domain in url_lower for domain in video_domains):
-            return ResourceType.VIDEO
-        
-        # Check for documentation
-        doc_indicators = ["documentation", "docs", "reference", "manual", "guide"]
-        doc_domains = ["docs.", ".io/docs", "developer.", "reference"]
-        
-        if any(indicator in title_lower for indicator in doc_indicators) or \
-           any(domain in url_lower for domain in doc_domains):
-            return ResourceType.DOCUMENTATION
-        
-        # Check for tutorials
-        tutorial_indicators = ["tutorial", "how to", "guide", "learn", "step by step"]
-        
-        if any(indicator in title_lower for indicator in tutorial_indicators):
-            return ResourceType.TUTORIAL
-        
-        # Check for communities
-        community_indicators = ["forum", "community", "discussion", "stack overflow", "reddit"]
-        community_domains = ["stackoverflow.com", "reddit.com", "forum.", "community."]
-        
-        if any(indicator in title_lower for indicator in community_indicators) or \
-           any(domain in url_lower for domain in community_domains):
-            return ResourceType.COMMUNITY
-        
-        # Check for books
-        book_indicators = ["book", "ebook", "reading", "publication"]
-        book_domains = ["amazon.com", "goodreads.com", "oreilly.com", "manning.com"]
-        
-        if any(indicator in title_lower for indicator in book_indicators) or \
-           any(domain in url_lower for domain in book_domains):
-            return ResourceType.BOOK
-        
-        # Default to article
-        return ResourceType.ARTICLE
-    
-    def _calculate_relevance(
-        self,
-        title: str,
-        url: str,
-        description: str,
-        skill: str,
-        proficiency_level: str,
-        job_role: Optional[str] = None
-    ) -> float:
-        """
-        Calculate relevance score for a resource.
-        
-        Args:
-            title: Resource title
-            url: Resource URL
-            description: Resource description
-            skill: The skill being searched
-            proficiency_level: The proficiency level
-            job_role: Optional job role context
-            
-        Returns:
-            Relevance score (0.0 to 1.0)
-        """
-        # Initialize score
-        score = 0.0
-        
-        # Prepare text for matching
-        title_lower = title.lower()
-        url_lower = url.lower()
-        description_lower = description.lower()
-        skill_lower = skill.lower()
-        
-        # Check for skill in title (high importance)
-        if skill_lower in title_lower:
-            score += 0.4
-        
-        # Check for skill in URL (medium importance)
-        if skill_lower in url_lower:
-            score += 0.2
-        
-        # Check for skill in description (low importance)
-        if skill_lower in description_lower:
-            score += 0.1
-        
-        # Check for proficiency level in title or description
-        level_terms = {
-            "beginner": ["beginner", "introduction", "basics", "start", "learn"],
-            "basic": ["beginner", "introduction", "basics", "start", "learn"],
-            "intermediate": ["intermediate", "improve", "practice"],
-            "advanced": ["advanced", "expert", "mastering", "deep dive"],
-            "expert": ["expert", "mastering", "advanced techniques", "professional"]
-        }
-        
-        level = proficiency_level.lower()
-        if level in level_terms:
-            for term in level_terms[level]:
-                if term in title_lower:
-                    score += 0.15
-                    break
-                elif term in description_lower:
-                    score += 0.05
-                    break
-        
-        # Check for job role if provided
-        if job_role:
-            job_role_lower = job_role.lower()
-            if job_role_lower in title_lower:
-                score += 0.15
-            elif job_role_lower in description_lower:
-                score += 0.05
-        
-        # Adjust based on domain quality
-        domain_quality = self._get_domain_quality(url_lower)
-        score += domain_quality * 0.1
-        
-        # Cap score at 1.0
-        return min(score, 1.0)
-    
-    def _get_domain_quality(self, url: str) -> float:
-        """
-        Estimate domain quality based on known educational sites.
-        
-        Args:
-            url: Resource URL
-            
-        Returns:
-            Domain quality score (0.0 to 1.0)
-        """
-        # High-quality educational domains
-        top_domains = [
-            "github.com", "stackoverflow.com", "mdn.mozilla.org", "freecodecamp.org",
-            "coursera.org", "udemy.com", "pluralsight.com", "edx.org",
-            "medium.com", "dev.to", "docs.microsoft.com", "developer.mozilla.org",
-            "w3schools.com", "geeksforgeeks.org", "youtube.com", "linkedin.com/learning",
-            "udacity.com", "tutorialspoint.com", "khanacademy.org", "harvard.edu",
-            "mit.edu", "stanford.edu", "educative.io", "reddit.com", "hackernoon.com"
-        ]
-        
-        for domain in top_domains:
-            if domain in url:
-                return 1.0
-        
-        # Medium-quality domains - generic educational sites
-        medium_domains = [
-            "guru99.com", "javatpoint.com", "educba.com", "simplilearn.com", 
-            "educba.com", "bitdegree.org", "digitalocean.com/community/tutorials",
-            "towardsdatascience.com", "css-tricks.com", "hackr.io", "baeldung.com",
-            "tutorialrepublic.com", "programiz.com", "learnpython.org"
-        ]
-        
-        for domain in medium_domains:
-            if domain in url:
-                return 0.7
-        
-        # Return default score for unknown domains
-        return 0.4
-    
-    def _get_fallback_resources(
-        self,
-        skill: str,
-        proficiency_level: str
-    ) -> List[Resource]:
-        """
-        Get fallback resources when search fails.
-        
-        Args:
-            skill: Skill to get resources for
-            proficiency_level: Proficiency level
-            
-        Returns:
-            List of fallback resources
-        """
-        # Common educational platforms
-        platforms = [
-            {
-                "title": f"Learn {skill} on Coursera",
-                "url": f"https://www.coursera.org/courses?query={skill}",
-                "description": f"Find online courses on {skill} from leading universities and companies.",
-                "type": ResourceType.COURSE
-            },
-            {
-                "title": f"{skill} tutorials on Udemy",
-                "url": f"https://www.udemy.com/courses/search/?q={skill}",
-                "description": f"Explore a wide range of {skill} courses for all skill levels.",
-                "type": ResourceType.COURSE
-            },
-            {
-                "title": f"{skill} on YouTube",
-                "url": f"https://www.youtube.com/results?search_query={skill}+{proficiency_level}+tutorial",
-                "description": f"Watch free video tutorials on {skill} at {proficiency_level} level.",
-                "type": ResourceType.VIDEO
-            },
-            {
-                "title": f"{skill} community on Stack Overflow",
-                "url": f"https://stackoverflow.com/questions/tagged/{skill.lower().replace(' ', '-')}",
-                "description": f"Find answers to your {skill} questions from the developer community.",
-                "type": ResourceType.COMMUNITY
-            },
-            {
-                "title": f"{skill} on GitHub",
-                "url": f"https://github.com/topics/{skill.lower().replace(' ', '-')}",
-                "description": f"Explore {skill} projects, libraries, and resources on GitHub.",
-                "type": ResourceType.COMMUNITY
-            }
-        ]
-        
-        # Convert to Resource objects
-        resources = []
-        for idx, platform in enumerate(platforms):
-            resource = Resource(
-                title=platform["title"],
-                url=platform["url"],
-                description=platform["description"],
-                resource_type=platform["type"],
-                source="fallback",
-                relevance_score=0.5,  # Medium relevance for fallbacks
-                metadata={"fallback_rank": idx}
-            )
-            resources.append(resource)
+        # Sort by relevance score (descending)
+        resources.sort(key=lambda r: r.relevance_score, reverse=True)
         
         return resources
     
