@@ -18,7 +18,12 @@ from backend.agents.templates.interviewer_templates import (
     INTERVIEWER_SYSTEM_PROMPT,
     NEXT_ACTION_TEMPLATE,
     JOB_SPECIFIC_TEMPLATE,
-    INTRODUCTION_TEMPLATES
+    INTRODUCTION_TEMPLATES,
+    TIME_AWARE_NEXT_ACTION_TEMPLATE,
+    QUESTION_TEMPLATES, 
+    TEMPLATE_VARIABLES, 
+    GENERAL_QUESTIONS
+
 )
 from backend.utils.llm_utils import (
     invoke_chain_with_error_handling,
@@ -33,61 +38,6 @@ from backend.agents.constants import (
     ERROR_NO_QUESTION_TEXT, INTERVIEW_CONCLUSION
 )
 from backend.agents.interview_state import InterviewState, InterviewPhase
-from backend.agents.question_templates import QUESTION_TEMPLATES, TEMPLATE_VARIABLES, GENERAL_QUESTIONS
-
-
-# Time-aware interview templates
-TIME_AWARE_NEXT_ACTION_TEMPLATE = """
-You are an intelligent interview agent conducting a {interview_style} interview for the role of {job_role}.
-
-INTERVIEW CONTEXT:
-- Job Role: {job_role}
-- Job Description: {job_description}
-- Candidate Resume: {resume_content}
-- Interview Style: {interview_style}
-- Difficulty Level: {difficulty_level}
-
-TIME MANAGEMENT CONTEXT:
-- Interview Type: {"Time-based" if use_time_based else "Question-based"}
-- Current Time Phase: {current_time_phase}
-- Time Progress: {time_progress_percentage}% complete
-- Remaining Time: {remaining_minutes} minutes
-- Time Pressure: {time_pressure}
-- Time-based Suggestions: {time_based_suggestions}
-
-CONVERSATION HISTORY:
-{conversation_history}
-
-PREVIOUS QUESTION: {previous_question}
-CANDIDATE'S LAST ANSWER: {candidate_answer}
-
-AREAS COVERED SO FAR: {areas_covered_so_far}
-
-AGENTIC DECISION MAKING:
-Based on the time context, conversation flow, and interview objectives, determine your next action.
-
-Consider these factors:
-1. Time phase and remaining duration
-2. Quality and depth of previous answers
-3. Critical competencies still to be assessed
-4. Candidate engagement and comfort level
-5. Time pressure and pacing needs
-
-Available actions:
-- "ask_new_question": Move to a new topic/competency
-- "ask_follow_up": Dive deeper into current topic
-- "end_interview": Conclude the interview
-
-Respond with valid JSON:
-{{
-    "action_type": "ask_new_question|ask_follow_up|end_interview",
-    "next_question_text": "Your question here (if asking a question)",
-    "justification": "Your reasoning for this decision, considering time and content factors",
-    "newly_covered_topics": ["list", "of", "new", "topics"],
-    "time_awareness": "How time context influenced your decision"
-}}
-"""
-
 
 class InterviewerAgent(BaseAgent):
     """
