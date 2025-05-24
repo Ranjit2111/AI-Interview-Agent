@@ -14,7 +14,10 @@ from backend.utils.event_bus import Event, EventBus, EventType
 from backend.agents.config_models import SessionConfig
 from backend.services.llm_service import LLMService
 from backend.utils.common import get_current_timestamp
-from backend.agents.constants import *
+from backend.agents.constants import (
+    ERROR_AGENT_LOAD_FAILED, ERROR_PROCESSING_REQUEST,
+    COACH_FEEDBACK_ERROR, COACH_FEEDBACK_UNAVAILABLE
+)
 
 
 class AgentSessionManager:

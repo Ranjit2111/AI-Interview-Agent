@@ -25,7 +25,12 @@ from backend.utils.llm_utils import (
     format_conversation_history,
 )
 from backend.utils.common import get_current_timestamp, safe_get_or_default
-from backend.agents.constants import *
+from backend.agents.constants import (
+    DEFAULT_JOB_ROLE, DEFAULT_COMPANY_NAME, DEFAULT_VALUE_NOT_PROVIDED,
+    DEFAULT_OPENING_QUESTION, DEFAULT_FALLBACK_QUESTION, MINIMUM_QUESTION_COUNT,
+    ESTIMATED_TIME_PER_QUESTION, ERROR_INTERVIEW_SETUP, ERROR_INTERVIEW_CONCLUDED,
+    ERROR_NO_QUESTION_TEXT, INTERVIEW_CONCLUSION
+)
 from backend.agents.interview_state import InterviewState, InterviewPhase
 from backend.agents.question_templates import QUESTION_TEMPLATES, TEMPLATE_VARIABLES, GENERAL_QUESTIONS
 

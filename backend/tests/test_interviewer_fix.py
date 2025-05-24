@@ -5,7 +5,8 @@ Test script to verify interviewer agent fixes.
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add the parent directory (backend) to the path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_syntax_and_indentation():
     """Test that the Python syntax is correct after fixes."""
@@ -13,12 +14,12 @@ def test_syntax_and_indentation():
     
     try:
         # Test importing the fixed modules
-        from agents.interviewer import InterviewerAgent
+        from backend.agents.interviewer import InterviewerAgent
         print("✅ InterviewerAgent imports successfully")
         
         # Test that we can instantiate it (basic syntax check)
-        from services.llm_service import LLMService
-        from utils.event_bus import EventBus
+        from backend.services.llm_service import LLMService
+        from backend.utils.event_bus import EventBus
         
         event_bus = EventBus()
         llm_service = LLMService()

@@ -1,7 +1,7 @@
 """
 Services module initialization.
 Provides initialization functions for creating and configuring service instances.
-Refactored for single-session, local-only operation.
+Refactored for single-session, local-only operation with improved singleton pattern.
 """
 
 import os
@@ -14,103 +14,113 @@ from backend.agents.config_models import SessionConfig
 from backend.config import get_logger
 
 
-_llm_service_instance: Optional[LLMService] = None
-_event_bus_instance: Optional[EventBus] = None
-_search_service_instance: Optional[SearchService] = None
-_agent_session_manager_instance = None
+class ServiceRegistry:
+    """Registry for singleton service instances."""
+    
+    def __init__(self):
+        self._llm_service: Optional[LLMService] = None
+        self._event_bus: Optional[EventBus] = None
+        self._search_service: Optional[SearchService] = None
+        self._agent_session_manager = None
+        self.logger = get_logger(__name__)
+    
+    def get_llm_service(self) -> LLMService:
+        """Get the singleton LLMService instance."""
+        if self._llm_service is None:
+            self.logger.info("Creating singleton LLMService instance...")
+            try:
+                self._llm_service = LLMService()
+            except ValueError as e:
+                self.logger.error(f"LLMService initialization failed: {e}")
+                raise
+            except Exception as e:
+                self.logger.exception(f"Unexpected error creating LLMService: {e}")
+                raise
+            self.logger.info("Singleton LLMService instance created.")
+        return self._llm_service
 
-logger = get_logger(__name__)
+    def get_event_bus(self) -> EventBus:
+        """Get the singleton EventBus instance."""
+        if self._event_bus is None:
+            self.logger.info("Creating singleton EventBus instance...")
+            self._event_bus = EventBus()
+            self.logger.info("Singleton EventBus instance created.")
+        return self._event_bus
 
-def get_llm_service() -> LLMService:
-    """
-    Get the singleton LLMService instance.
-    """
-    global _llm_service_instance
-    if _llm_service_instance is None:
-        logger.info("Creating singleton LLMService instance...")
+    def get_search_service(self) -> SearchService:
+        """Get the singleton SearchService instance."""
+        if self._search_service is None:
+            self.logger.info("Creating singleton SearchService instance...")
+            try:
+                self._search_service = SearchService()
+            except ValueError as e:
+                self.logger.error(f"SearchService initialization failed: {e}. Ensure API keys are set.")
+                raise
+            except Exception as e:
+                self.logger.exception(f"Unexpected error creating SearchService: {e}")
+                raise
+            self.logger.info(f"Singleton SearchService instance created (Provider: Serper).")
+        return self._search_service
+
+    def get_agent_session_manager(self):
+        """Get the singleton AgentSessionManager instance."""
+        if self._agent_session_manager is None:
+            # Import here to avoid circular imports
+            from backend.agents.orchestrator import AgentSessionManager
+            
+            self.logger.info("Creating singleton AgentSessionManager instance...")
+            try:
+                agent_logger = get_logger("AgentSessionManager")
+                llm_service = self.get_llm_service()
+                event_bus = self.get_event_bus()
+                default_config = SessionConfig()
+
+                self._agent_session_manager = AgentSessionManager(
+                    llm_service=llm_service,
+                    event_bus=event_bus,
+                    logger=agent_logger,
+                    session_config=default_config
+                )
+            except Exception as e:
+                self.logger.exception(f"Failed to create AgentSessionManager singleton: {e}")
+                raise
+            self.logger.info("Singleton AgentSessionManager instance created.")
+        return self._agent_session_manager
+
+    def initialize_all_services(self) -> None:
+        """Initialize all singleton services. Call this on application startup."""
+        self.logger.info("Initializing core services...")
         try:
-            _llm_service_instance = LLMService()
-        except ValueError as e:
-            logger.error(f"LLMService initialization failed: {e}")
-            raise
+            self.get_llm_service()
+            self.get_event_bus()
+            self.get_search_service()
+            self.get_agent_session_manager()
+            self.logger.info("Core services initialized.")
         except Exception as e:
-            logger.exception(f"Unexpected error creating LLMService: {e}")
+            self.logger.error(f"Core service initialization failed: {e}")
             raise
-        logger.info("Singleton LLMService instance created.")
-    return _llm_service_instance
+
+
+# Global registry instance
+_service_registry = ServiceRegistry()
+
+# Convenience functions for backward compatibility
+def get_llm_service() -> LLMService:
+    """Get the singleton LLMService instance."""
+    return _service_registry.get_llm_service()
 
 def get_event_bus() -> EventBus:
-    """
-    Get the singleton EventBus instance.
-    """
-    global _event_bus_instance
-    if _event_bus_instance is None:
-        logger.info("Creating singleton EventBus instance...")
-        _event_bus_instance = EventBus()
-        logger.info("Singleton EventBus instance created.")
-    return _event_bus_instance
+    """Get the singleton EventBus instance."""
+    return _service_registry.get_event_bus()
 
 def get_search_service() -> SearchService:
-    """
-    Get the singleton SearchService instance.
-    """
-    global _search_service_instance
-    if _search_service_instance is None:
-        logger.info("Creating singleton SearchService instance...")
-        try:
-            _search_service_instance = SearchService()
-        except ValueError as e:
-            logger.error(f"SearchService initialization failed: {e}. Ensure API keys are set.")
-            raise
-        except Exception as e:
-            logger.exception(f"Unexpected error creating SearchService: {e}")
-            raise
-        logger.info(f"Singleton SearchService instance created (Provider: Serper).")
-    return _search_service_instance
+    """Get the singleton SearchService instance."""
+    return _service_registry.get_search_service()
 
 def get_agent_session_manager():
-    """
-    Get the singleton AgentSessionManager instance.
-    """
-    global _agent_session_manager_instance
-    if _agent_session_manager_instance is None:
-        # Import here to avoid circular imports
-        from backend.agents.orchestrator import AgentSessionManager
-        
-        logger.info("Creating singleton AgentSessionManager instance...")
-        try:
-            agent_logger = get_logger("AgentSessionManager")
-            llm_service = get_llm_service()
-            event_bus = get_event_bus()
-            default_config = SessionConfig()
-
-            _agent_session_manager_instance = AgentSessionManager(
-                llm_service=llm_service,
-                event_bus=event_bus,
-                logger=agent_logger,
-                session_config=default_config
-            )
-        except Exception as e:
-            logger.exception(f"Failed to create AgentSessionManager singleton: {e}")
-            raise
-        logger.info("Singleton AgentSessionManager instance created.")
-    return _agent_session_manager_instance
-
+    """Get the singleton AgentSessionManager instance."""
+    return _service_registry.get_agent_session_manager()
 
 def initialize_services() -> None:
-    """
-    Initialize all singleton services. Call this on application startup.
-    This function now primarily ensures singletons are created eagerly if desired,
-    though they will also be created on first access via get_... functions.
-    It no longer returns a provider object.
-    """
-    logger.info("Initializing core services...")
-    try:
-        get_llm_service()
-        get_event_bus()
-        get_search_service()
-        get_agent_session_manager()
-        logger.info("Core services initialized.")
-    except Exception as e:
-        logger.error(f"Core service initialization failed: {e}")
-        raise
+    """Initialize all singleton services. Call this on application startup."""
+    _service_registry.initialize_all_services()

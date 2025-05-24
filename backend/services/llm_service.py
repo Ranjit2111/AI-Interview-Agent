@@ -68,13 +68,14 @@ if __name__ == '__main__':
     try:
         llm_service = LLMService()
         llm_instance = llm_service.get_llm()
-        print(f"Successfully obtained LLM instance: {type(llm_instance)}")
+        logger = llm_service.logger
+        logger.info(f"Successfully obtained LLM instance: {type(llm_instance)}")
         
         # Simple invocation test
         response = llm_instance.invoke("Hello, how are you?")
-        print(f"LLM Response: {response.content}")
+        logger.info(f"LLM Response: {response.content}")
 
     except ValueError as ve:
-        print(f"Configuration Error: {ve}")
+        logger.error(f"Configuration Error: {ve}")
     except Exception as e:
-        print(f"An error occurred: {e}")
+        logger.error(f"An error occurred: {e}")
