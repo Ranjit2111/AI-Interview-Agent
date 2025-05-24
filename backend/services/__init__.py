@@ -7,11 +7,9 @@ Refactored for single-session, local-only operation.
 import os
 from typing import Optional
 
-
 from backend.utils.event_bus import EventBus
 from backend.services.search_service import SearchService
 from backend.services.llm_service import LLMService
-from backend.agents.orchestrator import AgentSessionManager
 from backend.agents.config_models import SessionConfig
 from backend.config import get_logger
 
@@ -19,7 +17,7 @@ from backend.config import get_logger
 _llm_service_instance: Optional[LLMService] = None
 _event_bus_instance: Optional[EventBus] = None
 _search_service_instance: Optional[SearchService] = None
-_agent_session_manager_instance: Optional[AgentSessionManager] = None
+_agent_session_manager_instance = None
 
 logger = get_logger(__name__)
 
@@ -70,12 +68,15 @@ def get_search_service() -> SearchService:
         logger.info(f"Singleton SearchService instance created (Provider: Serper).")
     return _search_service_instance
 
-def get_agent_session_manager() -> AgentSessionManager:
+def get_agent_session_manager():
     """
     Get the singleton AgentSessionManager instance.
     """
     global _agent_session_manager_instance
     if _agent_session_manager_instance is None:
+        # Import here to avoid circular imports
+        from backend.agents.orchestrator import AgentSessionManager
+        
         logger.info("Creating singleton AgentSessionManager instance...")
         try:
             agent_logger = get_logger("AgentSessionManager")

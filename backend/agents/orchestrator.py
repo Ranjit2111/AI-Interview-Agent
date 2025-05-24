@@ -1,30 +1,26 @@
 """
 Session Manager for coordinating agents.
-Manages session state, history, and agent interactions.
 """
 
 import logging
-import uuid
-from typing import Dict, Any, List, Optional, Tuple, Type
-from datetime import datetime
-from enum import Enum
 import json
+from typing import Dict, Any, List, Optional
+from datetime import datetime
 
 from backend.agents.base import BaseAgent, AgentContext
 from backend.agents.interviewer import InterviewerAgent
 from backend.agents.coach import CoachAgent
 from backend.utils.event_bus import Event, EventBus, EventType
 from backend.agents.config_models import SessionConfig
-from backend.config import get_logger
 from backend.services.llm_service import LLMService
+from backend.utils.common import get_current_timestamp
+from backend.agents.constants import *
 
 
 class AgentSessionManager:
     """
     Manages the flow of an interview preparation session.
-    It routes messages between the user and various agents (Interviewer, Coach, etc.),
-    maintains the conversation history, and handles session state.
-    NO LONGER manages multiple sessions - only THE single session.
+    Routes messages between user and agents, maintains conversation history.
     """
     
     def __init__(self, llm_service: LLMService, event_bus: EventBus, logger: logging.Logger, session_config: SessionConfig):
@@ -36,6 +32,7 @@ class AgentSessionManager:
         self.event_bus = event_bus
         self._llm_service = llm_service
         
+        # Statistics
         self.response_times: List[float] = []
         self.total_response_time = 0.0
         self.total_tokens_used = 0
@@ -43,186 +40,204 @@ class AgentSessionManager:
         
         self._agents: Dict[str, BaseAgent] = {}
 
-        self.logger.info("Agent Session Manager initialized")
+        # Publish session start event
         config_dict = self.session_config.dict() if hasattr(self.session_config, 'dict') else vars(self.session_config)
         if config_dict:
-            self.event_bus.publish(Event(event_type=EventType.SESSION_START, 
-                                         source='AgentSessionManager', 
-                                         data={"config": config_dict}))
+            self.event_bus.publish(Event(
+                event_type=EventType.SESSION_START, 
+                source='AgentSessionManager', 
+                data={"config": config_dict}
+            ))
     
     def _get_agent(self, agent_type: str) -> Optional[BaseAgent]:
-        """Lazy load agents, passing required dependencies."""
+        """Lazy load agents with required dependencies."""
         if agent_type not in self._agents:
-            start_time = datetime.utcnow()
-            agent_instance: Optional[BaseAgent] = None
-            try:
-                if agent_type == "interviewer":
-                    agent_instance = InterviewerAgent(
-                        llm_service=self._llm_service, 
-                        event_bus=self.event_bus,
-                        logger=self.logger.getChild("InterviewerAgent")
-                    )
-                elif agent_type == "coach":
-                    agent_instance = CoachAgent(
-                        llm_service=self._llm_service, 
-                        event_bus=self.event_bus,
-                        logger=self.logger.getChild("CoachAgent"),
-                        resume_content=self.session_config.resume_content,
-                        job_description=self.session_config.job_description
-                    )
-                else:
-                    self.logger.error(f"Attempted to load unknown agent type: {agent_type}")
-                    return None
-                    
-                if agent_instance:
-                    self._agents[agent_type] = agent_instance
-                    end_time = datetime.utcnow()
-                    load_time = (end_time - start_time).total_seconds()
-                    self.logger.info(f"Loaded {agent_type} agent in {load_time:.2f} seconds.")
-                    self.event_bus.publish(Event(
-                        event_type=EventType.AGENT_LOAD, 
-                        source='AgentSessionManager',
-                        data={"agent_type": agent_type, "load_time": load_time}
-                    ))
-                
-            except Exception as e:
-                self.logger.exception(f"Failed to initialize agent {agent_type}: {e}")
-                return None
+            agent_instance = self._create_agent(agent_type)
+            if agent_instance:
+                self._agents[agent_type] = agent_instance
+                self.event_bus.publish(Event(
+                    event_type=EventType.AGENT_LOAD, 
+                    source='AgentSessionManager',
+                    data={"agent_type": agent_type}
+                ))
                 
         return self._agents.get(agent_type)
     
+    def _create_agent(self, agent_type: str) -> Optional[BaseAgent]:
+        """Create agent instance based on type."""
+        try:
+            if agent_type == "interviewer":
+                return InterviewerAgent(
+                    llm_service=self._llm_service, 
+                    event_bus=self.event_bus,
+                    logger=self.logger.getChild("InterviewerAgent")
+                )
+            elif agent_type == "coach":
+                return CoachAgent(
+                    llm_service=self._llm_service, 
+                    event_bus=self.event_bus,
+                    logger=self.logger.getChild("CoachAgent"),
+                    resume_content=self.session_config.resume_content,
+                    job_description=self.session_config.job_description
+                )
+            return None
+        except Exception as e:
+            self.logger.exception(f"Failed to initialize agent {agent_type}: {e}")
+            return None
+    
     def process_message(self, message: str) -> Dict[str, Any]:
         """
-        Processes a user message, routes it primarily to the InterviewerAgent,
-        and returns the agent's response. Per-turn coaching feedback is collected internally.
-        Now assumes only one user (local).
+        Processes a user message and returns the agent's response.
+        Per-turn coaching feedback is collected internally.
         """
         start_time = datetime.utcnow()
-        self.logger.info(f"Processing message: '{message[:50]}...'")
 
-        user_message_data = {
+        # Add user message to history
+        user_message_data = self._create_user_message(message, start_time)
+        self.conversation_history.append(user_message_data)
+        self._publish_user_message_event(user_message_data)
+
+        try:
+            # Get interviewer response
+            interviewer_response = self._get_interviewer_response(start_time)
+            
+            # Generate coaching feedback if applicable
+            self._generate_coaching_feedback(user_message_data)
+            
+            return interviewer_response
+
+        except Exception as e:
+            return self._handle_processing_error(e)
+    
+    def _create_user_message(self, message: str, timestamp: datetime) -> Dict[str, Any]:
+        """Create user message data structure."""
+        return {
             "role": "user",
             "content": message,
-            "timestamp": start_time.isoformat()
+            "timestamp": timestamp.isoformat()
         }
-        self.conversation_history.append(user_message_data)
-
+    
+    def _publish_user_message_event(self, user_message_data: Dict[str, Any]) -> None:
+        """Publish user message event."""
         self.event_bus.publish(Event(
             event_type=EventType.USER_MESSAGE,
             source='AgentSessionManager',
-            data={
-                "message": user_message_data
-            }
+            data={"message": user_message_data}
         ))
+    
+    def _get_interviewer_response(self, start_time: datetime) -> Dict[str, Any]:
+        """Get response from interviewer agent."""
+        interviewer_agent = self._get_agent("interviewer")
+        if not interviewer_agent:
+            raise Exception(ERROR_AGENT_LOAD_FAILED)
+        
+        agent_context = self._get_agent_context()
+        interviewer_response = interviewer_agent.process(agent_context)
+        
+        # Create response data
+        response_timestamp = datetime.utcnow()
+        duration = (response_timestamp - start_time).total_seconds()
+        self.api_call_count += 1
 
+        assistant_response_data = {
+            "role": "assistant",
+            "agent": "interviewer",
+            "content": interviewer_response.get("content", ""),
+            "response_type": interviewer_response.get("response_type", "unknown"),
+            "timestamp": response_timestamp.isoformat(),
+            "processing_time": duration,
+            "metadata": interviewer_response.get("metadata", {})
+        }
+        
+        self.conversation_history.append(assistant_response_data)
+        self._publish_assistant_response_event(assistant_response_data)
+        
+        return assistant_response_data
+    
+    def _publish_assistant_response_event(self, response_data: Dict[str, Any]) -> None:
+        """Publish assistant response event."""
+        self.event_bus.publish(Event(
+            event_type=EventType.ASSISTANT_RESPONSE, 
+            source='AgentSessionManager',
+            data={"response": response_data}
+        ))
+    
+    def _generate_coaching_feedback(self, user_message_data: Dict[str, Any]) -> None:
+        """Generate coaching feedback for the user's answer if applicable."""
+        question_that_was_answered = self._find_last_interviewer_question()
+        
+        if not question_that_was_answered or not user_message_data.get("content"):
+            return
+            
+        coach_agent = self._get_agent("coach")
+        if not coach_agent:
+            self._log_coach_feedback_unavailable(question_that_was_answered, user_message_data["content"])
+            return
+            
         try:
-            interviewer_agent = self._get_agent("interviewer")
-            if not interviewer_agent:
-                raise Exception("Interviewer agent could not be loaded.")
-            
-            agent_context = self._get_agent_context()
-
-
-            question_that_was_answered = None
-            if len(self.conversation_history) > 1:
-                for i in range(len(self.conversation_history) - 2, -1, -1):
-                    prev_msg = self.conversation_history[i]
-                    if prev_msg.get("role") == "assistant" and prev_msg.get("agent") == "interviewer":
-                        question_that_was_answered = prev_msg.get("content")
-                        break
-
-            interviewer_agent_response = interviewer_agent.process(agent_context)
-            response_content = interviewer_agent_response.get("content", "")
-            response_type = interviewer_agent_response.get("response_type", "unknown")
-            interviewer_metadata = interviewer_agent_response.get("metadata", {})
-
-            interviewer_response_timestamp = datetime.utcnow()
-            duration = (interviewer_response_timestamp - start_time).total_seconds() # Recalculate duration up to this point
-            # self.response_times.append(duration) # This might be more complex now with multiple agent turns
-            # self.total_response_time += duration
-            self.api_call_count += 1 
-
-            assistant_response_data = {
-                "role": "assistant",
-                "agent": "interviewer",
-                "content": response_content,
-                "response_type": response_type,
-                "timestamp": interviewer_response_timestamp.isoformat(),
-                "processing_time": duration, # This is interviewer's processing time
-                "metadata": interviewer_metadata
-            }
-            self.conversation_history.append(assistant_response_data)
-
-            self.event_bus.publish(Event(
-                event_type=EventType.ASSISTANT_RESPONSE, 
-                source='AgentSessionManager',
-                data={"response": assistant_response_data}
-            ))
-            self.logger.info(f"Interviewer response generated in {duration:.2f} seconds. Type: {response_type}")
-
-            if question_that_was_answered and user_message_data.get("content"):
-                coach_agent = self._get_agent("coach")
-                if coach_agent:
-                    self.logger.info(f"Calling CoachAgent to evaluate answer for question: {question_that_was_answered[:50]}...")
-                    try:
-                        justification_for_new_question = interviewer_metadata.get("justification")
-                        
-                        coaching_feedback_string = coach_agent.evaluate_answer(
-                            question=question_that_was_answered,
-                            answer=user_message_data["content"],
-                            justification=justification_for_new_question,
-                            conversation_history=self.conversation_history 
-                        )
-                        
-                        if coaching_feedback_string and not coaching_feedback_string.startswith("Error:"):
-                            self.logger.info(f"CoachAgent successfully generated feedback string: {coaching_feedback_string[:100]}...")
-                            self.per_turn_coaching_feedback_log.append({
-                                "question": question_that_was_answered,
-                                "answer": user_message_data["content"],
-                                "feedback": coaching_feedback_string
-                            })
-                        else:
-                            self.logger.warning(f"CoachAgent returned empty or error feedback: {coaching_feedback_string}")
-                            self.per_turn_coaching_feedback_log.append({
-                                "question": question_that_was_answered,
-                                "answer": user_message_data["content"],
-                                "feedback": coaching_feedback_string or "Coach feedback was not generated for this turn."
-                            })
-
-                    except Exception as coach_e:
-                        self.logger.exception(f"Error during CoachAgent evaluate_answer: {coach_e}")
-                        self.per_turn_coaching_feedback_log.append({
-                            "question": question_that_was_answered,
-                            "answer": user_message_data["content"],
-                            "feedback": "An error occurred while generating coach feedback for this turn."
-                        })
-                else:
-                    self.logger.warning("Coach agent could not be loaded to provide feedback.")
-                    self.per_turn_coaching_feedback_log.append({
-                        "question": question_that_was_answered, 
-                        "answer": user_message_data["content"],
-                        "feedback": "Coach agent was not available to provide feedback for this turn."
-                    })
-            else:
-                self.logger.info("Skipping coach feedback as conditions not met (e.g., no prior question or user answer).")
-            
-            return assistant_response_data 
-
+            feedback = self._get_coach_feedback(coach_agent, question_that_was_answered, user_message_data["content"])
+            self._log_coach_feedback(question_that_was_answered, user_message_data["content"], feedback)
         except Exception as e:
-            self.logger.exception(f"Error processing message: {e}")
-            self.event_bus.publish(Event(
-                event_type=EventType.ERROR,
-                source='AgentSessionManager',
-                data={"error": str(e), "details": "Error during message processing"}
-            ))
-            error_response = {
-                "role": "system",
-                "content": "Sorry, I encountered an error processing your request. Please try again.",
-                "timestamp": datetime.utcnow().isoformat(),
-                "is_error": True
-            }
-            self.conversation_history.append(error_response)
-            return error_response
+            self.logger.exception(f"Error during CoachAgent evaluate_answer: {e}")
+            self._log_coach_feedback(question_that_was_answered, user_message_data["content"], COACH_FEEDBACK_ERROR)
+    
+    def _find_last_interviewer_question(self) -> Optional[str]:
+        """Find the last question asked by the interviewer."""
+        if len(self.conversation_history) <= 1:
+            return None
+            
+        for i in range(len(self.conversation_history) - 2, -1, -1):
+            prev_msg = self.conversation_history[i]
+            if (prev_msg.get("role") == "assistant" and 
+                prev_msg.get("agent") == "interviewer"):
+                return prev_msg.get("content")
+        return None
+    
+    def _get_coach_feedback(self, coach_agent: CoachAgent, question: str, answer: str) -> str:
+        """Get coaching feedback from the coach agent."""
+        # Get justification from the latest interviewer metadata
+        justification = None
+        if self.conversation_history:
+            latest_msg = self.conversation_history[-1]
+            if latest_msg.get("agent") == "interviewer":
+                justification = latest_msg.get("metadata", {}).get("justification")
+        
+        return coach_agent.evaluate_answer(
+            question=question,
+            answer=answer,
+            justification=justification,
+            conversation_history=self.conversation_history 
+        )
+    
+    def _log_coach_feedback(self, question: str, answer: str, feedback: str) -> None:
+        """Log coaching feedback to the feedback log."""
+        self.per_turn_coaching_feedback_log.append({
+            "question": question,
+            "answer": answer,
+            "feedback": feedback
+        })
+    
+    def _log_coach_feedback_unavailable(self, question: str, answer: str) -> None:
+        """Log when coach feedback is unavailable."""
+        self._log_coach_feedback(question, answer, COACH_FEEDBACK_UNAVAILABLE)
+    
+    def _handle_processing_error(self, error: Exception) -> Dict[str, Any]:
+        """Handle processing errors."""
+        self.logger.exception(f"Error processing message: {error}")
+        self.event_bus.publish(Event(
+            event_type=EventType.ERROR,
+            source='AgentSessionManager',
+            data={"error": str(error), "details": "Error during message processing"}
+        ))
+        
+        error_response = {
+            "role": "system",
+            "content": ERROR_PROCESSING_REQUEST,
+            "timestamp": get_current_timestamp(),
+            "is_error": True
+        }
+        self.conversation_history.append(error_response)
+        return error_response
 
     def _get_agent_context(self) -> AgentContext:
         """Prepare the context object for an agent call."""
@@ -236,10 +251,8 @@ class AgentSessionManager:
 
     def end_interview(self) -> Dict[str, Any]:
         """
-        Ends the interview session, triggers final analyses from CoachAgent,
-        and returns a consolidated result.
+        Ends the interview session and returns consolidated results.
         """
-        self.logger.info(f"Ending interview session")
         self.event_bus.publish(Event(
             event_type=EventType.SESSION_END,
             source='AgentSessionManager',
@@ -248,68 +261,66 @@ class AgentSessionManager:
 
         final_results = {
             "status": "Interview Ended",
-            "coaching_summary": { "error": "Coaching summary not generated yet." }, 
+            "coaching_summary": {"error": "Coaching summary not generated yet."}, 
             "per_turn_feedback": self.per_turn_coaching_feedback_log
         }
 
         try:
-            coach_agent = self._get_agent("coach")
-            if coach_agent: 
-                coaching_summary_content = coach_agent.generate_final_summary(self.conversation_history)
-                
-                if coaching_summary_content:
-                    self.logger.info(f"CoachAgent generated final summary (pre-search): {json.dumps(coaching_summary_content, indent=2)}")
-                    final_results["coaching_summary"] = coaching_summary_content 
-                else:
-                    self.logger.warning("CoachAgent returned an empty final summary. Using error placeholder.")
-                    final_results["coaching_summary"] = {"error": "CoachAgent returned an empty final summary."}
-                
-                if isinstance(final_results["coaching_summary"], dict) and final_results["coaching_summary"].get("resource_search_topics"):
-                    search_topics = final_results["coaching_summary"].get("resource_search_topics", [])
-                    recommended_resources_list = [] 
-
-                    if search_topics: 
-                        self.logger.info(f"CoachAgent suggested resource search topics: {search_topics}")
-                        for topic in search_topics[:3]: 
-                            self.logger.info(f"Performing web search for topic: {topic}")
-                            try:
-                                search_results_for_topic = []
-                                if topic == "effective communication in interviews":
-                                    search_results_for_topic = [
-                                        {"title": "Essential Interview Questions for Communication", "url": "#", "snippet": "..."},
-                                    ]
-                                elif topic == "STAR method for behavioral questions":
-                                    search_results_for_topic = [
-                                        {"title": "Using the STAR method effectively", "url": "#", "snippet": "..."},
-                                    ]
-                                
-                                if search_results_for_topic:
-                                    recommended_resources_list.append({
-                                        "topic": topic,
-                                        "resources": search_results_for_topic[:3]
-                                    })
-                                    self.logger.info(f"Found {len(search_results_for_topic[:3])} resources for topic: {topic}")
-                            except Exception as e:
-                                self.logger.error(f"Error performing web search for topic '{topic}': {e}")
-                        
-                        if recommended_resources_list: 
-                            self.logger.info(f"Populated recommended resources: {json.dumps(recommended_resources_list, indent=2)}")
-                            # Ensure coaching_summary is a dict before adding to it
-                            if not isinstance(final_results["coaching_summary"], dict):
-                                final_results["coaching_summary"] = {}
-                            final_results["coaching_summary"]["recommended_resources"] = recommended_resources_list
-                        else:
-                            if not isinstance(final_results["coaching_summary"], dict):
-                                final_results["coaching_summary"] = {}
-                            final_results["coaching_summary"]["recommended_resources"] = [] 
-            else:
-                self.logger.warning("Coach agent not found. Final coaching summary cannot be generated.")
-                final_results["coaching_summary"] = {"error": "Coach agent not available to generate summary."}
+            coaching_summary = self._generate_final_coaching_summary()
+            if coaching_summary:
+                final_results["coaching_summary"] = coaching_summary
+                self._add_recommended_resources(final_results)
         except Exception as e:
             self.logger.exception(f"Error generating final coaching summary: {e}")
             final_results["coaching_summary"] = {"error": f"Final coaching summary generation failed: {e}"}
 
         return final_results
+    
+    def _generate_final_coaching_summary(self) -> Optional[Dict[str, Any]]:
+        """Generate final coaching summary using coach agent."""
+        coach_agent = self._get_agent("coach")
+        if not coach_agent:
+            return None
+            
+        return coach_agent.generate_final_summary(self.conversation_history)
+    
+    def _add_recommended_resources(self, final_results: Dict[str, Any]) -> None:
+        """Add recommended resources based on search topics."""
+        coaching_summary = final_results.get("coaching_summary", {})
+        if not isinstance(coaching_summary, dict):
+            return
+            
+        search_topics = coaching_summary.get("resource_search_topics", [])
+        if not search_topics:
+            return
+            
+        # Mock resource search (simplified for this refactor)
+        recommended_resources = []
+        for topic in search_topics[:3]:
+            try:
+                resources = self._mock_search_resources(topic)
+                if resources:
+                    recommended_resources.append({
+                        "topic": topic,
+                        "resources": resources[:3]
+                    })
+            except Exception as e:
+                self.logger.error(f"Error performing web search for topic '{topic}': {e}")
+        
+        coaching_summary["recommended_resources"] = recommended_resources
+    
+    def _mock_search_resources(self, topic: str) -> List[Dict[str, str]]:
+        """Mock resource search - replace with real implementation if needed."""
+        # Simplified mock data
+        mock_resources = {
+            "effective communication in interviews": [
+                {"title": "Essential Interview Questions for Communication", "url": "#", "snippet": "..."}
+            ],
+            "STAR method for behavioral questions": [
+                {"title": "Using the STAR method effectively", "url": "#", "snippet": "..."}
+            ]
+        }
+        return mock_resources.get(topic, [])
 
     def get_conversation_history(self) -> List[Dict[str, Any]]:
         """Returns the full conversation history."""
@@ -331,7 +342,6 @@ class AgentSessionManager:
 
     def reset_session(self):
         """Resets the session state, including history and agent instances."""
-        self.logger.warning(f"Resetting Agent Session Manager state")
         self.conversation_history = []
         self.per_turn_coaching_feedback_log = []
         self._agents = {}
@@ -342,5 +352,4 @@ class AgentSessionManager:
         self.api_call_count = 0
         
         self.event_bus.publish(Event(event_type=EventType.SESSION_RESET, source='AgentSessionManager', data={}))
-        self.logger.info(f"Agent Session Manager state has been reset.")
 
