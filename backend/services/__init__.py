@@ -1,7 +1,7 @@
 """
 Services module initialization.
 Provides initialization functions for creating and configuring service instances.
-Refactored for multi-session support with database persistence.
+Refactored for multi-session support with database persistence and API rate limiting.
 """
 
 import os
@@ -12,6 +12,7 @@ from backend.services.search_service import SearchService
 from backend.services.llm_service import LLMService
 from backend.database.db_manager import DatabaseManager
 from backend.services.session_manager import ThreadSafeSessionRegistry
+from backend.services.rate_limiting import APIRateLimiter
 from backend.config import get_logger
 
 
@@ -24,6 +25,7 @@ class ServiceRegistry:
         self._search_service: Optional[SearchService] = None
         self._database_manager: Optional[DatabaseManager] = None
         self._session_registry: Optional[ThreadSafeSessionRegistry] = None
+        self._rate_limiter: Optional[APIRateLimiter] = None
         self.logger = get_logger(__name__)
     
     def get_llm_service(self) -> LLMService:
@@ -99,6 +101,18 @@ class ServiceRegistry:
             self.logger.info("Singleton ThreadSafeSessionRegistry instance created.")
         return self._session_registry
 
+    def get_rate_limiter(self) -> APIRateLimiter:
+        """Get the singleton APIRateLimiter instance."""
+        if self._rate_limiter is None:
+            self.logger.info("Creating singleton APIRateLimiter instance...")
+            try:
+                self._rate_limiter = APIRateLimiter()
+            except Exception as e:
+                self.logger.exception(f"Failed to create APIRateLimiter: {e}")
+                raise
+            self.logger.info("Singleton APIRateLimiter instance created.")
+        return self._rate_limiter
+
     def initialize_all_services(self) -> None:
         """Initialize all singleton services. Call this on application startup."""
         self.logger.info("Initializing core services...")
@@ -108,6 +122,7 @@ class ServiceRegistry:
             self.get_search_service()
             self.get_database_manager()
             self.get_session_registry()
+            self.get_rate_limiter()
             self.logger.info("Core services initialized.")
         except Exception as e:
             self.logger.error(f"Core service initialization failed: {e}")
@@ -137,6 +152,10 @@ def get_database_manager() -> DatabaseManager:
 def get_session_registry() -> ThreadSafeSessionRegistry:
     """Get the singleton ThreadSafeSessionRegistry instance."""
     return _service_registry.get_session_registry()
+
+def get_rate_limiter() -> APIRateLimiter:
+    """Get the singleton APIRateLimiter instance."""
+    return _service_registry.get_rate_limiter()
 
 def initialize_services() -> None:
     """Initialize all singleton services. Call this on application startup."""

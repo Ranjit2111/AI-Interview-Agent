@@ -1,5 +1,5 @@
 """
-Text-to-Speech service using Amazon Polly.
+Text-to-Speech service using Amazon Polly with rate limiting and retry logic.
 """
 
 import asyncio
@@ -7,24 +7,29 @@ import html
 import logging
 import os
 from typing import Optional
+import random
 
 import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
+from botocore.config import Config
 from fastapi import HTTPException
 from fastapi.responses import Response, StreamingResponse
+
+from backend.services.rate_limiting import get_rate_limiter
 
 logger = logging.getLogger(__name__)
 
 
 class TTSService:
-    """Text-to-Speech service using Amazon Polly."""
+    """Text-to-Speech service using Amazon Polly with concurrency control."""
     
     def __init__(self):
         self.polly_client = None
+        self.rate_limiter = get_rate_limiter()
         self._initialize_polly()
     
     def _initialize_polly(self):
-        """Initialize Amazon Polly client."""
+        """Initialize Amazon Polly client with retry configuration."""
         aws_region = os.environ.get("AWS_REGION")
         
         if not aws_region:
@@ -32,13 +37,23 @@ class TTSService:
             return
         
         try:
+            # Configure boto3 client with retry logic
+            polly_config = Config(
+                retries={
+                    'max_attempts': 3,
+                    'mode': 'adaptive'
+                },
+                max_pool_connections=26,  # Match our semaphore limit
+                region_name=aws_region
+            )
+            
             self.polly_client = boto3.client(
                 "polly",
                 aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
                 aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-                region_name=aws_region
+                config=polly_config
             )
-            logger.info(f"Successfully initialized AWS Polly client in region {aws_region}.")
+            logger.info(f"Successfully initialized AWS Polly client in region {aws_region} with retry configuration.")
         except (NoCredentialsError, PartialCredentialsError) as e:
             logger.error(f"AWS credentials not found or incomplete. Please configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY. Error: {e}")
         except ClientError as e:
@@ -58,36 +73,91 @@ class TTSService:
         # Add a brief initial pause using <break> tag to prevent the first words from being cut off
         return f'<speak><break time="250ms"/><prosody rate="{speed_percentage}%">{escaped_text}</prosody></speak>'
     
-    async def _synthesize_speech(self, ssml_text: str, voice_id: str) -> bytes:
-        """Synthesize speech using Amazon Polly."""
+    async def _synthesize_speech_with_retry(self, ssml_text: str, voice_id: str, max_retries: int = 3) -> bytes:
+        """
+        Synthesize speech using Amazon Polly with exponential backoff retry logic.
+        
+        Args:
+            ssml_text: SSML formatted text to synthesize
+            voice_id: Voice ID for synthesis
+            max_retries: Maximum number of retry attempts
+            
+        Returns:
+            bytes: Audio data
+        """
         if not self.polly_client:
             raise HTTPException(
                 status_code=503,
                 detail="TTS service (Amazon Polly) not configured or unavailable. Check AWS_REGION and credentials."
             )
         
-        response = await asyncio.to_thread(
-            self.polly_client.synthesize_speech,
-            Text=ssml_text,
-            OutputFormat="mp3",
-            VoiceId=voice_id,
-            TextType="ssml",
-            Engine="generative"
-        )
-        
-        audio_stream = response.get("AudioStream")
-        if not audio_stream:
-            raise HTTPException(status_code=500, detail="TTS server returned no audio data.")
+        # Acquire rate limiting slot
+        if not await self.rate_limiter.acquire_polly():
+            raise HTTPException(
+                status_code=429,
+                detail="TTS service temporarily unavailable due to rate limiting. Please try again later."
+            )
         
         try:
-            audio_content = audio_stream.read()
-            return audio_content
+            for attempt in range(max_retries):
+                try:
+                    response = await asyncio.to_thread(
+                        self.polly_client.synthesize_speech,
+                        Text=ssml_text,
+                        OutputFormat="mp3",
+                        VoiceId=voice_id,
+                        TextType="ssml",
+                        Engine="generative"
+                    )
+                    
+                    audio_stream = response.get("AudioStream")
+                    if not audio_stream:
+                        raise HTTPException(status_code=500, detail="TTS server returned no audio data.")
+                    
+                    try:
+                        audio_content = audio_stream.read()
+                        return audio_content
+                    finally:
+                        audio_stream.close()
+                        
+                except ClientError as e:
+                    error_code = e.response.get('Error', {}).get('Code', '')
+                    error_message = e.response.get('Error', {}).get('Message', str(e))
+                    
+                    # Check if it's a retryable error
+                    if error_code in ['ThrottlingException', 'ServiceUnavailable', 'InternalServerError']:
+                        if attempt < max_retries - 1:
+                            # Exponential backoff with jitter
+                            delay = (2 ** attempt) + random.uniform(0, 1)
+                            logger.warning(f"Polly API error (attempt {attempt + 1}/{max_retries}): {error_code}. Retrying in {delay:.2f}s")
+                            await asyncio.sleep(delay)
+                            continue
+                    
+                    logger.error(f"Amazon Polly service error during synthesis: {error_code} - {error_message}")
+                    raise HTTPException(
+                        status_code=int(error_code) if error_code.isdigit() else 503,
+                        detail=f"Amazon Polly service error: {error_message}"
+                    )
+                
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        delay = (2 ** attempt) + random.uniform(0, 1)
+                        logger.warning(f"TTS synthesis error (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {delay:.2f}s")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        logger.exception("Unexpected error during text-to-speech synthesis with Polly")
+                        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+            
+            raise HTTPException(status_code=500, detail="TTS synthesis failed after all retry attempts")
+            
         finally:
-            audio_stream.close()
+            # Always release the rate limiting slot
+            self.rate_limiter.release_polly()
     
     async def synthesize_text(self, text: str, voice_id: str = "Matthew", speed: float = 1.0) -> Response:
         """
-        Synthesize speech from text.
+        Synthesize speech from text with rate limiting.
         
         Args:
             text: Text to synthesize.
@@ -103,28 +173,30 @@ class TTSService:
                 detail="TTS service (Amazon Polly) not configured or unavailable. Check AWS_REGION and credentials."
             )
 
+        # Check if API is available before proceeding
+        if not self.rate_limiter.is_api_available('polly'):
+            raise HTTPException(
+                status_code=429,
+                detail="TTS service temporarily unavailable due to high demand. Please try again later."
+            )
+
         ssml_text = self._prepare_ssml(text, speed)
         logger.debug(f"TTS request: voice={voice_id}, speed={speed}")
 
         try:
-            audio_content = await self._synthesize_speech(ssml_text, voice_id)
+            audio_content = await self._synthesize_speech_with_retry(ssml_text, voice_id)
             return Response(content=audio_content, media_type="audio/mpeg")
 
-        except ClientError as e:
-            error_code = getattr(e.response, 'get', lambda x, y: y)('Error', {}).get('Code', 500)
-            error_message = e.response.get('Error', {}).get('Message', str(e))
-            logger.error(f"Amazon Polly service error during synthesis: {error_code} - {error_message}")
-            raise HTTPException(
-                status_code=int(error_code) if isinstance(error_code, str) and error_code.isdigit() else 503,
-                detail=f"Amazon Polly service error: {error_message}"
-            )
+        except HTTPException:
+            # Re-raise HTTP exceptions as-is
+            raise
         except Exception as e:
-            logger.exception("Unexpected error during text-to-speech synthesis with Polly")
+            logger.exception("Unexpected error during text-to-speech synthesis")
             raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
     async def stream_text(self, text: str, voice_id: str = "Matthew", speed: float = 1.0) -> StreamingResponse:
         """
-        Synthesize speech from text and stream the audio.
+        Synthesize speech from text and stream the audio with rate limiting.
         
         Args:
             text: Text to synthesize.
@@ -140,12 +212,25 @@ class TTSService:
                 detail="TTS service (Amazon Polly) not configured or unavailable. Check AWS_REGION and credentials."
             )
 
+        # Check if API is available before proceeding
+        if not self.rate_limiter.is_api_available('polly'):
+            raise HTTPException(
+                status_code=429,
+                detail="TTS service temporarily unavailable due to high demand. Please try again later."
+            )
+
         ssml_text = self._prepare_ssml(text, speed)
         logger.debug(f"Streaming TTS request: voice={voice_id}, speed={speed}")
         
+        # Acquire rate limiting slot
+        if not await self.rate_limiter.acquire_polly():
+            raise HTTPException(
+                status_code=429,
+                detail="TTS service temporarily unavailable due to rate limiting. Please try again later."
+            )
+        
         try:
             # boto3's synthesize_speech is blocking, so run in thread for async handler
-            # However, its AudioStream is iterable, suitable for StreamingResponse
             response = await asyncio.to_thread(
                 self.polly_client.synthesize_speech,
                 Text=ssml_text,
@@ -171,7 +256,7 @@ class TTSService:
             return StreamingResponse(generator(audio_stream), media_type="audio/mpeg")
 
         except ClientError as e:
-            error_code = getattr(e.response, 'get', lambda x, y: y)('Error', {}).get('Code', 500)
+            error_code = e.response.get('Error', {}).get('Code', 500)
             error_message = e.response.get('Error', {}).get('Message', str(e))
             logger.error(f"Amazon Polly service error during streaming synthesis: {error_code} - {error_message}")
             raise HTTPException(
@@ -180,4 +265,7 @@ class TTSService:
             )
         except Exception as e:
             logger.exception("Unexpected error during streaming text-to-speech synthesis with Polly")
-            raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}") 
+            raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        finally:
+            # Always release the rate limiting slot
+            self.rate_limiter.release_polly() 
