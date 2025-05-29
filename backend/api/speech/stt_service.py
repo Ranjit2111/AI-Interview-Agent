@@ -56,9 +56,8 @@ class STTService:
             endpointing=True,
             vad_events=True,
             utterance_end_ms="1000",
-            encoding="linear16",
-            sample_rate=16000,
-            channels=1,
+            # NOTE: Do NOT specify encoding/sample_rate for containerized audio (WebM)
+            # Deepgram automatically reads these from the container header
         )
     
     async def _wait_for_connection_active(self, handlers: DeepgramEventHandlers, 
