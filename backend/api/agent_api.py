@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from backend.agents.orchestrator import AgentSessionManager
 from backend.agents.config_models import SessionConfig
 from backend.services.session_manager import ThreadSafeSessionRegistry
+from backend.api.auth_api import get_current_user
 from backend.config import get_logger
 
 logger = get_logger(__name__)
@@ -105,20 +106,23 @@ def create_agent_api(app):
     @router.post("/session", response_model=SessionResponse)
     async def create_session(
         start_request: InterviewStartRequest,
-        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry)
+        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry),
+        current_user: Dict[str, Any] = Depends(get_current_user)
     ):
         """
         Create a new interview session with configuration.
         Returns a session ID that must be used in subsequent requests.
+        
+        Requires authentication.
         """
         logger.info(f"Creating new session with config: {start_request.dict()}")
         try:
             # Create SessionConfig from request
             config = SessionConfig(**start_request.dict(exclude_unset=True))
             
-            # Create new session
+            # Create new session with user ID
             session_id = await session_registry.create_new_session(
-                user_id=None,  # TODO: Add authentication
+                user_id=current_user["id"],
                 initial_config=config
             )
             
@@ -135,11 +139,12 @@ def create_agent_api(app):
     @router.post("/start", response_model=ResetResponse)
     async def start_interview(
         start_request: InterviewStartRequest,
-        session_manager: AgentSessionManager = Depends(get_session_manager)
+        session_manager: AgentSessionManager = Depends(get_session_manager),
+        current_user: Dict[str, Any] = Depends(get_current_user)
     ):
         """
         Configure an existing session and reset its state.
-        Requires X-Session-ID header.
+        Requires X-Session-ID header and authentication.
         """
         logger.info(f"Configuring session {session_manager.session_id} with: {start_request.dict()}")
         try:
@@ -166,11 +171,12 @@ def create_agent_api(app):
     @router.post("/message", response_model=AgentResponse)
     async def post_message(
         user_input: UserInput,
-        session_manager: AgentSessionManager = Depends(get_session_manager)
+        session_manager: AgentSessionManager = Depends(get_session_manager),
+        current_user: Dict[str, Any] = Depends(get_current_user)
     ):
         """
         Send a user message to the interview session.
-        Requires X-Session-ID header.
+        Requires X-Session-ID header and authentication.
         """
         logger.info(f"Session {session_manager.session_id} received message: '{user_input.message[:50]}...'")
         try:
@@ -184,11 +190,12 @@ def create_agent_api(app):
 
     @router.post("/end", response_model=EndResponse)
     async def end_interview(
-        session_manager: AgentSessionManager = Depends(get_session_manager)
+        session_manager: AgentSessionManager = Depends(get_session_manager),
+        current_user: Dict[str, Any] = Depends(get_current_user)
     ):
         """
         End the interview session and retrieve final results.
-        Requires X-Session-ID header.
+        Requires X-Session-ID header and authentication.
         """
         logger.info(f"Ending session {session_manager.session_id}")
         try:
@@ -202,56 +209,62 @@ def create_agent_api(app):
 
         except Exception as e:
             logger.exception(f"Error ending session {session_manager.session_id}: {e}")
-            raise HTTPException(status_code=500, detail=f"Error ending interview: {e}")
+            raise HTTPException(status_code=500, detail=f"Error ending session: {e}")
 
     @router.get("/history", response_model=HistoryResponse)
     async def get_history(
-        session_manager: AgentSessionManager = Depends(get_session_manager)
+        session_manager: AgentSessionManager = Depends(get_session_manager),
+        current_user: Dict[str, Any] = Depends(get_current_user)
     ):
         """
         Get conversation history for the session.
-        Requires X-Session-ID header.
+        Requires X-Session-ID header and authentication.
         """
-        logger.debug(f"Getting history for session {session_manager.session_id}")
+        logger.info(f"Getting history for session {session_manager.session_id}")
         try:
-            history = session_manager.get_conversation_history()
-            return HistoryResponse(history=history)
+            return HistoryResponse(
+                history=session_manager.get_conversation_history()
+            )
 
         except Exception as e:
             logger.exception(f"Error getting history for session {session_manager.session_id}: {e}")
-            raise HTTPException(status_code=500, detail=f"Error retrieving history: {e}")
+            raise HTTPException(status_code=500, detail=f"Error getting conversation history: {e}")
 
     @router.get("/stats", response_model=StatsResponse)
     async def get_stats(
-        session_manager: AgentSessionManager = Depends(get_session_manager)
+        session_manager: AgentSessionManager = Depends(get_session_manager),
+        current_user: Dict[str, Any] = Depends(get_current_user)
     ):
         """
-        Get performance statistics for the session.
-        Requires X-Session-ID header.
+        Get statistics for the session.
+        Requires X-Session-ID header and authentication.
         """
-        logger.debug(f"Getting stats for session {session_manager.session_id}")
+        logger.info(f"Getting stats for session {session_manager.session_id}")
         try:
-            stats = session_manager.get_session_stats()
-            return StatsResponse(stats=stats)
+            return StatsResponse(
+                stats=session_manager.get_session_stats()
+            )
 
         except Exception as e:
             logger.exception(f"Error getting stats for session {session_manager.session_id}: {e}")
-            raise HTTPException(status_code=500, detail=f"Error retrieving stats: {e}")
+            raise HTTPException(status_code=500, detail=f"Error getting session stats: {e}")
 
     @router.post("/reset", response_model=ResetResponse)
     async def reset_interview(
-        session_manager: AgentSessionManager = Depends(get_session_manager)
+        session_manager: AgentSessionManager = Depends(get_session_manager),
+        current_user: Dict[str, Any] = Depends(get_current_user)
     ):
         """
         Reset the session state.
-        Requires X-Session-ID header.
+        Requires X-Session-ID header and authentication.
         """
         logger.info(f"Resetting session {session_manager.session_id}")
         try:
             session_manager.reset_session()
-            logger.info(f"Session {session_manager.session_id} reset successfully")
+            logger.info(f"Session {session_manager.session_id} reset")
+
             return ResetResponse(
-                message="Session state has been reset",
+                message="Session reset successfully",
                 session_id=session_manager.session_id
             )
 
@@ -260,4 +273,4 @@ def create_agent_api(app):
             raise HTTPException(status_code=500, detail=f"Error resetting session: {e}")
 
     app.include_router(router)
-    logger.info("Agent API routes registered with session support") 
+    logger.info("Agent API routes registered") 

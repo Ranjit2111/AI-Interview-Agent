@@ -3,6 +3,32 @@ const API_BASE_URL = 'http://localhost:8000';
 // WebSocket URL for streaming APIs
 const WS_BASE_URL = 'ws://localhost:8000';
 
+// Authentication interfaces
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+  user: {
+    id: string;
+    email: string;
+    created_at?: string;
+  };
+}
+
+export interface SessionResponse {
+  session_id: string;
+  message: string;
+}
+
 export interface InterviewStartRequest {
   job_role: string;
   job_description?: string;
@@ -246,54 +272,160 @@ const handleResponse = async (response: Response) => {
   return response;
 };
 
+// Authentication-related API calls
+export async function registerUser(data: RegisterRequest): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse(response);
+}
+
+export async function loginUser(data: LoginRequest): Promise<AuthResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse(response);
+}
+
+export async function logoutUser(): Promise<{ message: string }> {
+  const token = localStorage.getItem('ai_interviewer_access_token');
+  
+  const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse(response);
+}
+
+export async function getUserProfile(): Promise<any> {
+  const token = localStorage.getItem('ai_interviewer_access_token');
+  
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  return handleResponse(response);
+}
+
+// Utility function to add auth headers to API requests
+function getAuthHeaders(): HeadersInit {
+  const token = localStorage.getItem('ai_interviewer_access_token');
+  
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : '',
+  };
+}
+
+// Modified existing API functions to include authentication
+
+export async function createSession(data: InterviewStartRequest): Promise<SessionResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/session`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse(response);
+}
+
+export async function startInterview(sessionId: string, data: InterviewStartRequest): Promise<ResetResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/start`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse(response);
+}
+
+export async function sendMessage(sessionId: string, data: UserInput): Promise<AgentResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/message`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+    body: JSON.stringify(data),
+  });
+
+  return handleResponse(response);
+}
+
+export async function endInterview(sessionId: string): Promise<EndResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/end`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+  });
+
+  return handleResponse(response);
+}
+
+export async function getConversationHistory(sessionId: string): Promise<HistoryResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/history`, {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+  });
+
+  return handleResponse(response);
+}
+
+export async function getSessionStats(sessionId: string): Promise<StatsResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/stats`, {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+  });
+
+  return handleResponse(response);
+}
+
+export async function resetInterview(sessionId: string): Promise<ResetResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/reset`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+  });
+
+  return handleResponse(response);
+}
+
 // API methods
 export const api = {
   // Health check
   checkHealth: async () => {
     const response = await fetch(`${API_BASE_URL}/`);
-    return handleResponse(response);
-  },
-  
-  // Interview API
-  startInterview: async (config: InterviewStartRequest): Promise<ResetResponse> => {
-    const response = await fetch(`${API_BASE_URL}/interview/start`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config),
-    });
-    return handleResponse(response);
-  },
-  
-  sendMessage: async (input: UserInput): Promise<AgentResponse> => {
-    const response = await fetch(`${API_BASE_URL}/interview/message`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    return handleResponse(response);
-  },
-  
-  endInterview: async (): Promise<EndResponse> => {
-    const response = await fetch(`${API_BASE_URL}/interview/end`, {
-      method: 'POST',
-    });
-    return handleResponse(response);
-  },
-  
-  getHistory: async (): Promise<HistoryResponse> => {
-    const response = await fetch(`${API_BASE_URL}/interview/history`);
-    return handleResponse(response);
-  },
-  
-  getStats: async (): Promise<StatsResponse> => {
-    const response = await fetch(`${API_BASE_URL}/interview/stats`);
-    return handleResponse(response);
-  },
-  
-  resetInterview: async (): Promise<ResetResponse> => {
-    const response = await fetch(`${API_BASE_URL}/interview/reset`, {
-      method: 'POST',
-    });
     return handleResponse(response);
   },
   

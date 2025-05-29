@@ -31,6 +31,165 @@ class DatabaseManager:
         self.supabase: Client = create_client(self.url, self.key)
         logger.info("DatabaseManager initialized with Supabase client")
 
+    # === User Authentication Methods ===
+
+    async def register_user(self, email: str, password: str) -> Dict[str, Any]:
+        """
+        Register a new user with Supabase Auth.
+        
+        Args:
+            email: User email
+            password: User password
+            
+        Returns:
+            Dict: Auth data including tokens and user info
+            
+        Raises:
+            Exception: If registration fails
+        """
+        try:
+            # Register user with Supabase Auth
+            auth_response = self.supabase.auth.sign_up({
+                "email": email,
+                "password": password
+            })
+            
+            user_data = auth_response.user
+            session_data = auth_response.session
+            
+            if not user_data or not session_data:
+                raise Exception("User registration failed - no user or session data returned")
+            
+            # Create user record in our users table
+            user_record = {
+                "id": user_data.id,
+                "email": email,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            
+            self.supabase.table("users").insert(user_record).execute()
+            
+            # Format response
+            return {
+                "access_token": session_data.access_token,
+                "refresh_token": session_data.refresh_token,
+                "user": {
+                    "id": user_data.id,
+                    "email": email,
+                    "created_at": user_record["created_at"]
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"User registration failed: {e}")
+            raise Exception(f"User registration failed: {str(e)}")
+
+    async def login_user(self, email: str, password: str) -> Dict[str, Any]:
+        """
+        Login a user with Supabase Auth.
+        
+        Args:
+            email: User email
+            password: User password
+            
+        Returns:
+            Dict: Auth data including tokens and user info
+            
+        Raises:
+            Exception: If login fails
+        """
+        try:
+            # Login user with Supabase Auth
+            auth_response = self.supabase.auth.sign_in_with_password({
+                "email": email,
+                "password": password
+            })
+            
+            user_data = auth_response.user
+            session_data = auth_response.session
+            
+            if not user_data or not session_data:
+                raise Exception("User login failed - no user or session data returned")
+            
+            # Format response
+            return {
+                "access_token": session_data.access_token,
+                "refresh_token": session_data.refresh_token,
+                "user": {
+                    "id": user_data.id,
+                    "email": user_data.email,
+                    "created_at": user_data.created_at
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"User login failed: {e}")
+            raise Exception(f"User login failed: {str(e)}")
+
+    async def refresh_token(self, refresh_token: str) -> Dict[str, Any]:
+        """
+        Refresh an access token using a refresh token.
+        
+        Args:
+            refresh_token: The refresh token
+            
+        Returns:
+            Dict: New auth data including tokens and user info
+            
+        Raises:
+            Exception: If token refresh fails
+        """
+        try:
+            # Refresh token with Supabase Auth
+            auth_response = self.supabase.auth.refresh_session(refresh_token)
+            
+            user_data = auth_response.user
+            session_data = auth_response.session
+            
+            if not user_data or not session_data:
+                raise Exception("Token refresh failed - no user or session data returned")
+            
+            # Format response
+            return {
+                "access_token": session_data.access_token,
+                "refresh_token": session_data.refresh_token,
+                "user": {
+                    "id": user_data.id,
+                    "email": user_data.email,
+                    "created_at": user_data.created_at
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Token refresh failed: {e}")
+            raise Exception(f"Token refresh failed: {str(e)}")
+
+    async def get_user(self, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a user by ID.
+        
+        Args:
+            user_id: The user ID
+            
+        Returns:
+            Optional[Dict]: User data if found, None otherwise
+        """
+        try:
+            # Get user from our users table
+            result = self.supabase.table("users").select("*").eq("id", user_id).execute()
+            
+            if result.data and len(result.data) > 0:
+                return result.data[0]
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting user {user_id}: {e}")
+            return None
+
+    # === Session Management Methods ===
+
     async def create_session(self, user_id: Optional[str] = None, 
                            initial_config: Optional[Dict] = None) -> str:
         """
@@ -126,6 +285,8 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error saving session state for {session_id}: {e}")
             return False
+
+    # === Speech Task Methods ===
 
     async def create_speech_task(self, session_id: str, task_type: str) -> str:
         """
@@ -237,8 +398,8 @@ class DatabaseManager:
             int: Number of tasks cleaned up
         """
         try:
-            cutoff_time = datetime.utcnow().replace(microsecond=0)
-            cutoff_time = cutoff_time.replace(hour=cutoff_time.hour - older_than_hours)
+            from datetime import timedelta
+            cutoff_time = datetime.utcnow() - timedelta(hours=older_than_hours)
             
             result = self.supabase.table("speech_tasks").delete().in_("status", ["completed", "error"]).lt("updated_at", cutoff_time.isoformat()).execute()
             
