@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Local imports
-from backend.services import initialize_services, get_agent_session_manager
+from backend.services import initialize_services, get_session_registry
 from backend.api.agent_api import create_agent_api
 from backend.api.speech_api import create_speech_api
 from backend.api.file_processing_api import create_file_processing_api
@@ -96,8 +96,8 @@ async def startup_event():
 
     try:
         initialize_services() 
-        app.state.agent_manager = get_agent_session_manager()
-        logger.info("AgentSessionManager attached to app state.")
+        app.state.agent_manager = get_session_registry()
+        logger.info("SessionRegistry attached to app state.")
     except Exception as e:
         logger.error(f"Service initialization failed: {e}")
 
