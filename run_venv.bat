@@ -11,37 +11,25 @@ set "PROJECT_ROOT=%CD%"
 echo Project root: %PROJECT_ROOT%
 
 :: Setup virtual environment if it doesn't exist
-if not exist backend\.venv (
+if not exist backend\venv (
     echo Creating virtual environment...
     cd backend
-    python -m venv .venv
+    python -m venv venv
     cd ..
 )
 
 echo.
 echo Installing essential backend dependencies...
 cd backend
-call .venv\Scripts\activate
+call venv\Scripts\activate
 call pip install -r requirements.txt
 :: Deactivate virtual environment
 call deactivate
 cd ..
 
-:: Create or copy environment file if needed
-if not exist backend\.env (
-    if exist backend\.env.example (
-        echo Creating backend .env file from example...
-        copy backend\.env.example backend\.env
-    ) else if exist sample_env.txt (
-        echo Creating backend .env file from sample...
-        copy sample_env.txt backend\.env
-    )
-)
-
-
 echo.
 echo Starting backend server...
-start cmd /k "cd backend && call .venv\Scripts\activate && set PYTHONPATH=%PROJECT_ROOT% && python -m uvicorn main:app --reload --port 8000"
+start cmd /k "cd backend && call venv\Scripts\activate && set PYTHONPATH=%PROJECT_ROOT% && python -m uvicorn main:app --reload --port 8000"
 
 echo.
 echo Installing frontend dependencies...
