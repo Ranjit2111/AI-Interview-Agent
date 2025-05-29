@@ -25,6 +25,7 @@ from backend.services import initialize_services, get_session_registry
 from backend.api.agent_api import create_agent_api
 from backend.api.speech_api import create_speech_api
 from backend.api.file_processing_api import create_file_processing_api
+from backend.api.auth_api import create_auth_api
 
 
 load_dotenv()
@@ -70,8 +71,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register API routes
+create_auth_api(app)
+logger.info("Auth API routes registered")
+
 create_agent_api(app)
-logger.info("API routes registered")
+logger.info("Agent API routes registered")
 
 create_speech_api(app)
 logger.info("Speech API routes registered")
