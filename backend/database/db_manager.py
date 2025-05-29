@@ -23,10 +23,10 @@ class DatabaseManager:
     def __init__(self):
         """Initialize the database manager with Supabase client."""
         self.url = os.environ.get("SUPABASE_URL")
-        self.key = os.environ.get("SUPABASE_SERVICE_KEY")
+        self.key = os.environ.get("SUPABASE_ANON_KEY")
         
         if not self.url or not self.key:
-            raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set in environment variables")
+            raise ValueError("SUPABASE_URL and SUPABASE_ANON_KEY must be set in environment variables")
         
         self.supabase: Client = create_client(self.url, self.key)
         logger.info("DatabaseManager initialized with Supabase client")

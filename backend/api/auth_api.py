@@ -52,6 +52,60 @@ async def get_database_manager() -> DatabaseManager:
     from backend.services import get_database_manager
     return get_database_manager()
 
+async def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db_manager: DatabaseManager = Depends(get_database_manager)
+) -> Optional[Dict[str, Any]]:
+    """
+    Verify JWT token and get current user (optional).
+    Returns None if no token is provided or token is invalid.
+    
+    Returns:
+        Optional[Dict]: User data if authenticated, None otherwise
+    """
+    if not credentials or not credentials.credentials:
+        return None
+        
+    try:
+        # Get JWT secret - check for mock mode first
+        jwt_secret = os.environ.get("SUPABASE_JWT_SECRET")
+        if not jwt_secret:
+            # Check if we're in mock mode
+            use_mock_auth = os.environ.get("USE_MOCK_AUTH", "false").lower() == "true"
+            if use_mock_auth:
+                # Use mock secret for development
+                jwt_secret = "development_secret_key_not_for_production"
+            else:
+                return None
+        
+        # Decode token
+        payload = jwt.decode(
+            credentials.credentials, 
+            jwt_secret,
+            algorithms=["HS256"],
+            options={"verify_signature": True}
+        )
+        
+        # Check if token has expired
+        if datetime.fromtimestamp(payload.get("exp", 0)) < datetime.utcnow():
+            return None
+        
+        # Get user ID from token
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        
+        # Get user from database
+        user = await db_manager.get_user(user_id)
+        return user
+    
+    except jwt.PyJWTError as e:
+        logger.debug(f"JWT verification failed (optional auth): {e}")
+        return None
+    except Exception as e:
+        logger.debug(f"Error verifying token (optional auth): {e}")
+        return None
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     db_manager: DatabaseManager = Depends(get_database_manager)
