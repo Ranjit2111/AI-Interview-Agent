@@ -94,7 +94,7 @@ class ThreadSafeSessionRegistry:
         # Convert SessionConfig to dict if provided
         config_dict = None
         if initial_config:
-            config_dict = initial_config.dict() if hasattr(initial_config, 'dict') else vars(initial_config)
+            config_dict = initial_config.model_dump() if hasattr(initial_config, 'model_dump') else vars(initial_config)
         
         # Create session in database
         session_id = await self.db_manager.create_session(
