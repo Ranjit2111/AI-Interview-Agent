@@ -5,16 +5,23 @@ Refactored for multi-session support with database persistence and API rate limi
 """
 
 import os
+import logging
 from typing import Optional
 
 from backend.utils.event_bus import EventBus
 from backend.services.search_service import SearchService
 from backend.services.llm_service import LLMService
 from backend.database.db_manager import DatabaseManager
+from backend.database.mock_db_manager import MockDatabaseManager
 from backend.services.session_manager import ThreadSafeSessionRegistry
 from backend.services.rate_limiting import APIRateLimiter
 from backend.config import get_logger
 
+logger = logging.getLogger(__name__)
+
+# Global instances
+_database_manager: Optional[DatabaseManager] = None
+_session_registry: Optional[ThreadSafeSessionRegistry] = None
 
 class ServiceRegistry:
     """Registry for singleton service instances."""
@@ -86,15 +93,7 @@ class ServiceRegistry:
         if self._session_registry is None:
             self.logger.info("Creating singleton ThreadSafeSessionRegistry instance...")
             try:
-                database_manager = self.get_database_manager()
-                llm_service = self.get_llm_service()
-                event_bus = self.get_event_bus()
-                
-                self._session_registry = ThreadSafeSessionRegistry(
-                    db_manager=database_manager,
-                    llm_service=llm_service,
-                    event_bus=event_bus
-                )
+                self._session_registry = ThreadSafeSessionRegistry()
             except Exception as e:
                 self.logger.exception(f"Failed to create ThreadSafeSessionRegistry: {e}")
                 raise
@@ -147,16 +146,40 @@ def get_search_service() -> SearchService:
 
 def get_database_manager() -> DatabaseManager:
     """Get the singleton DatabaseManager instance."""
-    return _service_registry.get_database_manager()
+    if _database_manager is None:
+        raise RuntimeError("Database manager not initialized. Call initialize_services() first.")
+    return _database_manager
 
 def get_session_registry() -> ThreadSafeSessionRegistry:
     """Get the singleton ThreadSafeSessionRegistry instance."""
-    return _service_registry.get_session_registry()
+    if _session_registry is None:
+        raise RuntimeError("Session registry not initialized. Call initialize_services() first.")
+    return _session_registry
 
 def get_rate_limiter() -> APIRateLimiter:
     """Get the singleton APIRateLimiter instance."""
     return _service_registry.get_rate_limiter()
 
 def initialize_services() -> None:
-    """Initialize all singleton services. Call this on application startup."""
-    _service_registry.initialize_all_services()
+    """Initialize all application services."""
+    global _database_manager, _session_registry
+    
+    try:
+        # Determine which database manager to use
+        use_mock_auth = os.environ.get("USE_MOCK_AUTH", "false").lower() == "true"
+        
+        if use_mock_auth:
+            logger.info("Initializing with MockDatabaseManager for development")
+            _database_manager = MockDatabaseManager()
+        else:
+            logger.info("Initializing with real DatabaseManager (Supabase)")
+            _database_manager = DatabaseManager()
+        
+        # Initialize session registry
+        _session_registry = ThreadSafeSessionRegistry()
+        
+        logger.info("Services initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize services: {e}")
+        raise
