@@ -1,7 +1,7 @@
 """
 Services module initialization.
 Provides initialization functions for creating and configuring service instances.
-Refactored for single-session, local-only operation with improved singleton pattern.
+Refactored for multi-session support with database persistence.
 """
 
 import os
@@ -10,7 +10,8 @@ from typing import Optional
 from backend.utils.event_bus import EventBus
 from backend.services.search_service import SearchService
 from backend.services.llm_service import LLMService
-from backend.agents.config_models import SessionConfig
+from backend.database.db_manager import DatabaseManager
+from backend.services.session_manager import ThreadSafeSessionRegistry
 from backend.config import get_logger
 
 
@@ -21,7 +22,8 @@ class ServiceRegistry:
         self._llm_service: Optional[LLMService] = None
         self._event_bus: Optional[EventBus] = None
         self._search_service: Optional[SearchService] = None
-        self._agent_session_manager = None
+        self._database_manager: Optional[DatabaseManager] = None
+        self._session_registry: Optional[ThreadSafeSessionRegistry] = None
         self.logger = get_logger(__name__)
     
     def get_llm_service(self) -> LLMService:
@@ -62,30 +64,40 @@ class ServiceRegistry:
             self.logger.info(f"Singleton SearchService instance created (Provider: Serper).")
         return self._search_service
 
-    def get_agent_session_manager(self):
-        """Get the singleton AgentSessionManager instance."""
-        if self._agent_session_manager is None:
-            # Import here to avoid circular imports
-            from backend.agents.orchestrator import AgentSessionManager
-            
-            self.logger.info("Creating singleton AgentSessionManager instance...")
+    def get_database_manager(self) -> DatabaseManager:
+        """Get the singleton DatabaseManager instance."""
+        if self._database_manager is None:
+            self.logger.info("Creating singleton DatabaseManager instance...")
             try:
-                agent_logger = get_logger("AgentSessionManager")
+                self._database_manager = DatabaseManager()
+            except ValueError as e:
+                self.logger.error(f"DatabaseManager initialization failed: {e}. Ensure Supabase credentials are set.")
+                raise
+            except Exception as e:
+                self.logger.exception(f"Unexpected error creating DatabaseManager: {e}")
+                raise
+            self.logger.info("Singleton DatabaseManager instance created.")
+        return self._database_manager
+
+    def get_session_registry(self) -> ThreadSafeSessionRegistry:
+        """Get the singleton ThreadSafeSessionRegistry instance."""
+        if self._session_registry is None:
+            self.logger.info("Creating singleton ThreadSafeSessionRegistry instance...")
+            try:
+                database_manager = self.get_database_manager()
                 llm_service = self.get_llm_service()
                 event_bus = self.get_event_bus()
-                default_config = SessionConfig()
-
-                self._agent_session_manager = AgentSessionManager(
+                
+                self._session_registry = ThreadSafeSessionRegistry(
+                    db_manager=database_manager,
                     llm_service=llm_service,
-                    event_bus=event_bus,
-                    logger=agent_logger,
-                    session_config=default_config
+                    event_bus=event_bus
                 )
             except Exception as e:
-                self.logger.exception(f"Failed to create AgentSessionManager singleton: {e}")
+                self.logger.exception(f"Failed to create ThreadSafeSessionRegistry: {e}")
                 raise
-            self.logger.info("Singleton AgentSessionManager instance created.")
-        return self._agent_session_manager
+            self.logger.info("Singleton ThreadSafeSessionRegistry instance created.")
+        return self._session_registry
 
     def initialize_all_services(self) -> None:
         """Initialize all singleton services. Call this on application startup."""
@@ -94,7 +106,8 @@ class ServiceRegistry:
             self.get_llm_service()
             self.get_event_bus()
             self.get_search_service()
-            self.get_agent_session_manager()
+            self.get_database_manager()
+            self.get_session_registry()
             self.logger.info("Core services initialized.")
         except Exception as e:
             self.logger.error(f"Core service initialization failed: {e}")
@@ -117,9 +130,13 @@ def get_search_service() -> SearchService:
     """Get the singleton SearchService instance."""
     return _service_registry.get_search_service()
 
-def get_agent_session_manager():
-    """Get the singleton AgentSessionManager instance."""
-    return _service_registry.get_agent_session_manager()
+def get_database_manager() -> DatabaseManager:
+    """Get the singleton DatabaseManager instance."""
+    return _service_registry.get_database_manager()
+
+def get_session_registry() -> ThreadSafeSessionRegistry:
+    """Get the singleton ThreadSafeSessionRegistry instance."""
+    return _service_registry.get_session_registry()
 
 def initialize_services() -> None:
     """Initialize all singleton services. Call this on application startup."""

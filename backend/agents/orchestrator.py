@@ -26,7 +26,9 @@ class AgentSessionManager:
     Routes messages between user and agents, maintains conversation history.
     """
     
-    def __init__(self, llm_service: LLMService, event_bus: EventBus, logger: logging.Logger, session_config: SessionConfig):
+    def __init__(self, llm_service: LLMService, event_bus: EventBus, logger: logging.Logger, 
+                 session_config: SessionConfig, session_id: Optional[str] = None):
+        self.session_id = session_id or "local_session"  # Add session-specific ID
         self.session_config = session_config
         self.conversation_history: List[Dict[str, Any]] = []
         self.per_turn_coaching_feedback_log: List[Dict[str, Any]] = []
@@ -49,7 +51,7 @@ class AgentSessionManager:
             self.event_bus.publish(Event(
                 event_type=EventType.SESSION_START, 
                 source='AgentSessionManager', 
-                data={"config": config_dict}
+                data={"config": config_dict, "session_id": self.session_id}
             ))
     
     def _get_agent(self, agent_type: str) -> Optional[BaseAgent]:
@@ -245,7 +247,7 @@ class AgentSessionManager:
     def _get_agent_context(self) -> AgentContext:
         """Prepare the context object for an agent call."""
         return AgentContext(
-            session_id="local_session",
+            session_id=self.session_id,
             conversation_history=self.conversation_history,
             session_config=self.session_config,
             event_bus=self.event_bus,
@@ -355,4 +357,67 @@ class AgentSessionManager:
         self.api_call_count = 0
         
         self.event_bus.publish(Event(event_type=EventType.SESSION_RESET, source='AgentSessionManager', data={}))
+
+    @classmethod
+    def from_session_data(cls, session_data: Dict, llm_service: LLMService, 
+                         event_bus: EventBus, logger: logging.Logger) -> 'AgentSessionManager':
+        """
+        Create manager from database session data.
+        
+        Args:
+            session_data: Session data from database
+            llm_service: LLM service instance
+            event_bus: Event bus instance
+            logger: Logger instance
+            
+        Returns:
+            AgentSessionManager: Initialized manager with restored state
+        """
+        # Create SessionConfig from stored data
+        config_data = session_data.get("session_config", {})
+        session_config = SessionConfig(**config_data) if config_data else SessionConfig()
+        
+        # Create manager instance
+        manager = cls(
+            llm_service=llm_service,
+            event_bus=event_bus,
+            logger=logger,
+            session_config=session_config,
+            session_id=session_data["session_id"]
+        )
+        
+        # Restore state from database
+        manager.conversation_history = session_data.get("conversation_history", [])
+        manager.per_turn_coaching_feedback_log = session_data.get("per_turn_feedback_log", [])
+        manager.total_response_time = session_data.get("session_stats", {}).get("total_response_time_seconds", 0.0)
+        manager.total_tokens_used = session_data.get("session_stats", {}).get("total_tokens_used", 0)
+        manager.api_call_count = session_data.get("session_stats", {}).get("total_api_calls", 0)
+        
+        logger.info(f"Restored session manager from database: {manager.session_id}")
+        return manager
+
+    def to_dict(self) -> Dict:
+        """
+        Serialize manager state for database storage.
+        
+        Returns:
+            Dict: Serialized session state
+        """
+        return {
+            "session_id": self.session_id,
+            "session_config": self.session_config.dict() if hasattr(self.session_config, 'dict') else vars(self.session_config),
+            "conversation_history": self.conversation_history,
+            "per_turn_feedback_log": self.per_turn_coaching_feedback_log,
+            "session_stats": self.get_session_stats(),
+            "status": "active"  # Could be enhanced to track different states
+        }
+
+    def get_langchain_config(self) -> Dict:
+        """
+        Get LangChain configuration with thread_id for session isolation.
+        
+        Returns:
+            Dict: Configuration for LangChain calls
+        """
+        return {"configurable": {"thread_id": self.session_id}}
 
