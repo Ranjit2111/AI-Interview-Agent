@@ -12,7 +12,7 @@ from datetime import datetime
 
 # Set test environment variables before imports
 os.environ["SUPABASE_URL"] = "https://test.supabase.co"
-os.environ["SUPABASE_SERVICE_KEY"] = "test-key"
+os.environ["SUPABASE_ANON_KEY"] = "test-key"
 os.environ["GOOGLE_API_KEY"] = "test-api-key"
 
 from backend.database.db_manager import DatabaseManager

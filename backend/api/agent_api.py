@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from backend.agents.orchestrator import AgentSessionManager
 from backend.agents.config_models import SessionConfig
 from backend.services.session_manager import ThreadSafeSessionRegistry
-from backend.api.auth_api import get_current_user
+from backend.api.auth_api import get_current_user, get_current_user_optional
 from backend.config import get_logger
 
 logger = get_logger(__name__)
@@ -107,26 +107,29 @@ def create_agent_api(app):
     async def create_session(
         start_request: InterviewStartRequest,
         session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry),
-        current_user: Dict[str, Any] = Depends(get_current_user)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
     ):
         """
         Create a new interview session with configuration.
         Returns a session ID that must be used in subsequent requests.
         
-        Requires authentication.
+        Authentication is optional - anonymous users can create sessions.
         """
-        logger.info(f"Creating new session with config: {start_request.dict()}")
+        user_id = current_user["id"] if current_user else None
+        user_email = current_user["email"] if current_user else "anonymous"
+        
+        logger.info(f"Creating new session for user: {user_email} with config: {start_request.dict()}")
         try:
             # Create SessionConfig from request
             config = SessionConfig(**start_request.dict(exclude_unset=True))
             
-            # Create new session with user ID
+            # Create new session with optional user ID
             session_id = await session_registry.create_new_session(
-                user_id=current_user["id"],
+                user_id=user_id,
                 initial_config=config
             )
             
-            logger.info(f"Created new session: {session_id}")
+            logger.info(f"Created new session: {session_id} for user: {user_email}")
             return SessionResponse(
                 session_id=session_id,
                 message=f"Session created for role: {config.job_role}"
@@ -140,13 +143,14 @@ def create_agent_api(app):
     async def start_interview(
         start_request: InterviewStartRequest,
         session_manager: AgentSessionManager = Depends(get_session_manager),
-        current_user: Dict[str, Any] = Depends(get_current_user)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
     ):
         """
         Configure an existing session and reset its state.
-        Requires X-Session-ID header and authentication.
+        Requires X-Session-ID header. Authentication is optional.
         """
-        logger.info(f"Configuring session {session_manager.session_id} with: {start_request.dict()}")
+        user_email = current_user["email"] if current_user else "anonymous"
+        logger.info(f"Configuring session {session_manager.session_id} for user: {user_email} with: {start_request.dict()}")
         try:
             # Create new SessionConfig from request
             new_config = SessionConfig(**start_request.dict(exclude_unset=True))
@@ -172,13 +176,14 @@ def create_agent_api(app):
     async def post_message(
         user_input: UserInput,
         session_manager: AgentSessionManager = Depends(get_session_manager),
-        current_user: Dict[str, Any] = Depends(get_current_user)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
     ):
         """
         Send a user message to the interview session.
-        Requires X-Session-ID header and authentication.
+        Requires X-Session-ID header. Authentication is optional.
         """
-        logger.info(f"Session {session_manager.session_id} received message: '{user_input.message[:50]}...'")
+        user_email = current_user["email"] if current_user else "anonymous"
+        logger.info(f"Session {session_manager.session_id} received message from {user_email}: '{user_input.message[:50]}...'")
         try:
             interviewer_response_dict = session_manager.process_message(message=user_input.message)
             logger.info(f"Session {session_manager.session_id} generated response")
@@ -191,13 +196,14 @@ def create_agent_api(app):
     @router.post("/end", response_model=EndResponse)
     async def end_interview(
         session_manager: AgentSessionManager = Depends(get_session_manager),
-        current_user: Dict[str, Any] = Depends(get_current_user)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
     ):
         """
         End the interview session and retrieve final results.
-        Requires X-Session-ID header and authentication.
+        Requires X-Session-ID header. Authentication is optional.
         """
-        logger.info(f"Ending session {session_manager.session_id}")
+        user_email = current_user["email"] if current_user else "anonymous"
+        logger.info(f"Ending session {session_manager.session_id} for user: {user_email}")
         try:
             final_session_results = session_manager.end_interview()
             logger.info(f"Session {session_manager.session_id} ended with results")
@@ -214,13 +220,14 @@ def create_agent_api(app):
     @router.get("/history", response_model=HistoryResponse)
     async def get_history(
         session_manager: AgentSessionManager = Depends(get_session_manager),
-        current_user: Dict[str, Any] = Depends(get_current_user)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
     ):
         """
         Get conversation history for the session.
-        Requires X-Session-ID header and authentication.
+        Requires X-Session-ID header. Authentication is optional.
         """
-        logger.info(f"Getting history for session {session_manager.session_id}")
+        user_email = current_user["email"] if current_user else "anonymous"
+        logger.info(f"Getting history for session {session_manager.session_id} for user: {user_email}")
         try:
             return HistoryResponse(
                 history=session_manager.get_conversation_history()
@@ -233,13 +240,14 @@ def create_agent_api(app):
     @router.get("/stats", response_model=StatsResponse)
     async def get_stats(
         session_manager: AgentSessionManager = Depends(get_session_manager),
-        current_user: Dict[str, Any] = Depends(get_current_user)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
     ):
         """
         Get statistics for the session.
-        Requires X-Session-ID header and authentication.
+        Requires X-Session-ID header. Authentication is optional.
         """
-        logger.info(f"Getting stats for session {session_manager.session_id}")
+        user_email = current_user["email"] if current_user else "anonymous"
+        logger.info(f"Getting stats for session {session_manager.session_id} for user: {user_email}")
         try:
             return StatsResponse(
                 stats=session_manager.get_session_stats()
@@ -252,13 +260,14 @@ def create_agent_api(app):
     @router.post("/reset", response_model=ResetResponse)
     async def reset_interview(
         session_manager: AgentSessionManager = Depends(get_session_manager),
-        current_user: Dict[str, Any] = Depends(get_current_user)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
     ):
         """
         Reset the session state.
-        Requires X-Session-ID header and authentication.
+        Requires X-Session-ID header. Authentication is optional.
         """
-        logger.info(f"Resetting session {session_manager.session_id}")
+        user_email = current_user["email"] if current_user else "anonymous"
+        logger.info(f"Resetting session {session_manager.session_id} for user: {user_email}")
         try:
             session_manager.reset_session()
             logger.info(f"Session {session_manager.session_id} reset")

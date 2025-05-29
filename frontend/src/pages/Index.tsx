@@ -6,7 +6,9 @@ import InterviewSession from '@/components/InterviewSession';
 import InterviewResults from '@/components/InterviewResults';
 import PerTurnFeedbackReview from '@/components/PerTurnFeedbackReview';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, Sparkles, Zap, BarChart3, Bot, Github, Linkedin, Twitter, Mail } from 'lucide-react';
+import { ChevronDown, Sparkles, Zap, BarChart3, Bot, Github, Linkedin, Twitter, Mail, Save, History, Award, Users } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import AuthModal from '@/components/AuthModal';
 
 const Index = () => {
   const { 
@@ -121,6 +123,118 @@ const Index = () => {
           </div>
         </div>
       </footer>
+    );
+  };
+
+  // Render signup benefits section
+  const renderSignupBenefits = () => {
+    const { user } = useAuth();
+    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+    const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('register');
+
+    if (user || state !== 'configuring') return null;
+
+    const handleSignUpClick = () => {
+      setAuthModalMode('register');
+      setIsAuthModalOpen(true);
+    };
+
+    const handleSignInClick = () => {
+      setAuthModalMode('login');
+      setIsAuthModalOpen(true);
+    };
+
+    return (
+      <>
+        <section className="py-20 border-t border-white/10 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-900/10 to-cyan-900/10"></div>
+          <div className="container mx-auto px-4 relative z-10">
+            <div className="max-w-4xl mx-auto text-center">
+              <div className="mb-8">
+                <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
+                  Want to Save Your Progress?
+                </h2>
+                <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+                  Create a free account to unlock powerful features and track your interview improvements over time.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+                <div className="glass-effect p-6 rounded-xl hover:border-cyan-500/20 hover:shadow-cyan-500/10 transition-all duration-300">
+                  <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Save className="h-6 w-6 text-white" />
+                  </div>
+                  <h3 className="font-bold text-lg text-gray-200 mb-3">Save Your Sessions</h3>
+                  <p className="text-gray-400">
+                    Keep track of all your practice sessions and never lose your progress. Resume where you left off.
+                  </p>
+                </div>
+
+                <div className="glass-effect p-6 rounded-xl hover:border-purple-500/20 hover:shadow-purple-500/10 transition-all duration-300">
+                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <History className="h-6 w-6 text-white" />
+                  </div>
+                  <h3 className="font-bold text-lg text-gray-200 mb-3">View History</h3>
+                  <p className="text-gray-400">
+                    Access your complete interview history and see how you've improved over time with detailed analytics.
+                  </p>
+                </div>
+
+                <div className="glass-effect p-6 rounded-xl hover:border-pink-500/20 hover:shadow-pink-500/10 transition-all duration-300">
+                  <div className="w-12 h-12 bg-gradient-to-r from-pink-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Award className="h-6 w-6 text-white" />
+                  </div>
+                  <h3 className="font-bold text-lg text-gray-200 mb-3">Performance Tracking</h3>
+                  <p className="text-gray-400">
+                    Get detailed insights into your strengths and areas for improvement with comprehensive feedback reports.
+                  </p>
+                </div>
+              </div>
+
+              <div className="glass-effect p-8 rounded-2xl bg-gradient-to-r from-cyan-500/10 to-purple-600/10 border border-cyan-500/20">
+                <h3 className="text-2xl font-bold mb-4 text-white">Ready to Level Up Your Interview Game?</h3>
+                <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
+                  Join thousands of professionals who've improved their interview skills with our AI-powered platform. 
+                  It's <strong>completely free</strong> and takes less than 30 seconds to get started.
+                </p>
+                
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                  <Button 
+                    onClick={handleSignUpClick}
+                    size="lg"
+                    className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white shadow-lg hover:shadow-purple-500/20 text-lg group font-medium btn-ripple"
+                  >
+                    <Users className="mr-2 h-5 w-5" />
+                    Create Free Account
+                    <Sparkles className="ml-2 h-5 w-5 group-hover:animate-pulse-slow" />
+                  </Button>
+                  
+                  <span className="text-gray-400">or</span>
+                  
+                  <Button 
+                    onClick={handleSignInClick}
+                    variant="outline"
+                    size="lg"
+                    className="border-white/10 bg-black/20 hover:bg-white/10 text-gray-300 hover:text-white hover:border-cyan-500/30 text-lg font-medium"
+                  >
+                    Sign In
+                  </Button>
+                </div>
+                
+                <p className="text-sm text-gray-500 mt-4">
+                  No credit card required • Free forever • Start practicing immediately
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          initialMode={authModalMode}
+        />
+      </>
     );
   };
 
@@ -246,6 +360,7 @@ const Index = () => {
             </div>
             
             {renderFooter()}
+            {renderSignupBenefits()}
           </>
         )}
         

@@ -14,12 +14,14 @@ from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Form, WebSocket, Depends, Header
 from fastapi.responses import JSONResponse
 import httpx
+from pydantic import BaseModel, Field
 
 from .speech.stt_service import STTService
 from .speech.tts_service import TTSService
 from backend.database.db_manager import DatabaseManager
 from backend.services.rate_limiting import get_rate_limiter
 from backend.services.session_manager import ThreadSafeSessionRegistry
+from backend.api.auth_api import get_current_user_optional
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +39,10 @@ async def get_database_manager() -> DatabaseManager:
     return get_database_manager()
 
 
-async def get_session_id_from_header(
+async def get_session_id_from_header_optional(
     session_id: Optional[str] = Header(None, alias="X-Session-ID")
-) -> str:
-    """Extract session ID from header for speech tasks."""
-    if not session_id:
-        raise HTTPException(
-            status_code=400,
-            detail="Session ID required in X-Session-ID header for speech operations"
-        )
+) -> Optional[str]:
+    """Extract session ID from header for speech tasks (optional)."""
     return session_id
 
 
@@ -229,35 +226,48 @@ async def speech_to_text(
     background_tasks: BackgroundTasks,
     audio_file: UploadFile = File(...),
     language: str = Form("en-US"),
-    session_id: str = Depends(get_session_id_from_header),
-    db_manager: DatabaseManager = Depends(get_database_manager)
+    session_id: Optional[str] = Depends(get_session_id_from_header_optional),
+    db_manager: DatabaseManager = Depends(get_database_manager),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
 ):
     """
     Convert uploaded audio file to text using AssemblyAI with session-aware task management.
+    Authentication and session ID are optional.
     
     Args:
         audio_file: Audio file to transcribe
         language: Language code for transcription
-        session_id: Session ID from header
+        session_id: Optional session ID from header
         
     Returns:
         Task ID for checking transcription status
     """
+    user_email = current_user["email"] if current_user else "anonymous"
+    
     # Check if AssemblyAI service is available
     if not rate_limiter.is_api_available('assemblyai'):
         raise HTTPException(
             status_code=429,
-            detail="Speech-to-text service temporarily unavailable due to high demand. Please try again later."
+            detail="AssemblyAI service temporarily unavailable. Please try again later."
         )
     
     try:
-        # Create speech task in database
-        task_id = await db_manager.create_speech_task(session_id, "stt_batch")
+        task_id = str(uuid.uuid4())
+        logger.info(f"Starting transcription task {task_id} for user: {user_email}")
+        
+        # Create task in database (with or without session)
+        await db_manager.create_speech_task(
+            task_id=task_id,
+            user_id=current_user["id"] if current_user else None,
+            session_id=session_id,
+            task_type="transcription",
+            status="created"
+        )
         
         # Save uploaded file temporarily
+        temp_file_path = None
         with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
-            content = await audio_file.read()
-            temp_file.write(content)
+            temp_file.write(await audio_file.read())
             temp_file_path = temp_file.name
         
         # Start background transcription
@@ -284,32 +294,37 @@ async def speech_to_text(
 @router.get("/api/speech-to-text/status/{task_id}")
 async def check_transcription_status(
     task_id: str,
-    session_id: str = Depends(get_session_id_from_header),
-    db_manager: DatabaseManager = Depends(get_database_manager)
+    session_id: Optional[str] = Depends(get_session_id_from_header_optional),
+    db_manager: DatabaseManager = Depends(get_database_manager),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
 ):
     """
     Check the status of a transcription task.
+    Authentication and session ID are optional.
     
     Args:
         task_id: Task identifier
-        session_id: Session ID from header
+        session_id: Optional session ID from header
         
     Returns:
         Task status and results
     """
+    user_email = current_user["email"] if current_user else "anonymous"
+    
     try:
         task_data = await db_manager.get_speech_task(task_id)
         
         if not task_data:
             raise HTTPException(status_code=404, detail="Task not found")
         
-        # Verify task belongs to the session
-        if task_data.get("session_id") != session_id:
-            raise HTTPException(status_code=403, detail="Task does not belong to this session")
+        # Optional session verification - only check if session_id is provided
+        if session_id and task_data.get("session_id") != session_id:
+            logger.warning(f"Session mismatch for task {task_id}: provided {session_id}, stored {task_data.get('session_id')}")
+            # For now, allow access but log the mismatch
         
         response = {
             "task_id": task_id,
-            "session_id": session_id,
+            "session_id": task_data.get("session_id"),
             "status": task_data.get("status", "unknown"),
             "created_at": task_data.get("created_at"),
             "updated_at": task_data.get("updated_at")
@@ -397,5 +412,86 @@ async def get_speech_usage_stats():
 
 def create_speech_api(app):
     """Creates and registers speech API routes."""
+    router = APIRouter(prefix="/speech", tags=["speech"])
+
+    @router.post("/start-task", response_model=SpeechTaskResponse)
+    async def start_speech_task(
+        task_request: SpeechTaskRequest,
+        db_manager: DatabaseManager = Depends(get_database_manager),
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    ):
+        """
+        Start a new speech processing task.
+        Authentication is optional - anonymous users can use speech features.
+        """
+        user_id = current_user["id"] if current_user else None
+        user_email = current_user["email"] if current_user else "anonymous"
+        
+        try:
+            logger.info(f"Starting speech task for user: {user_email}")
+            task_id = await db_manager.create_speech_task(
+                user_id=user_id,
+                audio_data=task_request.audio_data,
+                task_type=task_request.task_type,
+                metadata=task_request.metadata
+            )
+            return SpeechTaskResponse(task_id=task_id, status="created")
+        except Exception as e:
+            logger.exception(f"Error creating speech task: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to create speech task: {e}")
+
+    @router.get("/task/{task_id}", response_model=SpeechTaskStatusResponse)
+    async def get_speech_task_status(
+        task_id: str,
+        db_manager: DatabaseManager = Depends(get_database_manager),
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    ):
+        """
+        Get the status of a speech processing task.
+        Authentication is optional.
+        """
+        user_email = current_user["email"] if current_user else "anonymous"
+        try:
+            logger.info(f"Getting speech task {task_id} status for user: {user_email}")
+            task_data = await db_manager.get_speech_task(task_id)
+            if not task_data:
+                raise HTTPException(status_code=404, detail="Speech task not found")
+            
+            return SpeechTaskStatusResponse(
+                task_id=task_id,
+                status=task_data.get("status", "unknown"),
+                result=task_data.get("result"),
+                error=task_data.get("error"),
+                created_at=task_data.get("created_at"),
+                completed_at=task_data.get("completed_at")
+            )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Error getting speech task status: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to get task status: {e}")
+
     app.include_router(router)
-    logger.info("Speech API routes registered with session support and rate limiting") 
+    logger.info("Speech API routes registered")
+
+
+# Pydantic models for speech tasks
+class SpeechTaskRequest(BaseModel):
+    """Request model for starting a speech task."""
+    audio_data: str = Field(..., description="Base64 encoded audio data")
+    task_type: str = Field("transcription", description="Type of speech task")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional task metadata")
+
+class SpeechTaskResponse(BaseModel):
+    """Response model for speech task creation."""
+    task_id: str = Field(..., description="Unique task identifier")
+    status: str = Field(..., description="Task status")
+
+class SpeechTaskStatusResponse(BaseModel):
+    """Response model for speech task status."""
+    task_id: str = Field(..., description="Unique task identifier")
+    status: str = Field(..., description="Task status")
+    result: Optional[Dict[str, Any]] = Field(None, description="Task result data")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    created_at: Optional[str] = Field(None, description="Task creation timestamp")
+    completed_at: Optional[str] = Field(None, description="Task completion timestamp") 
