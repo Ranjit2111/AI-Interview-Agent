@@ -19,15 +19,15 @@ class APIRateLimiter:
     """
     
     def __init__(self):
-        # Lazy initialization - create semaphores on first use to avoid event loop issues
-        self._assemblyai_semaphore: Optional[asyncio.Semaphore] = None
-        self._polly_semaphore: Optional[asyncio.Semaphore] = None
-        self._deepgram_semaphore: Optional[asyncio.Semaphore] = None
-        
         # API concurrency limits based on free tier documentation
         self.assemblyai_limit = 5  # 5 concurrent transcriptions
         self.polly_limit = 26      # 26 concurrent generative voice requests
         self.deepgram_limit = 10   # Conservative limit for streaming connections
+        
+        # Initialize semaphores directly
+        self.assemblyai_semaphore = asyncio.Semaphore(self.assemblyai_limit)
+        self.polly_semaphore = asyncio.Semaphore(self.polly_limit)
+        self.deepgram_semaphore = asyncio.Semaphore(self.deepgram_limit)
         
         # Rate limiting metrics
         self.api_usage_stats = {
@@ -36,32 +36,7 @@ class APIRateLimiter:
             'deepgram': {'active': 0, 'total_requests': 0, 'errors': 0}
         }
         
-        try:
-            logger.info("APIRateLimiter initialized with limits: AssemblyAI=5, Polly=26, Deepgram=10")
-        except Exception:
-            # Ignore logging errors during initialization
-            pass
-    
-    @property
-    def assemblyai_semaphore(self) -> asyncio.Semaphore:
-        """Get or create AssemblyAI semaphore."""
-        if self._assemblyai_semaphore is None:
-            self._assemblyai_semaphore = asyncio.Semaphore(self.assemblyai_limit)
-        return self._assemblyai_semaphore
-    
-    @property
-    def polly_semaphore(self) -> asyncio.Semaphore:
-        """Get or create Polly semaphore."""
-        if self._polly_semaphore is None:
-            self._polly_semaphore = asyncio.Semaphore(self.polly_limit)
-        return self._polly_semaphore
-    
-    @property
-    def deepgram_semaphore(self) -> asyncio.Semaphore:
-        """Get or create Deepgram semaphore."""
-        if self._deepgram_semaphore is None:
-            self._deepgram_semaphore = asyncio.Semaphore(self.deepgram_limit)
-        return self._deepgram_semaphore
+        logger.info("APIRateLimiter initialized with limits: AssemblyAI=5, Polly=26, Deepgram=10")
     
     async def acquire_assemblyai(self) -> bool:
         """
@@ -71,11 +46,16 @@ class APIRateLimiter:
             bool: True if slot acquired successfully
         """
         try:
-            await self.assemblyai_semaphore.acquire()
+            # Use timeout to prevent indefinite hanging in production
+            await asyncio.wait_for(self.assemblyai_semaphore.acquire(), timeout=5.0)
             self.api_usage_stats['assemblyai']['active'] += 1
             self.api_usage_stats['assemblyai']['total_requests'] += 1
             logger.debug(f"AssemblyAI slot acquired. Active: {self.api_usage_stats['assemblyai']['active']}")
             return True
+        except asyncio.TimeoutError:
+            logger.warning("AssemblyAI service unavailable - all slots occupied")
+            self.api_usage_stats['assemblyai']['errors'] += 1
+            return False
         except Exception as e:
             logger.error(f"Failed to acquire AssemblyAI slot: {e}")
             self.api_usage_stats['assemblyai']['errors'] += 1
@@ -98,11 +78,16 @@ class APIRateLimiter:
             bool: True if slot acquired successfully
         """
         try:
-            await self.polly_semaphore.acquire()
+            # Use timeout to prevent indefinite hanging in production
+            await asyncio.wait_for(self.polly_semaphore.acquire(), timeout=5.0)
             self.api_usage_stats['polly']['active'] += 1
             self.api_usage_stats['polly']['total_requests'] += 1
             logger.debug(f"Polly slot acquired. Active: {self.api_usage_stats['polly']['active']}")
             return True
+        except asyncio.TimeoutError:
+            logger.warning("Polly service unavailable - all slots occupied")
+            self.api_usage_stats['polly']['errors'] += 1
+            return False
         except Exception as e:
             logger.error(f"Failed to acquire Polly slot: {e}")
             self.api_usage_stats['polly']['errors'] += 1
@@ -125,11 +110,16 @@ class APIRateLimiter:
             bool: True if slot acquired successfully
         """
         try:
-            await self.deepgram_semaphore.acquire()
+            # Use timeout to prevent indefinite hanging in production
+            await asyncio.wait_for(self.deepgram_semaphore.acquire(), timeout=5.0)
             self.api_usage_stats['deepgram']['active'] += 1
             self.api_usage_stats['deepgram']['total_requests'] += 1
             logger.debug(f"Deepgram slot acquired. Active: {self.api_usage_stats['deepgram']['active']}")
             return True
+        except asyncio.TimeoutError:
+            logger.warning("Deepgram service unavailable - all slots occupied")
+            self.api_usage_stats['deepgram']['errors'] += 1
+            return False
         except Exception as e:
             logger.error(f"Failed to acquire Deepgram slot: {e}")
             self.api_usage_stats['deepgram']['errors'] += 1
@@ -200,5 +190,6 @@ def get_rate_limiter() -> APIRateLimiter:
     """Get the global rate limiter instance."""
     global _rate_limiter
     if _rate_limiter is None:
+        logger.debug("Creating global rate limiter instance")
         _rate_limiter = APIRateLimiter()
     return _rate_limiter
