@@ -1,7 +1,7 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Sparkles, Zap, Bot, BarChart3, Code, Github } from 'lucide-react';
+import { Sparkles, Zap, Bot, BarChart3, Code, Github, LogOut, User } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface HeaderProps {
   onReset?: () => void;
@@ -9,6 +9,16 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
+  const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
   return (
     <header className="relative z-10 bg-black/40 backdrop-blur-lg border-b border-white/10 py-4 shadow-lg">
       <div className="container mx-auto flex items-center justify-between px-4">
@@ -68,7 +78,26 @@ const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
           </div>
         </div>
         
-        <div>
+        <div className="flex items-center gap-4">
+          {/* User info and logout */}
+          {user && (
+            <div className="flex items-center gap-3">
+              <div className="glass-effect rounded-xl px-3 py-2 flex items-center gap-2">
+                <User className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-300">{user.email}</span>
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={handleLogout}
+                className="border-white/10 bg-black/20 hover:bg-red-900/20 hover:border-red-500/50 text-gray-300 hover:text-red-300 transition-all duration-300"
+              >
+                <LogOut className="h-4 w-4 mr-1" />
+                Logout
+              </Button>
+            </div>
+          )}
+          
           {showReset && (
             <Button 
               variant="outline" 

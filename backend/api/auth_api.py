@@ -66,10 +66,16 @@ async def get_current_user(
         HTTPException: If token is invalid or expired
     """
     try:
-        # Get Supabase JWT secret
+        # Get JWT secret - check for mock mode first
         jwt_secret = os.environ.get("SUPABASE_JWT_SECRET")
         if not jwt_secret:
-            raise HTTPException(status_code=500, detail="JWT secret not configured")
+            # Check if we're in mock mode
+            use_mock_auth = os.environ.get("USE_MOCK_AUTH", "false").lower() == "true"
+            if use_mock_auth:
+                # Use mock secret for development
+                jwt_secret = "development_secret_key_not_for_production"
+            else:
+                raise HTTPException(status_code=500, detail="JWT secret not configured")
         
         # Decode token
         payload = jwt.decode(
