@@ -24,7 +24,6 @@ class ConnectionManager:
     def disconnect(self, connection_id: str):
         """Remove a WebSocket connection."""
         if connection_id in self.active_connections:
-            # Don't need to close explicitly as FastAPI handles this
             del self.active_connections[connection_id]
             logger.info(f"WebSocket connection {connection_id} closed")
 

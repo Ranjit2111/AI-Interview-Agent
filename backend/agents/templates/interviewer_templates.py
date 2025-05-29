@@ -170,7 +170,6 @@ Contains all the template configurations for generating generic interview questi
 from typing import Dict, List
 from backend.agents.config_models import InterviewStyle
 
-# Question templates organized by interview style
 QUESTION_TEMPLATES: Dict[InterviewStyle, List[str]] = {
     InterviewStyle.FORMAL: [
         "Can you describe your experience with {technology}?",

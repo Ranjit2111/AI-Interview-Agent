@@ -46,6 +46,10 @@ class DeepgramEventHandlers:
             if sentence and (is_final or len(sentence) > 10):
                 logger.debug(f"Transcript: '{sentence}' (Final: {is_final})")
             
+            # Log final transcripts for debugging
+            if sentence and is_final:
+                logger.info(f"Final transcript received: '{sentence}'")
+            
             # Queue the transcription results to be sent to the client
             if sentence is not None:  # Send even empty strings to maintain flow
                 self._queue_message({

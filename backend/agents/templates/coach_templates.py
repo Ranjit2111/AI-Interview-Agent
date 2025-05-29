@@ -47,10 +47,9 @@ If the question was behavioral, you might touch upon how well they structured th
 Return your feedback as a single block of text. Do NOT use JSON or any structured formatting like lists or explicit dimension names.
 
 Example (this is just a conceptual example, your actual feedback will be based on the inputs):
-'Okay, thanks for sharing that. I think you started off really strong by clearly stating the situation. The way you described your actions was also quite good and easy to follow. One thing to consider for next time is perhaps to be a bit more concise when you're setting up the initial context – I felt we could have gotten to your specific actions a little quicker. Also, while you mentioned the positive outcome, adding a specific metric or a more concrete result could really make that landing even more impactful. Overall, a solid answer, just a couple of tweaks to make it even better!'
+'I think you started off really strong by clearly stating the situation. The way you described your actions was also quite good and easy to follow. One thing to consider for next time is perhaps to be a bit more concise when you're setting up the initial context – I felt we could have gotten to your specific actions a little quicker. Also, while you mentioned the positive outcome, adding a specific metric or a more concrete result could really make that landing even more impactful. Overall, a solid answer, just a couple of tweaks to make it even better!'
 """
 
-# Template for generating the final summary
 FINAL_SUMMARY_TEMPLATE = """
 You are an expert Interview Coach providing a final summary of a candidate's performance after an entire interview session.
 Your goal is to provide holistic feedback, identify patterns, and suggest actionable steps for improvement.
@@ -107,11 +106,10 @@ Example:
     "strengths": "A key strength was your ability to... For example, in Q2...",
     "weaknesses": "One area for development is... This was evident when...",
     "improvement_focus_areas": "Based on this session, I recommend focusing on: 1. Quantifying results... 2. Structuring behavioral answers...",
-    "resource_search_topics": ["how to effectively use STAR method", "improve interview answer conciseness"]
+    "resource_search_topics": ["how to optimise SQL queries", "improve interview answer conciseness", "langchain tutorial for chatbot and RAG"]
 }}
 """
 
-# __all__ for explicit exports, if needed by an importer using "from .coach_templates import *"
 __all__ = [
     'EVALUATE_ANSWER_TEMPLATE',
     'FINAL_SUMMARY_TEMPLATE'
