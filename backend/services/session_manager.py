@@ -96,15 +96,13 @@ class ThreadSafeSessionRegistry:
         # Convert SessionConfig to dict if provided
         config_dict = None
         if initial_config:
-            # DEBUG: Log to verify our fix is being used
-            logger.info(f"🔧 SESSION_MANAGER_FIX: Serializing SessionConfig with model_dump(mode='json')")
-            logger.info(f"🔧 SessionConfig type: {type(initial_config)}")
-            logger.info(f"🔧 SessionConfig style: {getattr(initial_config, 'style', 'N/A')} (type: {type(getattr(initial_config, 'style', None))})")
+            # FIXED: Manually convert enums to strings since Pydantic v2 model_dump(mode='json') doesn't work properly for enums
+            config_dict = initial_config.model_dump() if hasattr(initial_config, 'model_dump') else vars(initial_config)
             
-            # Use mode='json' to properly serialize enums to their values
-            config_dict = initial_config.model_dump(mode='json') if hasattr(initial_config, 'model_dump') else vars(initial_config)
-            
-            logger.info(f"🔧 Serialized config_dict style: {config_dict.get('style', 'N/A')} (type: {type(config_dict.get('style'))})")
+            # Manually convert enum values to strings for JSON serialization
+            for key, value in config_dict.items():
+                if hasattr(value, 'value'):  # This is an enum
+                    config_dict[key] = value.value
         
         # Create session in database
         session_id = await self.db_manager.create_session(

@@ -46,8 +46,13 @@ class AgentSessionManager:
         self._agents: Dict[str, BaseAgent] = {}
 
         # Publish session start event
-        config_dict = self.session_config.model_dump(mode='json') if hasattr(self.session_config, 'model_dump') else vars(self.session_config)
+        config_dict = self.session_config.model_dump() if hasattr(self.session_config, 'model_dump') else vars(self.session_config)
         if config_dict:
+            # Manually convert enum values to strings for JSON serialization
+            for key, value in config_dict.items():
+                if hasattr(value, 'value'):  # This is an enum
+                    config_dict[key] = value.value
+                    
             self.event_bus.publish(Event(
                 event_type=EventType.SESSION_START, 
                 source='AgentSessionManager', 
@@ -403,9 +408,17 @@ class AgentSessionManager:
         Returns:
             Dict: Serialized session state
         """
+        # Serialize session config and manually convert enums to strings
+        session_config_dict = self.session_config.model_dump() if hasattr(self.session_config, 'model_dump') else vars(self.session_config)
+        
+        # Manually convert enum values to strings for JSON serialization
+        for key, value in session_config_dict.items():
+            if hasattr(value, 'value'):  # This is an enum
+                session_config_dict[key] = value.value
+        
         return {
             "session_id": self.session_id,
-            "session_config": self.session_config.model_dump(mode='json') if hasattr(self.session_config, 'model_dump') else vars(self.session_config),
+            "session_config": session_config_dict,
             "conversation_history": self.conversation_history,
             "per_turn_feedback_log": self.per_turn_coaching_feedback_log,
             "session_stats": self.get_session_stats(),
