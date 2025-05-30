@@ -1,5 +1,15 @@
 import { useState } from 'react';
-import { AgentResponse, InterviewStartRequest, api, PerTurnFeedbackItem } from '../services/api';
+import { 
+  AgentResponse, 
+  InterviewStartRequest, 
+  api, 
+  PerTurnFeedbackItem,
+  createSession,
+  startInterview as apiStartInterview,
+  sendMessage as apiSendMessage,
+  endInterview as apiEndInterview,
+  resetInterview as apiResetInterview
+} from '../services/api';
 import { useToast } from '@/hooks/use-toast';
 
 // Define a more specific type for Coach Feedback content if desired
@@ -34,12 +44,21 @@ export function useInterviewSession() {
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<InterviewResults | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const startInterview = async (config: InterviewStartRequest) => {
     try {
       setIsLoading(true);
-      await api.startInterview(config);
+      
+      // Step 1: Create a new session
+      const sessionResponse = await createSession(config);
+      const newSessionId = sessionResponse.session_id;
+      setSessionId(newSessionId);
+      
+      // Step 2: Configure the session (this is now what startInterview does)
+      await apiStartInterview(newSessionId, config);
+      
       setState('interviewing');
       
       // Initialize with empty messages array, the first message will come from the backend
@@ -57,7 +76,7 @@ export function useInterviewSession() {
   };
 
   const sendMessage = async (message: string) => {
-    if (!message.trim()) return;
+    if (!message.trim() || !sessionId) return;
 
     try {
       const userMessage: Message = { 
@@ -70,7 +89,7 @@ export function useInterviewSession() {
       setIsLoading(true);
       
       // Expecting a single AgentResponse from the API now
-      const response: AgentResponse = await api.sendMessage({ message });
+      const response: AgentResponse = await apiSendMessage(sessionId, { message });
       
       const agentMessage: Message = {
         role: response.role as 'assistant', 
@@ -97,9 +116,11 @@ export function useInterviewSession() {
   };
 
   const endInterview = async () => {
+    if (!sessionId) return;
+    
     try {
       setIsLoading(true);
-      const response = await api.endInterview();
+      const response = await apiEndInterview(sessionId);
       
       setResults({
         coachingSummary: response.results,
@@ -122,10 +143,13 @@ export function useInterviewSession() {
 
   const resetInterview = async () => {
     try {
-      await api.resetInterview();
+      if (sessionId) {
+        await apiResetInterview(sessionId);
+      }
       setState('configuring');
       setMessages([]);
       setResults(null);
+      setSessionId(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to reset interview';
       toast({

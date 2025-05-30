@@ -33,13 +33,14 @@ class DatabaseManager:
 
     # === User Authentication Methods ===
 
-    async def register_user(self, email: str, password: str) -> Dict[str, Any]:
+    async def register_user(self, email: str, password: str, name: str) -> Dict[str, Any]:
         """
         Register a new user with Supabase Auth.
         
         Args:
             email: User email
             password: User password
+            name: User full name
             
         Returns:
             Dict: Auth data including tokens and user info
@@ -64,6 +65,7 @@ class DatabaseManager:
             user_record = {
                 "id": user_data.id,
                 "email": email,
+                "name": name,
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
             }
@@ -77,6 +79,7 @@ class DatabaseManager:
                 "user": {
                     "id": user_data.id,
                     "email": email,
+                    "name": name,
                     "created_at": user_record["created_at"]
                 }
             }
@@ -112,6 +115,10 @@ class DatabaseManager:
             if not user_data or not session_data:
                 raise Exception("User login failed - no user or session data returned")
             
+            # Get user's name from our users table
+            user_record = await self.get_user(user_data.id)
+            user_name = user_record.get("name", "") if user_record else ""
+            
             # Format response
             return {
                 "access_token": session_data.access_token,
@@ -119,6 +126,7 @@ class DatabaseManager:
                 "user": {
                     "id": user_data.id,
                     "email": user_data.email,
+                    "name": user_name,
                     "created_at": user_data.created_at
                 }
             }

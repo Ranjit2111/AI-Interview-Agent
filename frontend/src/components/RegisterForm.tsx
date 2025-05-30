@@ -10,6 +10,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -23,10 +24,15 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
       return;
     }
 
+    if (!name.trim()) {
+      alert('Please enter your name');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      await register(email, password);
+      await register(email, password, name.trim());
       onSuccess?.();
     } catch (error) {
       console.error('Registration failed:', error);
@@ -37,6 +43,21 @@ const RegisterForm: React.FC<RegisterFormProps> = ({ onSuccess }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="form-group">
+        <label htmlFor="name" className="block text-sm font-medium text-gray-300 mb-2">
+          Full Name
+        </label>
+        <input
+          type="text"
+          id="name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full px-4 py-3 bg-white bg-opacity-10 border border-white border-opacity-20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+          placeholder="Enter your full name"
+          required
+        />
+      </div>
+
       <div className="form-group">
         <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
           Email

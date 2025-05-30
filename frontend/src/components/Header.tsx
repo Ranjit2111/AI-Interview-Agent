@@ -102,7 +102,7 @@ const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
               <div className="flex items-center gap-3">
                 <div className="glass-effect rounded-xl px-3 py-2 flex items-center gap-2">
                   <User className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm text-gray-300">{user.email}</span>
+                  <span className="text-sm text-gray-300">{user.name || user.email}</span>
                 </div>
                 <Button 
                   variant="outline" 

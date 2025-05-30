@@ -93,7 +93,16 @@ class ServiceRegistry:
         if self._session_registry is None:
             self.logger.info("Creating singleton ThreadSafeSessionRegistry instance...")
             try:
-                self._session_registry = ThreadSafeSessionRegistry()
+                # Get required dependencies
+                db_manager = self.get_database_manager()
+                llm_service = self.get_llm_service()
+                event_bus = self.get_event_bus()
+                
+                self._session_registry = ThreadSafeSessionRegistry(
+                    db_manager=db_manager,
+                    llm_service=llm_service,
+                    event_bus=event_bus
+                )
             except Exception as e:
                 self.logger.exception(f"Failed to create ThreadSafeSessionRegistry: {e}")
                 raise
@@ -175,8 +184,16 @@ def initialize_services() -> None:
             logger.info("Initializing with real DatabaseManager (Supabase)")
             _database_manager = DatabaseManager()
         
-        # Initialize session registry
-        _session_registry = ThreadSafeSessionRegistry()
+        # Create other required services for session registry
+        llm_service = LLMService()
+        event_bus = EventBus()
+        
+        # Initialize session registry with dependencies
+        _session_registry = ThreadSafeSessionRegistry(
+            db_manager=_database_manager,
+            llm_service=llm_service,
+            event_bus=event_bus
+        )
         
         logger.info("Services initialized successfully")
         

@@ -101,10 +101,27 @@ async def startup_event():
 
     try:
         initialize_services() 
-        app.state.agent_manager = get_session_registry()
-        logger.info("SessionRegistry attached to app state.")
+        session_registry = get_session_registry()
+        app.state.agent_manager = session_registry
+        
+        # Add verification logging
+        logger.info(f"SessionRegistry type: {type(session_registry)}")
+        logger.info(f"SessionRegistry has db_manager: {hasattr(session_registry, 'db_manager')}")
+        logger.info(f"SessionRegistry has llm_service: {hasattr(session_registry, 'llm_service')}")
+        logger.info(f"SessionRegistry has event_bus: {hasattr(session_registry, 'event_bus')}")
+        
+        if hasattr(session_registry, 'db_manager'):
+            logger.info(f"DB Manager type: {type(session_registry.db_manager)}")
+        if hasattr(session_registry, 'llm_service'):
+            logger.info(f"LLM Service type: {type(session_registry.llm_service)}")
+        if hasattr(session_registry, 'event_bus'):
+            logger.info(f"Event Bus type: {type(session_registry.event_bus)}")
+            
+        logger.info("SessionRegistry attached to app state with all dependencies verified.")
     except Exception as e:
         logger.error(f"Service initialization failed: {e}")
+        logger.exception("Full startup error details:")
+        raise
 
     logger.info("Application startup completed.")
 

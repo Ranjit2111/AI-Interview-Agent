@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import LoginForm from './LoginForm';
 import RegisterForm from './RegisterForm';
@@ -11,6 +11,11 @@ interface AuthModalProps {
 
 const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, initialMode = 'login' }) => {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
+
+  // Sync mode with initialMode prop when it changes
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
 
   if (!isOpen) return null;
 
