@@ -35,13 +35,14 @@ class MockDatabaseManager:
         }
         return jwt.encode(payload, self.jwt_secret, algorithm="HS256")
     
-    async def register_user(self, email: str, password: str) -> Dict[str, Any]:
+    async def register_user(self, email: str, password: str, name: str) -> Dict[str, Any]:
         """
         Register a new user (mock implementation).
         
         Args:
             email: User email
             password: User password
+            name: User full name
             
         Returns:
             Dict: Auth data including tokens and user info
@@ -60,6 +61,7 @@ class MockDatabaseManager:
             user_data = {
                 "id": user_id,
                 "email": email,
+                "name": name,
                 "password": password,  # In real app, this would be hashed
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
@@ -79,6 +81,7 @@ class MockDatabaseManager:
                 "user": {
                     "id": user_id,
                     "email": email,
+                    "name": name,
                     "created_at": user_data["created_at"]
                 }
             }
@@ -128,6 +131,7 @@ class MockDatabaseManager:
                 "user": {
                     "id": user_data["id"],
                     "email": email,
+                    "name": user_data["name"],
                     "created_at": user_data["created_at"]
                 }
             }
@@ -194,6 +198,7 @@ class MockDatabaseManager:
                 return {
                     "id": user_data["id"],
                     "email": user_data["email"],
+                    "name": user_data["name"],
                     "created_at": user_data["created_at"],
                     "updated_at": user_data["updated_at"]
                 }

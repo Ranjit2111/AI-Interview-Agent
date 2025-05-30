@@ -6,6 +6,7 @@ const Register: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -17,6 +18,12 @@ const Register: React.FC = () => {
     
     // Reset error
     setError(null);
+    
+    // Validate name
+    if (!name.trim()) {
+      setError('Please enter your full name');
+      return;
+    }
     
     // Validate password match
     if (password !== confirmPassword) {
@@ -33,7 +40,7 @@ const Register: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      await register(email, password);
+      await register(email, password, name.trim());
       // Redirect to home page after successful registration
       navigate('/');
     } catch (err: any) {
@@ -51,6 +58,18 @@ const Register: React.FC = () => {
         {error && <div className="error-message">{error}</div>}
         
         <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="name">Full Name</label>
+            <input
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+          
           <div className="form-group">
             <label htmlFor="email">Email</label>
             <input

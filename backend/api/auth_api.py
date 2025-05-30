@@ -22,6 +22,7 @@ class UserRegisterRequest(BaseModel):
     """Request body for user registration."""
     email: EmailStr = Field(..., description="User email address")
     password: str = Field(..., min_length=8, description="User password (min 8 characters)")
+    name: str = Field(..., min_length=1, max_length=100, description="User full name")
 
 class UserLoginRequest(BaseModel):
     """Request body for user login."""
@@ -32,6 +33,7 @@ class UserResponse(BaseModel):
     """Response model for user information."""
     id: str
     email: str
+    name: str
     created_at: Optional[datetime] = None
 
 class AuthTokenResponse(BaseModel):
@@ -187,7 +189,7 @@ def create_auth_api(app):
         db_manager: DatabaseManager = Depends(get_database_manager)
     ):
         """
-        Register a new user with email and password.
+        Register a new user with email, password, and name.
         Creates user account in Supabase auth and local database.
         
         Returns:
@@ -197,7 +199,8 @@ def create_auth_api(app):
             # Register user with Supabase Auth
             auth_data = await db_manager.register_user(
                 email=register_data.email, 
-                password=register_data.password
+                password=register_data.password,
+                name=register_data.name
             )
             
             logger.info(f"User registered successfully: {register_data.email}")
@@ -276,6 +279,7 @@ def create_auth_api(app):
         return UserResponse(
             id=current_user["id"],
             email=current_user["email"],
+            name=current_user["name"],
             created_at=current_user.get("created_at")
         )
 
