@@ -103,7 +103,7 @@ def test_environment_variables() -> Dict[str, Any]:
     """Test if required environment variables are set."""
     try:
         # Check for common environment variables that might be needed
-        required_vars = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_JWT_SECRET"]
+        required_vars = ["SUPABASE_URL", "SUPABASE_SERVICE_KEY", "SUPABASE_JWT_SECRET"]
         missing_vars = []
         present_vars = []
         
