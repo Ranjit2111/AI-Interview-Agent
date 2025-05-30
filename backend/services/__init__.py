@@ -6,22 +6,25 @@ Refactored for multi-session support with database persistence and API rate limi
 
 import os
 import logging
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from backend.utils.event_bus import EventBus
 from backend.services.search_service import SearchService
 from backend.services.llm_service import LLMService
 from backend.database.db_manager import DatabaseManager
 from backend.database.mock_db_manager import MockDatabaseManager
-from backend.services.session_manager import ThreadSafeSessionRegistry
 from backend.services.rate_limiting import APIRateLimiter
 from backend.config import get_logger
+
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from backend.services.session_manager import ThreadSafeSessionRegistry
 
 logger = logging.getLogger(__name__)
 
 # Global instances
 _database_manager: Optional[DatabaseManager] = None
-_session_registry: Optional[ThreadSafeSessionRegistry] = None
+_session_registry: Optional["ThreadSafeSessionRegistry"] = None
 
 class ServiceRegistry:
     """Registry for singleton service instances."""
@@ -31,7 +34,7 @@ class ServiceRegistry:
         self._event_bus: Optional[EventBus] = None
         self._search_service: Optional[SearchService] = None
         self._database_manager: Optional[DatabaseManager] = None
-        self._session_registry: Optional[ThreadSafeSessionRegistry] = None
+        self._session_registry: Optional["ThreadSafeSessionRegistry"] = None
         self._rate_limiter: Optional[APIRateLimiter] = None
         self.logger = get_logger(__name__)
     
@@ -88,9 +91,12 @@ class ServiceRegistry:
             self.logger.info("Singleton DatabaseManager instance created.")
         return self._database_manager
 
-    def get_session_registry(self) -> ThreadSafeSessionRegistry:
+    def get_session_registry(self) -> "ThreadSafeSessionRegistry":
         """Get the singleton ThreadSafeSessionRegistry instance."""
         if self._session_registry is None:
+            # Import here to avoid circular dependency
+            from backend.services.session_manager import ThreadSafeSessionRegistry
+            
             self.logger.info("Creating singleton ThreadSafeSessionRegistry instance...")
             try:
                 # Get required dependencies
@@ -159,7 +165,7 @@ def get_database_manager() -> DatabaseManager:
         raise RuntimeError("Database manager not initialized. Call initialize_services() first.")
     return _database_manager
 
-def get_session_registry() -> ThreadSafeSessionRegistry:
+def get_session_registry() -> "ThreadSafeSessionRegistry":
     """Get the singleton ThreadSafeSessionRegistry instance."""
     if _session_registry is None:
         raise RuntimeError("Session registry not initialized. Call initialize_services() first.")
@@ -172,6 +178,9 @@ def get_rate_limiter() -> APIRateLimiter:
 def initialize_services() -> None:
     """Initialize all application services."""
     global _database_manager, _session_registry
+    
+    # Import here to avoid circular dependency
+    from backend.services.session_manager import ThreadSafeSessionRegistry
     
     try:
         # Determine which database manager to use
