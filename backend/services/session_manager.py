@@ -7,7 +7,6 @@ import asyncio
 import logging
 from typing import Dict, Optional
 from backend.database.db_manager import DatabaseManager
-from backend.agents.orchestrator import AgentSessionManager
 from backend.services.llm_service import LLMService
 from backend.utils.event_bus import EventBus
 from backend.agents.config_models import SessionConfig
@@ -34,12 +33,12 @@ class ThreadSafeSessionRegistry:
         self.db_manager = db_manager
         self.llm_service = llm_service
         self.event_bus = event_bus
-        self._active_sessions: Dict[str, AgentSessionManager] = {}
+        self._active_sessions: Dict[str, "AgentSessionManager"] = {}
         self._session_locks: Dict[str, asyncio.Lock] = {}
         self._registry_lock = asyncio.Lock()
         logger.info("ThreadSafeSessionRegistry initialized")
 
-    async def get_session_manager(self, session_id: str) -> AgentSessionManager:
+    async def get_session_manager(self, session_id: str) -> "AgentSessionManager":
         """
         Get or create session manager for specific session.
         Loads from database if not in memory.
@@ -50,6 +49,9 @@ class ThreadSafeSessionRegistry:
         Returns:
             AgentSessionManager: Session-specific manager instance
         """
+        # Import here to avoid circular dependency
+        from backend.agents.orchestrator import AgentSessionManager
+        
         # Ensure we have a lock for this session
         async with self._registry_lock:
             if session_id not in self._session_locks:
@@ -94,7 +96,15 @@ class ThreadSafeSessionRegistry:
         # Convert SessionConfig to dict if provided
         config_dict = None
         if initial_config:
-            config_dict = initial_config.model_dump() if hasattr(initial_config, 'model_dump') else vars(initial_config)
+            # DEBUG: Log to verify our fix is being used
+            logger.info(f"🔧 SESSION_MANAGER_FIX: Serializing SessionConfig with model_dump(mode='json')")
+            logger.info(f"🔧 SessionConfig type: {type(initial_config)}")
+            logger.info(f"🔧 SessionConfig style: {getattr(initial_config, 'style', 'N/A')} (type: {type(getattr(initial_config, 'style', None))})")
+            
+            # Use mode='json' to properly serialize enums to their values
+            config_dict = initial_config.model_dump(mode='json') if hasattr(initial_config, 'model_dump') else vars(initial_config)
+            
+            logger.info(f"🔧 Serialized config_dict style: {config_dict.get('style', 'N/A')} (type: {type(config_dict.get('style'))})")
         
         # Create session in database
         session_id = await self.db_manager.create_session(

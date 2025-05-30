@@ -461,7 +461,7 @@ TIME AWARENESS:
         """Handle initialization phase."""
         # Update configuration from context first
         if context.session_config:
-            config_dict = context.session_config.dict() if hasattr(context.session_config, 'dict') else vars(context.session_config)
+            config_dict = context.session_config.model_dump(mode='json') if hasattr(context.session_config, 'model_dump') else vars(context.session_config)
             self._update_config_from_event(Event(
                 event_type=EventType.SESSION_START,
                 source=self.__class__.__name__,
