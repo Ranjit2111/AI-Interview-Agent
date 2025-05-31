@@ -70,30 +70,6 @@ const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
                 <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Skill Analytics</span>
               </div>
             </div>
-            
-            {/* Add animated stats for the top right */}
-            <div className="hidden md:block glass-effect rounded-xl px-4 py-2 border border-purple-500/20">
-              <div className="flex items-center gap-6">
-                <div className="text-center">
-                  <div className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent animate-pulse-slow">
-                    500+
-                  </div>
-                  <div className="text-xs text-gray-400">Questions</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent animate-pulse-slow animation-delay-500">
-                    24/7
-                  </div>
-                  <div className="text-xs text-gray-400">Support</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold bg-gradient-to-r from-pink-400 to-cyan-400 bg-clip-text text-transparent animate-pulse-slow animation-delay-1000">
-                    99%
-                  </div>
-                  <div className="text-xs text-gray-400">Success Rate</div>
-                </div>
-              </div>
-            </div>
           </div>
           
           <div className="flex items-center gap-4">
