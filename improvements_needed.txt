@@ -23,9 +23,3 @@ Done:
 Done 
 - Removed document_generator file and its references from the codebase 
 - Removed tests folder
-
-
-
-
-NEW:
-- remove mock_db_manager, run-with-mock-auth and their coressponding references in auth_api.py and services.__init__.py
