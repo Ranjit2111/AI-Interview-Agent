@@ -70,3 +70,5 @@ backend/temp/
 
 # Tailwind CSS
 *.css 
+
+browser-tools-screenshots/

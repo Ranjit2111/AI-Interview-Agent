@@ -139,14 +139,14 @@ def create_agent_api(app):
             logger.exception(f"Error creating session: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to create session: {e}")
 
-    @router.post("/start", response_model=ResetResponse)
+    @router.post("/start", response_model=AgentResponse)
     async def start_interview(
         start_request: InterviewStartRequest,
         session_manager: AgentSessionManager = Depends(get_session_manager),
         current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
     ):
         """
-        Configure an existing session and reset its state.
+        Configure an existing session, reset its state, and return the initial introduction message.
         Requires X-Session-ID header. Authentication is optional.
         """
         user_email = current_user["email"] if current_user else "anonymous"
@@ -163,10 +163,19 @@ def create_agent_api(app):
             session_manager.reset_session()
             logger.info("Session state reset.")
 
-            return ResetResponse(
-                message=f"Session configured and reset for role: {new_config.job_role}",
-                session_id=session_manager.session_id
-            )
+            # Get the initial introduction message from the interviewer agent
+            # Pass empty message to trigger initialization/introduction phase
+            initial_response = session_manager.process_message(message="")
+            logger.info(f"Generated initial introduction for session {session_manager.session_id}")
+            
+            # Debug: Log the response structure 
+            logger.info(f"🔍 DEBUG - Initial response structure: {initial_response}")
+            logger.info(f"🔍 DEBUG - Response type: {type(initial_response)}")
+            logger.info(f"🔍 DEBUG - Response keys: {list(initial_response.keys()) if isinstance(initial_response, dict) else 'Not a dict'}")
+            logger.info(f"🔍 DEBUG - Content value: {initial_response.get('content', 'NO CONTENT FIELD')}")
+            logger.info(f"🔍 DEBUG - Content type: {type(initial_response.get('content', None))}")
+
+            return initial_response
 
         except Exception as e:
             logger.exception(f"Error configuring session: {e}")

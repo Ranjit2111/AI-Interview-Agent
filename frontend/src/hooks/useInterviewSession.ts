@@ -50,26 +50,60 @@ export function useInterviewSession() {
   const startInterview = async (config: InterviewStartRequest) => {
     try {
       setIsLoading(true);
+      console.log('🚀 Starting interview with config:', config);
       
       // Step 1: Create a new session
+      console.log('📝 Step 1: Creating session...');
       const sessionResponse = await createSession(config);
       const newSessionId = sessionResponse.session_id;
       setSessionId(newSessionId);
+      console.log('✅ Session created:', newSessionId);
       
-      // Step 2: Configure the session (this is now what startInterview does)
-      await apiStartInterview(newSessionId, config);
+      // Step 2: Start the interview and get the initial introduction message
+      console.log('🎬 Step 2: Starting interview and getting introduction...');
+      const introResponse = await apiStartInterview(newSessionId, config);
+      console.log('📨 Received intro response:', introResponse);
+      
+      if (!introResponse || !introResponse.content) {
+        throw new Error('No introduction content received from server');
+      }
       
       setState('interviewing');
+      console.log('🔄 State changed to interviewing');
       
-      // Initialize with empty messages array, the first message will come from the backend
-      setMessages([]);
+      // Initialize with the introduction message from the interviewer
+      const introMessage: Message = {
+        role: 'assistant',
+        agent: introResponse.agent || 'interviewer',
+        content: introResponse.content,
+        response_type: introResponse.response_type,
+        timestamp: introResponse.timestamp
+      };
+      
+      console.log('💬 Setting intro message:', introMessage);
+      setMessages([introMessage]);
+      console.log('✅ Interview started successfully');
+      
     } catch (error) {
+      console.error('❌ Error starting interview:', error);
       const message = error instanceof Error ? error.message : 'Failed to start interview';
+      let description = message;
+      
+      // Handle specific error types
+      if (message.includes('403') || message.includes('Forbidden')) {
+        description = 'Authentication error. Please try refreshing the page or logging in again.';
+      } else if (message.includes('Invalid audience') || message.includes('JWT')) {
+        description = 'Authentication token error. Please try logging in again.';
+      }
+      
       toast({
         title: 'Error',
-        description: message,
+        description: description,
         variant: 'destructive',
       });
+      
+      // Reset to configuring state on error
+      setState('configuring');
     } finally {
       setIsLoading(false);
     }

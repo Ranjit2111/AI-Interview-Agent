@@ -20,6 +20,11 @@ const Index = () => {
     actions
   } = useInterviewSession();
   
+  // Move hook calls to top level to fix React hooks violation
+  const { user } = useAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('register');
+  
   const configSectionRef = useRef<HTMLDivElement>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   
@@ -128,10 +133,6 @@ const Index = () => {
 
   // Render signup benefits section
   const renderSignupBenefits = () => {
-    const { user } = useAuth();
-    const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-    const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('register');
-
     if (user || state !== 'configuring') return null;
 
     const handleSignUpClick = () => {

@@ -47,7 +47,7 @@ class MessageResponse(BaseModel):
     message: str
 
 # Security
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 async def get_database_manager() -> DatabaseManager:
     """Dependency to get database manager."""
@@ -85,7 +85,10 @@ async def get_current_user_optional(
             credentials.credentials, 
             jwt_secret,
             algorithms=["HS256"],
-            options={"verify_signature": True}
+            options={
+                "verify_signature": True,
+                "verify_aud": False  # Disable audience verification for Supabase JWTs
+            }
         )
         
         # Check if token has expired
@@ -138,7 +141,10 @@ async def get_current_user(
             credentials.credentials, 
             jwt_secret,
             algorithms=["HS256"],
-            options={"verify_signature": True}
+            options={
+                "verify_signature": True,
+                "verify_aud": False  # Disable audience verification for Supabase JWTs
+            }
         )
         
         # Check if token has expired
