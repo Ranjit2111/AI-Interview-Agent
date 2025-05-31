@@ -77,10 +77,20 @@ class AgentSessionManager:
         """Create agent instance based on type."""
         try:
             if agent_type == "interviewer":
+                self.logger.info(f"🔍 Creating InterviewerAgent with config: job_role={self.session_config.job_role}, style={self.session_config.style}")
                 return InterviewerAgent(
                     llm_service=self._llm_service, 
                     event_bus=self.event_bus,
-                    logger=self.logger.getChild("InterviewerAgent")
+                    logger=self.logger.getChild("InterviewerAgent"),
+                    interview_style=self.session_config.style,
+                    job_role=self.session_config.job_role,
+                    job_description=self.session_config.job_description,
+                    resume_content=self.session_config.resume_content,
+                    difficulty_level=self.session_config.difficulty,
+                    question_count=self.session_config.target_question_count,
+                    company_name=self.session_config.company_name,
+                    interview_duration_minutes=self.session_config.interview_duration_minutes,
+                    use_time_based_interview=self.session_config.use_time_based_interview
                 )
             elif agent_type == "coach":
                 return CoachAgent(

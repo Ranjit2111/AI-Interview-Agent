@@ -331,7 +331,7 @@ function getAuthHeaders(): HeadersInit {
   
   return {
     'Content-Type': 'application/json',
-    'Authorization': token ? `Bearer ${token}` : '',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
   };
 }
 
@@ -347,7 +347,7 @@ export async function createSession(data: InterviewStartRequest): Promise<Sessio
   return handleResponse(response);
 }
 
-export async function startInterview(sessionId: string, data: InterviewStartRequest): Promise<ResetResponse> {
+export async function startInterview(sessionId: string, data: InterviewStartRequest): Promise<AgentResponse> {
   const response = await fetch(`${API_BASE_URL}/interview/start`, {
     method: 'POST',
     headers: {
