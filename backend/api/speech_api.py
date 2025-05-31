@@ -11,10 +11,11 @@ import random
 from typing import Dict, Any, Optional
 from pathlib import Path
 
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Form, WebSocket, Depends, Header
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Form, WebSocket, Depends, Header, Query, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 import httpx
 from pydantic import BaseModel, Field
+import jwt
 
 from .speech.stt_service import STTService
 from .speech.tts_service import TTSService
@@ -30,8 +31,6 @@ stt_service = STTService()
 tts_service = TTSService()
 rate_limiter = get_rate_limiter()
 
-router = APIRouter()
-
 
 async def get_database_manager() -> DatabaseManager:
     """Dependency to get database manager."""
@@ -44,6 +43,54 @@ async def get_session_id_from_header_optional(
 ) -> Optional[str]:
     """Extract session ID from header for speech tasks (optional)."""
     return session_id
+
+
+async def validate_websocket_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Validate JWT token for WebSocket connections.
+    Returns user data if valid, None if invalid.
+    """
+    try:
+        # Get JWT secret - check for mock mode first
+        jwt_secret = os.environ.get("SUPABASE_JWT_SECRET")
+        if not jwt_secret:
+            # Check if we're in mock mode
+            use_mock_auth = os.environ.get("USE_MOCK_AUTH", "false").lower() == "true"
+            if use_mock_auth:
+                # Use mock secret for development
+                jwt_secret = "development_secret_key_not_for_production"
+            else:
+                return None
+        
+        # Decode token
+        payload = jwt.decode(
+            token, 
+            jwt_secret,
+            algorithms=["HS256"],
+            options={
+                "verify_signature": True,
+                "verify_aud": False  # Disable audience verification for Supabase JWTs
+            }
+        )
+        
+        # Check if token has expired
+        from datetime import datetime
+        if datetime.fromtimestamp(payload.get("exp", 0)) < datetime.utcnow():
+            return None
+        
+        # Get user ID from token
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        
+        # Get user from database
+        db_manager = await get_database_manager()
+        user = await db_manager.get_user(user_id)
+        return user
+    
+    except Exception as e:
+        logger.debug(f"WebSocket token validation failed: {e}")
+        return None
 
 
 async def transcribe_with_assemblyai_rate_limited(
@@ -221,200 +268,205 @@ async def transcribe_with_assemblyai_rate_limited(
             logger.error(f"Failed to clean up audio file {audio_file_path}: {e}")
 
 
-@router.post("/api/speech-to-text")
-async def speech_to_text(
-    background_tasks: BackgroundTasks,
-    audio_file: UploadFile = File(...),
-    language: str = Form("en-US"),
-    session_id: Optional[str] = Depends(get_session_id_from_header_optional),
-    db_manager: DatabaseManager = Depends(get_database_manager),
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
-):
-    """
-    Convert uploaded audio file to text using AssemblyAI with session-aware task management.
-    Authentication and session ID are optional.
-    
-    Args:
-        audio_file: Audio file to transcribe
-        language: Language code for transcription
-        session_id: Optional session ID from header
-        
-    Returns:
-        Task ID for checking transcription status
-    """
-    user_email = current_user["email"] if current_user else "anonymous"
-    
-    # Check if AssemblyAI service is available
-    if not rate_limiter.is_api_available('assemblyai'):
-        raise HTTPException(
-            status_code=429,
-            detail="AssemblyAI service temporarily unavailable. Please try again later."
-        )
-    
-    try:
-        task_id = str(uuid.uuid4())
-        logger.info(f"Starting transcription task {task_id} for user: {user_email}")
-        
-        # Create task in database (with or without session)
-        await db_manager.create_speech_task(
-            task_id=task_id,
-            user_id=current_user["id"] if current_user else None,
-            session_id=session_id,
-            task_type="transcription",
-            status="created"
-        )
-        
-        # Save uploaded file temporarily
-        temp_file_path = None
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as temp_file:
-            temp_file.write(await audio_file.read())
-            temp_file_path = temp_file.name
-        
-        # Start background transcription
-        background_tasks.add_task(
-            transcribe_with_assemblyai_rate_limited, 
-            temp_file_path, 
-            task_id, 
-            session_id,
-            db_manager
-        )
-        
-        return JSONResponse({
-            "task_id": task_id,
-            "session_id": session_id,
-            "status": "processing",
-            "message": "Transcription started. Use the task_id to check status."
-        })
-        
-    except Exception as e:
-        logger.exception("Error starting speech-to-text transcription")
-        raise HTTPException(status_code=500, detail=f"Failed to start transcription: {str(e)}")
-
-
-@router.get("/api/speech-to-text/status/{task_id}")
-async def check_transcription_status(
-    task_id: str,
-    session_id: Optional[str] = Depends(get_session_id_from_header_optional),
-    db_manager: DatabaseManager = Depends(get_database_manager),
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
-):
-    """
-    Check the status of a transcription task.
-    Authentication and session ID are optional.
-    
-    Args:
-        task_id: Task identifier
-        session_id: Optional session ID from header
-        
-    Returns:
-        Task status and results
-    """
-    user_email = current_user["email"] if current_user else "anonymous"
-    
-    try:
-        task_data = await db_manager.get_speech_task(task_id)
-        
-        if not task_data:
-            raise HTTPException(status_code=404, detail="Task not found")
-        
-        # Optional session verification - only check if session_id is provided
-        if session_id and task_data.get("session_id") != session_id:
-            logger.warning(f"Session mismatch for task {task_id}: provided {session_id}, stored {task_data.get('session_id')}")
-            # For now, allow access but log the mismatch
-        
-        response = {
-            "task_id": task_id,
-            "session_id": task_data.get("session_id"),
-            "status": task_data.get("status", "unknown"),
-            "created_at": task_data.get("created_at"),
-            "updated_at": task_data.get("updated_at")
-        }
-        
-        # Add progress data if available
-        if task_data.get("progress_data"):
-            response["progress"] = task_data["progress_data"]
-        
-        # Add results if completed
-        if task_data.get("status") == "completed" and task_data.get("result_data"):
-            response["result"] = task_data["result_data"]
-        
-        # Add error if failed
-        if task_data.get("status") == "error" and task_data.get("error_message"):
-            response["error"] = task_data["error_message"]
-        
-        return JSONResponse(response)
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception(f"Error retrieving task status for {task_id}")
-        raise HTTPException(status_code=500, detail=f"Failed to get task status: {str(e)}")
-
-
-@router.websocket("/api/speech-to-text/stream")
-async def websocket_stream_endpoint(websocket: WebSocket):
-    """
-    WebSocket endpoint for real-time speech-to-text streaming with rate limiting.
-    """
-    await stt_service.handle_websocket_stream(websocket)
-
-
-@router.post("/api/text-to-speech")
-async def text_to_speech(
-    text: str = Form(...),
-    voice_id: str = Form("Matthew"),
-    speed: float = Form(1.0, ge=0.5, le=2.0),
-):
-    """
-    Convert text to speech using Amazon Polly with rate limiting.
-    
-    Args:
-        text: Text to convert to speech
-        voice_id: Voice ID to use
-        speed: Speech speed
-        
-    Returns:
-        Audio file response
-    """
-    return await tts_service.synthesize_text(text, voice_id, speed)
-
-
-@router.post("/api/text-to-speech/stream")
-async def stream_text_to_speech(
-    text: str = Form(...),
-    voice_id: str = Form("Matthew"),
-    speed: float = Form(1.0, ge=0.5, le=2.0),
-):
-    """
-    Convert text to speech and stream the audio with rate limiting.
-    
-    Args:
-        text: Text to convert to speech
-        voice_id: Voice ID to use
-        speed: Speech speed
-        
-    Returns:
-        Streaming audio response
-    """
-    return await tts_service.stream_text(text, voice_id, speed)
-
-
-@router.get("/api/speech/usage-stats")
-async def get_speech_usage_stats():
-    """
-    Get current API usage statistics for all speech services.
-    
-    Returns:
-        Usage statistics for AssemblyAI, Polly, and Deepgram
-    """
-    return JSONResponse(rate_limiter.get_usage_stats())
-
-
 def create_speech_api(app):
     """Creates and registers speech API routes."""
-    router = APIRouter(prefix="/speech", tags=["speech"])
+    router = APIRouter(tags=["speech"])
 
-    @router.post("/start-task", response_model=SpeechTaskResponse)
+    @router.post("/api/speech-to-text")
+    async def speech_to_text(
+        background_tasks: BackgroundTasks,
+        audio_file: UploadFile = File(...),
+        language: str = Form("en-US"),
+        session_id: Optional[str] = Depends(get_session_id_from_header_optional),
+        db_manager: DatabaseManager = Depends(get_database_manager),
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    ):
+        """
+        Transcribe uploaded audio file using AssemblyAI with database task tracking.
+        Authentication and session ID are optional.
+        
+        Args:
+            audio_file: Audio file to transcribe
+            language: Language code (currently ignored - auto-detection used)
+            session_id: Optional session ID from header
+            
+        Returns:
+            Task ID for checking transcription status
+        """
+        user_email = current_user["email"] if current_user else "anonymous"
+        
+        try:
+            logger.info(f"Received speech-to-text request from {user_email}")
+            
+            # Create task in database first
+            task_id = await db_manager.create_speech_task(session_id or "anonymous", "stt_batch")
+            
+            # Save uploaded file temporarily
+            suffix = Path(audio_file.filename or "audio.wav").suffix
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
+                content = await audio_file.read()
+                temp_file.write(content)
+                temp_file_path = temp_file.name
+            
+            # Start background transcription
+            background_tasks.add_task(
+                transcribe_with_assemblyai_rate_limited,
+                temp_file_path,
+                task_id,
+                session_id or "anonymous",
+                db_manager
+            )
+            
+            return JSONResponse({
+                "task_id": task_id,
+                "message": "Transcription started. Use task_id to check status.",
+                "status": "processing"
+            })
+            
+        except Exception as e:
+            logger.exception(f"Error processing audio file: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to process audio: {str(e)}")
+
+    @router.get("/api/speech-to-text/status/{task_id}")
+    async def check_transcription_status(
+        task_id: str,
+        session_id: Optional[str] = Depends(get_session_id_from_header_optional),
+        db_manager: DatabaseManager = Depends(get_database_manager),
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    ):
+        """
+        Check the status of a transcription task.
+        Authentication and session ID are optional.
+        
+        Args:
+            task_id: Task identifier
+            session_id: Optional session ID from header
+            
+        Returns:
+            Task status and results
+        """
+        user_email = current_user["email"] if current_user else "anonymous"
+        
+        try:
+            task_data = await db_manager.get_speech_task(task_id)
+            
+            if not task_data:
+                raise HTTPException(status_code=404, detail="Task not found")
+            
+            # Optional session verification - only check if session_id is provided
+            if session_id and task_data.get("session_id") != session_id:
+                logger.warning(f"Session mismatch for task {task_id}: provided {session_id}, stored {task_data.get('session_id')}")
+                # For now, allow access but log the mismatch
+            
+            response = {
+                "task_id": task_id,
+                "session_id": task_data.get("session_id"),
+                "status": task_data.get("status", "unknown"),
+                "created_at": task_data.get("created_at"),
+                "updated_at": task_data.get("updated_at")
+            }
+            
+            # Add progress data if available
+            if task_data.get("progress_data"):
+                response["progress"] = task_data["progress_data"]
+            
+            # Add results if completed
+            if task_data.get("status") == "completed" and task_data.get("result_data"):
+                response["result"] = task_data["result_data"]
+            
+            # Add error if failed
+            if task_data.get("status") == "error" and task_data.get("error_message"):
+                response["error"] = task_data["error_message"]
+            
+            return JSONResponse(response)
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"Error retrieving task status for {task_id}")
+            raise HTTPException(status_code=500, detail=f"Failed to get task status: {str(e)}")
+
+    @router.websocket("/api/speech-to-text/stream")
+    async def websocket_stream_endpoint(
+        websocket: WebSocket,
+        token: Optional[str] = Query(None, description="Optional JWT token for authentication")
+    ):
+        """
+        WebSocket endpoint for real-time speech-to-text streaming with optional authentication.
+        
+        Args:
+            websocket: WebSocket connection
+            token: Optional JWT token passed as query parameter
+        """
+        # Optional authentication
+        user = None
+        if token:
+            user = await validate_websocket_token(token)
+            logger.info(f"WebSocket STT connection from {'authenticated' if user else 'anonymous'} user")
+        else:
+            logger.info("WebSocket STT connection from anonymous user")
+        
+        try:
+            await stt_service.handle_websocket_stream(websocket)
+        except WebSocketDisconnect:
+            logger.debug("WebSocket client disconnected")
+        except Exception as e:
+            logger.exception(f"WebSocket error: {e}")
+            try:
+                await websocket.close(code=1011, reason="Internal server error")
+            except:
+                pass
+
+    @router.post("/api/text-to-speech")
+    async def text_to_speech(
+        text: str = Form(...),
+        voice_id: str = Form("Matthew"),
+        speed: float = Form(1.0, ge=0.5, le=2.0),
+    ):
+        """
+        Convert text to speech using Amazon Polly with rate limiting.
+        
+        Args:
+            text: Text to convert to speech
+            voice_id: Voice ID to use
+            speed: Speech speed
+            
+        Returns:
+            Audio file response
+        """
+        return await tts_service.synthesize_text(text, voice_id, speed)
+
+    @router.post("/api/text-to-speech/stream")
+    async def stream_text_to_speech(
+        text: str = Form(...),
+        voice_id: str = Form("Matthew"),
+        speed: float = Form(1.0, ge=0.5, le=2.0),
+    ):
+        """
+        Convert text to speech and stream the audio with rate limiting.
+        
+        Args:
+            text: Text to convert to speech
+            voice_id: Voice ID to use
+            speed: Speech speed
+            
+        Returns:
+            Streaming audio response
+        """
+        return await tts_service.stream_text(text, voice_id, speed)
+
+    @router.get("/api/speech/usage-stats")
+    async def get_speech_usage_stats():
+        """
+        Get current API usage statistics for all speech services.
+        
+        Returns:
+            Usage statistics for AssemblyAI, Polly, and Deepgram
+        """
+        return JSONResponse(rate_limiter.get_usage_stats())
+
+    # Additional endpoints for new speech task management
+    @router.post("/speech/start-task", response_model=SpeechTaskResponse)
     async def start_speech_task(
         task_request: SpeechTaskRequest,
         db_manager: DatabaseManager = Depends(get_database_manager),
@@ -430,17 +482,15 @@ def create_speech_api(app):
         try:
             logger.info(f"Starting speech task for user: {user_email}")
             task_id = await db_manager.create_speech_task(
-                user_id=user_id,
-                audio_data=task_request.audio_data,
-                task_type=task_request.task_type,
-                metadata=task_request.metadata
+                session_id=task_request.metadata.get("session_id") if task_request.metadata else None,
+                task_type=task_request.task_type
             )
             return SpeechTaskResponse(task_id=task_id, status="created")
         except Exception as e:
             logger.exception(f"Error creating speech task: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to create speech task: {e}")
 
-    @router.get("/task/{task_id}", response_model=SpeechTaskStatusResponse)
+    @router.get("/speech/task/{task_id}", response_model=SpeechTaskStatusResponse)
     async def get_speech_task_status(
         task_id: str,
         db_manager: DatabaseManager = Depends(get_database_manager),
@@ -460,10 +510,10 @@ def create_speech_api(app):
             return SpeechTaskStatusResponse(
                 task_id=task_id,
                 status=task_data.get("status", "unknown"),
-                result=task_data.get("result"),
-                error=task_data.get("error"),
+                result=task_data.get("result_data"),
+                error=task_data.get("error_message"),
                 created_at=task_data.get("created_at"),
-                completed_at=task_data.get("completed_at")
+                completed_at=task_data.get("updated_at") if task_data.get("status") == "completed" else None
             )
         except HTTPException:
             raise
@@ -478,7 +528,6 @@ def create_speech_api(app):
 # Pydantic models for speech tasks
 class SpeechTaskRequest(BaseModel):
     """Request model for starting a speech task."""
-    audio_data: str = Field(..., description="Base64 encoded audio data")
     task_type: str = Field("transcription", description="Type of speech task")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional task metadata")
 
