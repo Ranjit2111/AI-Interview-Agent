@@ -266,6 +266,25 @@ def create_agent_api(app):
             logger.exception(f"Error getting stats for session {session_manager.session_id}: {e}")
             raise HTTPException(status_code=500, detail=f"Error getting session stats: {e}")
 
+    @router.get("/per-turn-feedback", response_model=List[Dict[str, str]])
+    async def get_per_turn_feedback(
+        session_manager: AgentSessionManager = Depends(get_session_manager),
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    ):
+        """
+        Get current per-turn coaching feedback for the session.
+        Requires X-Session-ID header. Authentication is optional.
+        This endpoint allows real-time access to coaching feedback as it's generated.
+        """
+        user_email = current_user["email"] if current_user else "anonymous"
+        logger.info(f"Getting per-turn feedback for session {session_manager.session_id} for user: {user_email}")
+        try:
+            return session_manager.per_turn_coaching_feedback_log
+
+        except Exception as e:
+            logger.exception(f"Error getting per-turn feedback for session {session_manager.session_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"Error getting per-turn feedback: {e}")
+
     @router.post("/reset", response_model=ResetResponse)
     async def reset_interview(
         session_manager: AgentSessionManager = Depends(get_session_manager),

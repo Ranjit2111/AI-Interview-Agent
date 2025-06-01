@@ -7,7 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import VoiceInputToggle from './VoiceInputToggle';
 import AudioPlayer from './AudioPlayer';
 import CoachFeedbackDisplay from './CoachFeedbackDisplay';
-import { Message } from '@/hooks/useInterviewSession';
+import RealTimeCoachFeedback from './RealTimeCoachFeedback';
+import { Message, CoachFeedbackState } from '@/hooks/useInterviewSession';
 
 interface InterviewSessionProps {
   messages: Message[];
@@ -15,6 +16,7 @@ interface InterviewSessionProps {
   onSendMessage: (message: string) => void;
   onEndInterview: () => void;
   onVoiceSelect: (voiceId: string | null) => void;
+  coachFeedbackStates: CoachFeedbackState;
 }
 
 const InterviewSession: React.FC<InterviewSessionProps> = ({
@@ -23,6 +25,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   onSendMessage,
   onEndInterview,
   onVoiceSelect,
+  coachFeedbackStates,
 }) => {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -144,19 +147,30 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             }
 
             return (
-              <Card key={index} className={cardClasses}>
-                <div className={`flex items-center text-sm font-medium mb-2 ${nameColor}`}>
-                  {icon}
-                  {getAgentDisplayName(message)}
-                </div>
-                {isCoach && typeof message.content === 'object' ? (
-                  <CoachFeedbackDisplay feedback={message.content as any} />
-                ) : (
-                  <div className="whitespace-pre-wrap text-gray-100">
-                    {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
+              <div key={index}>
+                <Card className={cardClasses}>
+                  <div className={`flex items-center text-sm font-medium mb-2 ${nameColor}`}>
+                    {icon}
+                    {getAgentDisplayName(message)}
                   </div>
+                  {isCoach && typeof message.content === 'object' ? (
+                    <CoachFeedbackDisplay feedback={message.content as any} />
+                  ) : (
+                    <div className="whitespace-pre-wrap text-gray-100">
+                      {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
+                    </div>
+                  )}
+                </Card>
+                
+                {/* Real-time coach feedback for user messages */}
+                {isUser && (
+                  <RealTimeCoachFeedback
+                    isAnalyzing={coachFeedbackStates[index]?.isAnalyzing || false}
+                    feedback={coachFeedbackStates[index]?.feedback}
+                    userMessageIndex={index}
+                  />
                 )}
-              </Card>
+              </div>
             );
           })}
           <div ref={messagesEndRef} />
