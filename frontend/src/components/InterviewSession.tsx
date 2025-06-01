@@ -1,14 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Mic, Loader, Bot, User, Brain, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Textarea } from '@/components/ui/textarea';
-import VoiceInputToggle from './VoiceInputToggle';
-import AudioPlayer from './AudioPlayer';
-import CoachFeedbackDisplay from './CoachFeedbackDisplay';
-import RealTimeCoachFeedback from './RealTimeCoachFeedback';
+import VoiceFirstInterviewPanel from './VoiceFirstInterviewPanel';
+import TranscriptDrawer from './TranscriptDrawer';
+import OffScreenCoachFeedback from './OffScreenCoachFeedback';
+import { useVoiceFirstInterview } from '../hooks/useVoiceFirstInterview';
 import { Message, CoachFeedbackState } from '@/hooks/useInterviewSession';
+import { X } from 'lucide-react';
 
 interface InterviewSessionProps {
   messages: Message[];
@@ -27,197 +24,209 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   onVoiceSelect,
   coachFeedbackStates,
 }) => {
-  const [input, setInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  // State for emergency fallback mode
+  const [showFallbackMode, setShowFallbackMode] = useState(false);
+  const [fallbackInput, setFallbackInput] = useState('');
+  const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
+  
+  // Ref to track if we've set the default voice (avoids infinite loop)
+  const defaultVoiceSetRef = useRef(false);
 
+  // Initialize voice-first interview system with session data from props
+  const {
+    voiceState,
+    microphoneActive,
+    audioPlaying,
+    transcriptVisible,
+    coachFeedbackVisible,
+    voiceActivityLevel,
+    accumulatedTranscript,
+    isListening,
+    isProcessing,
+    isDisabled,
+    turnState,
+    toggleMicrophone,
+    toggleTranscript,
+    toggleCoachFeedback,
+    closeCoachFeedback,
+    playTextToSpeech,
+    lastExchange
+  } = useVoiceFirstInterview(
+    {
+      messages,
+      isLoading,
+      state: 'interviewing', // We know it's interviewing since this component only renders in that state
+      selectedVoice,
+    }, 
+    onSendMessage
+  );
+
+  // Auto-enable voice on component mount (only once)
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const handleSend = () => {
-    if (input.trim() && !isLoading) {
-      onSendMessage(input.trim());
-      setInput('');
+    if (!defaultVoiceSetRef.current) {
+      // Set local state and notify parent immediately on mount
+      setSelectedVoice('Matthew');
+      onVoiceSelect('Matthew');
+      defaultVoiceSetRef.current = true;
+      console.log('🔊 TTS enabled by default with Matthew voice');
     }
-  };
+  }, []); // No dependencies - run only once on mount
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const handleTranscriptionComplete = (text: string) => {
-    console.log("handleTranscriptionComplete called with text:", text);
-    
-    // Append the new transcription to existing input, with proper spacing
-    setInput(prevInput => {
-      const trimmedText = text.trim();
-      if (!trimmedText) return prevInput;
+  // Enhanced microphone toggle with voice transcription integration
+  const handleMicrophoneToggle = async () => {
+    if (isListening) {
+      // Stop listening and process transcription
+      toggleMicrophone();
       
-      const currentText = prevInput.trim();
-      if (currentText === '') {
-        // If input is empty, just use the new text
-        return trimmedText;
-      } else {
-        // Append with a space separator
-        return currentText + ' ' + trimmedText;
-      }
-    });
-    
-    console.log("Input state updated by appending:", text);
+      // The accumulated transcript will be automatically sent via the voice-first hook
+      // No manual integration needed as it's handled in stopVoiceRecognition
+    } else {
+      // Start listening
+      toggleMicrophone();
+    }
   };
 
-  const handleClearInput = () => {
-    setInput('');
+  // Emergency fallback to text input
+  const handleFallbackSubmit = () => {
+    if (fallbackInput.trim()) {
+      onSendMessage(fallbackInput.trim());
+      setFallbackInput('');
+      setShowFallbackMode(false);
+    }
   };
 
-  const getAgentDisplayName = (message: Message) => {
-    if (message.role === 'user') return 'You';
-    if (message.agent === 'coach') return 'Coach';
-    return 'Interviewer';
-  };
+  // Emergency exit button (top-right corner)
+  const EmergencyExitButton = () => (
+    <div className="fixed top-4 right-4 z-50 flex items-center space-x-2">
+      {/* Fallback Text Input Toggle */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setShowFallbackMode(!showFallbackMode)}
+        className="
+          bg-white/5 hover:bg-white/10 
+          border-white/20 hover:border-white/30
+          text-white/80 hover:text-white
+          transition-all duration-300
+        "
+        title="Toggle text input mode"
+      >
+        Aa
+      </Button>
 
-  const getAgentIcon = (message: Message) => {
-    if (message.role === 'user') return <User className="h-5 w-5 mr-2" />;
-    if (message.agent === 'coach') return <Brain className="h-5 w-5 mr-2" />;
-    return <Bot className="h-5 w-5 mr-2" />;
+      {/* End Interview Button */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onEndInterview}
+        disabled={isLoading}
+        className="
+          bg-red-900/20 hover:bg-red-900/40 
+          border-red-500/30 hover:border-red-500/50
+          text-red-300 hover:text-red-100
+          transition-all duration-300
+        "
+      >
+        <X className="w-4 h-4 mr-1" />
+        End Interview
+      </Button>
+    </div>
+  );
+
+  // Fallback text input overlay
+  const FallbackTextInput = () => {
+    if (!showFallbackMode) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center p-4">
+        <div className="bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl p-6 max-w-md w-full">
+          <h3 className="text-lg font-semibold text-white mb-4">Text Input Mode</h3>
+          <textarea
+            value={fallbackInput}
+            onChange={(e) => setFallbackInput(e.target.value)}
+            placeholder="Type your response here..."
+            className="
+              w-full h-32 p-3 
+              bg-gray-800/50 border border-gray-600 
+              rounded-lg text-white placeholder-gray-400
+              focus:border-blue-500 focus:ring-1 focus:ring-blue-500
+              resize-none
+            "
+            autoFocus
+          />
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowFallbackMode(false)}
+              className="bg-white/5 hover:bg-white/10 border-white/20"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleFallbackSubmit}
+              disabled={!fallbackInput.trim() || isLoading}
+              className="bg-blue-600 hover:bg-blue-500"
+            >
+              Send
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b border-white/10 bg-black/50 backdrop-blur-lg z-10 shadow-lg">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-medium bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">Interview Session</h2>
-          {isLoading && (
-            <div className="text-sm text-gray-400 flex items-center">
-              <span className="relative flex h-2 w-2 me-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
-              </span>
-              Thinking...
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <AudioPlayer onVoiceSelect={onVoiceSelect} />
-          <Button
-            variant="outline"
-            className="text-red-400 border-red-800/30 hover:bg-red-900/20 hover:text-red-300 hover:border-red-500/30 transition-all duration-300 hover:shadow-red-500/20"
-            onClick={onEndInterview}
-            disabled={isLoading}
-          >
-            End Interview
-          </Button>
-        </div>
-      </div>
+    <div className="relative w-full h-screen overflow-hidden">
+      {/* Emergency Controls */}
+      <EmergencyExitButton />
 
-      {/* Background elements */}
-      <div className="absolute inset-0 pointer-events-none z-0 opacity-20">
-        <div className="absolute h-48 w-48 bg-purple-500/10 rounded-full blur-3xl top-[20%] right-[25%] animate-float"></div>
-        <div className="absolute h-64 w-64 bg-cyan-500/10 rounded-full blur-3xl bottom-[30%] left-[15%] animate-float animation-delay-2000"></div>
-      </div>
+      {/* Main Voice-First Interface */}
+      <VoiceFirstInterviewPanel
+        isListening={isListening}
+        isProcessing={isProcessing || isLoading}
+        isDisabled={isDisabled || audioPlaying}
+        voiceActivity={voiceActivityLevel}
+        turnState={audioPlaying ? 'ai' : turnState}
+        messages={messages}
+        onToggleMicrophone={handleMicrophoneToggle}
+        onToggleTranscript={toggleTranscript}
+        showMessages={true}
+        showTranscriptButton={true}
+      />
 
-      {/* Messages area */}
-      <ScrollArea className="flex-1 p-4 bg-gradient-to-b from-black/40 to-gray-900/20 relative z-10">
-        <div className="space-y-4 max-w-3xl mx-auto">
-          {messages.map((message, index) => {
-            const isUser = message.role === 'user';
-            const isCoach = message.agent === 'coach';
-            
-            let cardClasses = 'p-4 transition-all duration-500 backdrop-blur-md border shadow-lg perspective-card max-w-[80%]';
-            let nameColor = 'text-cyan-400';
-            let icon = <Bot className="h-5 w-5 mr-2 flex-shrink-0" />;
+      {/* Transcript Drawer */}
+      <TranscriptDrawer
+        isOpen={transcriptVisible}
+        messages={messages}
+        onClose={toggleTranscript}
+        onPlayMessage={playTextToSpeech}
+      />
 
-            if (isUser) {
-              cardClasses += ' ml-auto bg-black/30 border-white/5 hover:border-purple-500/20 animate-slide-in-right';
-              nameColor = 'text-purple-400';
-              icon = <User className="h-5 w-5 mr-2 flex-shrink-0" />;
-            } else if (isCoach) {
-              cardClasses += ' bg-black/30 border-yellow-500/30 hover:border-yellow-400/40 animate-fade-in';
-              nameColor = 'text-yellow-400';
-              icon = <Brain className="h-5 w-5 mr-2 flex-shrink-0" />;
-            } else {
-              cardClasses += ' bg-black/40 border-white/10 hover:border-cyan-500/20 animate-fade-in';
-            }
+      {/* Off-Screen Coach Feedback */}
+      <OffScreenCoachFeedback
+        coachFeedbackStates={coachFeedbackStates}
+        messages={messages}
+        isOpen={coachFeedbackVisible}
+        onToggle={toggleCoachFeedback}
+        onClose={closeCoachFeedback}
+      />
 
-            return (
-              <div key={index}>
-                <Card className={cardClasses}>
-                  <div className={`flex items-center text-sm font-medium mb-2 ${nameColor}`}>
-                    {icon}
-                    {getAgentDisplayName(message)}
-                  </div>
-                  {isCoach && typeof message.content === 'object' ? (
-                    <CoachFeedbackDisplay feedback={message.content as any} />
-                  ) : (
-                    <div className="whitespace-pre-wrap text-gray-100">
-                      {typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}
-                    </div>
-                  )}
-                </Card>
-                
-                {/* Real-time coach feedback for user messages */}
-                {isUser && (
-                  <RealTimeCoachFeedback
-                    isAnalyzing={coachFeedbackStates[index]?.isAnalyzing || false}
-                    feedback={coachFeedbackStates[index]?.feedback}
-                    userMessageIndex={index}
-                  />
-                )}
+      {/* Fallback Text Input Mode */}
+      <FallbackTextInput />
+
+      {/* Loading Overlay for Interview State Changes */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 flex items-center justify-center">
+          <div className="bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl p-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-6 h-6">
+                <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
               </div>
-            );
-          })}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
-
-      {/* Input area */}
-      <div className="p-4 border-t border-white/10 bg-black/60 backdrop-blur-lg shadow-[0_-4px_20px_rgba(0,0,0,0.2)] relative z-10">
-        <div className="flex flex-col gap-3 max-w-3xl mx-auto">
-          <div className="flex items-end gap-3 w-full">
-            <div className="flex-1 relative group">
-              <Textarea
-                placeholder="Type your answer here..."
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyPress}
-                disabled={isLoading}
-                className="min-h-[50px] bg-gray-900/70 border-gray-700/70 text-gray-100 focus:border-interview-secondary shadow-sm rounded-lg resize-none hover:border-gray-600 focus:shadow-[0_0_15px_rgba(168,85,247,0.2)] pr-10"
-              />
-              {/* Clear button - only show when there's text */}
-              {input.trim() && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleClearInput}
-                  className="absolute top-2 right-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-200 hover:bg-gray-700/50"
-                  title="Clear text"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-              <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-cyan-500/20 to-purple-600/20 -z-10 opacity-0 group-focus-within:opacity-100 blur-xl transition-opacity"></div>
+              <span className="text-white font-medium">Processing...</span>
             </div>
-            <Button
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading}
-              className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 shadow-lg hover:shadow-purple-500/20 transition-all duration-300"
-            >
-              {isLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
           </div>
-          <VoiceInputToggle
-            onTranscriptionComplete={handleTranscriptionComplete}
-            isDisabled={isLoading}
-          />
         </div>
-      </div>
+      )}
     </div>
   );
 };

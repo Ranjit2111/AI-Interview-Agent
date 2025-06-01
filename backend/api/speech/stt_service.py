@@ -57,7 +57,7 @@ class STTService:
             interim_results=True,
             endpointing=True,
             vad_events=True,
-            utterance_end_ms="1000",
+            utterance_end_ms="5000",
             # NOTE: Do NOT specify encoding/sample_rate for containerized audio (WebM)
             # Deepgram automatically reads these from the container header
         )

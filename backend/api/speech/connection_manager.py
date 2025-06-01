@@ -21,7 +21,7 @@ class ConnectionManager:
         self.active_connections[connection_id] = websocket
         logger.info(f"WebSocket connection {connection_id} established")
 
-    def disconnect(self, connection_id: str):
+    async def disconnect(self, connection_id: str):
         """Remove a WebSocket connection."""
         if connection_id in self.active_connections:
             del self.active_connections[connection_id]

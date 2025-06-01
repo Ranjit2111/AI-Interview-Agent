@@ -42,12 +42,16 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
   // Get last messages for minimal display
   const getLastMessages = () => {
     const userMessages = messages.filter(m => m.role === 'user');
-    const aiMessages = messages.filter(m => m.role === 'interviewer');
+    const aiMessages = messages.filter(m => m.role === 'assistant' && m.agent === 'interviewer');
     
     const lastUserMessage = userMessages[userMessages.length - 1]?.content;
     const lastAIMessage = aiMessages[aiMessages.length - 1]?.content;
     
-    return { lastUserMessage, lastAIMessage };
+    // Ensure we return strings for display
+    return { 
+      lastUserMessage: typeof lastUserMessage === 'string' ? lastUserMessage : '',
+      lastAIMessage: typeof lastAIMessage === 'string' ? lastAIMessage : ''
+    };
   };
 
   // Update ambient intensity based on voice activity and turn state
@@ -146,19 +150,21 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
       {/* Main Content Layout */}
       <div className="voice-first-layout">
         
-        {/* Minimal Message Display */}
+        {/* Minimal Message Display - Positioned at top */}
         {showMessages && (
-          <MinimalMessageDisplay
-            lastUserMessage={lastUserMessage}
-            lastAIMessage={lastAIMessage}
-            isVisible={Boolean(lastUserMessage || lastAIMessage)}
-            autoHideTimeout={30000}
-            onToggleTranscript={showTranscriptButton ? onToggleTranscript : undefined}
-          />
+          <div className="absolute top-0 left-0 right-0 z-20">
+            <MinimalMessageDisplay
+              lastUserMessage={lastUserMessage}
+              lastAIMessage={lastAIMessage}
+              isVisible={Boolean(lastUserMessage || lastAIMessage)}
+              autoHideTimeout={30000}
+              onToggleTranscript={showTranscriptButton ? onToggleTranscript : undefined}
+            />
+          </div>
         )}
 
-        {/* Central Microphone Button */}
-        <div className="flex-1 flex items-center justify-center">
+        {/* Central Microphone Button - Main focal point */}
+        <div className="flex-1 flex items-center justify-center min-h-screen">
           <CentralMicButton
             isListening={isListening}
             isProcessing={isProcessing}
@@ -169,9 +175,28 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
           />
         </div>
 
-        {/* Status Area */}
-        <div className="flex justify-center">
-          <div className="text-center space-y-2">
+        {/* Status Area - Fixed at bottom */}
+        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
+          <div className="text-center space-y-4">
+            {/* Ambient Audio Visualizer */}
+            {(isListening || turnState === 'ai') && (
+              <div className="flex items-center space-x-2 opacity-40 mb-4">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`
+                      w-0.5 rounded-full transition-all duration-200
+                      ${turnState === 'ai' ? 'bg-orange-400' : 'bg-blue-400'}
+                    `}
+                    style={{
+                      height: `${4 + Math.sin(Date.now() * 0.01 + i * 0.5) * (isListening ? voiceActivity * 8 : 4)}px`,
+                      animationDelay: `${i * 0.1}s`
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+
             {/* Connection Status */}
             <div className="flex items-center justify-center space-x-2">
               <div 
@@ -194,27 +219,6 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Ambient Audio Visualizer */}
-      {(isListening || turnState === 'ai') && (
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2">
-          <div className="flex items-center space-x-2 opacity-40">
-            {Array.from({ length: 12 }).map((_, i) => (
-              <div
-                key={i}
-                className={`
-                  w-0.5 rounded-full transition-all duration-200
-                  ${turnState === 'ai' ? 'bg-orange-400' : 'bg-blue-400'}
-                `}
-                style={{
-                  height: `${4 + Math.sin(Date.now() * 0.01 + i * 0.5) * (isListening ? voiceActivity * 8 : 4)}px`,
-                  animationDelay: `${i * 0.1}s`
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Corner Accent Lights */}
       <div className="absolute top-4 left-4 w-16 h-16">
