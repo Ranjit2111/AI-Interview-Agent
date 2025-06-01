@@ -2,7 +2,8 @@
 langchain-core>=0.1.28
 langchain-community>=0.0.10
 langchain-google-genai>=0.0.3
-
+langgraph==0.1.8
+langchain
 # Web framework - necessary for our FastAPI backend
 fastapi==0.95.0
 uvicorn[standard]==0.22.0

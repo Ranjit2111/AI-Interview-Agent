@@ -72,3 +72,4 @@ backend/temp/
 *.css 
 
 browser-tools-screenshots/
+.cursor

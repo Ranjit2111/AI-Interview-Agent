@@ -234,9 +234,7 @@ export interface PerTurnFeedbackItem {
 }
 
 export interface EndResponse {
-  results: {
-    coaching_summary: any;
-  };
+  results: any;  // This contains the coaching summary directly
   per_turn_feedback?: PerTurnFeedbackItem[];
 }
 

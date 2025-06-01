@@ -11,13 +11,17 @@ interface InterviewResultsProps {
     weaknesses?: string;
     improvement_focus_areas?: string;
     resource_search_topics?: string[];
-    recommended_resources?: { topic: string; resources: { title: string; url: string; snippet: string }[] }[];
+    recommended_resources?: any[]; // Can be legacy format or new agentic format
   };
   onStartNewInterview: () => void;
 }
 
-const renderTextSection = (title: string, content?: string) => {
-  if (!content || content.trim() === "") {
+const renderTextSection = (title: string, content?: any) => {
+  // Convert content to string if it's not already a string
+  const textContent = typeof content === 'string' ? content : 
+                     content !== null && content !== undefined ? JSON.stringify(content, null, 2) : '';
+  
+  if (!textContent || textContent.trim() === "") {
     return (
       <div>
         <h3 className="text-xl font-semibold text-purple-400 mb-3">{title}</h3>
@@ -28,17 +32,132 @@ const renderTextSection = (title: string, content?: string) => {
   return (
     <div>
       <h3 className="text-xl font-semibold text-purple-400 mb-3">{title}</h3>
-      {content.split('\n').map((paragraph, index) => (
+      {textContent.split('\n').map((paragraph, index) => (
         <p key={index} className="text-gray-300 mb-2 whitespace-pre-wrap">{paragraph}</p>
       ))}
     </div>
   );
 };
 
+const renderRecommendedResources = (resources?: any[]) => {
+  if (!resources || resources.length === 0) {
+    return null;
+  }
+
+  // Check if this is the legacy format (with topic and resources)
+  const isLegacyFormat = resources.length > 0 && resources[0]?.topic && resources[0]?.resources;
+  
+  if (isLegacyFormat) {
+    // Legacy format: [{ topic: string, resources: [{title, url, snippet}] }]
+    return (
+      <div>
+        <h3 className="text-xl font-semibold text-purple-400 mb-4">Recommended Resources</h3>
+        <Accordion type="single" collapsible className="w-full">
+          {resources.map((item, index) => (
+            <AccordionItem value={`item-${index}`} key={index} className="border-purple-500/30">
+              <AccordionTrigger className="text-lg text-purple-300 hover:text-purple-200">
+                {item.topic}
+              </AccordionTrigger>
+              <AccordionContent className="pt-2">
+                {item.resources && item.resources.length > 0 ? (
+                  <ul className="space-y-3">
+                    {item.resources.map((resource: any, rIndex: number) => (
+                      <li key={rIndex} className="p-3 bg-gray-700/50 rounded-md hover:bg-gray-700/80 transition-colors">
+                        <a
+                          href={resource.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-medium text-cyan-400 hover:text-cyan-300 group"
+                        >
+                          {resource.title}
+                          <ExternalLink className="inline-block ml-2 h-4 w-4 opacity-70 group-hover:opacity-100" />
+                        </a>
+                        <p className="text-sm text-gray-400 mt-1">{resource.snippet}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-400 italic">No specific resources found for this topic.</p>
+                )}
+              </AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
+    );
+  } else {
+    // New agentic format: flat list of resources with title, url, description, resource_type
+    return (
+      <div>
+        <h3 className="text-xl font-semibold text-purple-400 mb-4">Recommended Learning Resources</h3>
+        <p className="text-gray-400 mb-4 text-sm">
+          These resources were intelligently selected based on your interview performance and skill gaps.
+        </p>
+        <ul className="space-y-3">
+          {resources.map((resource: any, index: number) => (
+            <li key={index} className="p-4 bg-gray-700/50 rounded-md hover:bg-gray-700/80 transition-colors border border-purple-500/20">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <a
+                    href={resource.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium text-cyan-400 hover:text-cyan-300 group text-lg"
+                  >
+                    {resource.title}
+                    <ExternalLink className="inline-block ml-2 h-4 w-4 opacity-70 group-hover:opacity-100" />
+                  </a>
+                  {resource.resource_type && (
+                    <span className="ml-2 px-2 py-1 text-xs bg-purple-500/20 text-purple-300 rounded-full">
+                      {resource.resource_type}
+                    </span>
+                  )}
+                  <p className="text-sm text-gray-400 mt-2">{resource.description}</p>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+};
+
 const InterviewResults: React.FC<InterviewResultsProps> = ({
   coachingSummary,
   onStartNewInterview,
 }) => {
+  console.log('🎯 InterviewResults component rendering');
+  console.log('🎯 coachingSummary received:', coachingSummary);
+  console.log('🎯 coachingSummary type:', typeof coachingSummary);
+  
+  // Add detailed logging for resources
+  console.log('🎯 Raw recommended_resources:', coachingSummary?.recommended_resources);
+  console.log('🎯 recommended_resources type:', typeof coachingSummary?.recommended_resources);
+  console.log('🎯 recommended_resources is array:', Array.isArray(coachingSummary?.recommended_resources));
+  console.log('🎯 recommended_resources length:', coachingSummary?.recommended_resources?.length);
+  
+  if (coachingSummary?.recommended_resources && coachingSummary.recommended_resources.length > 0) {
+    console.log('🎯 First resource item:', coachingSummary.recommended_resources[0]);
+    console.log('🎯 All resource items:');
+    coachingSummary.recommended_resources.forEach((resource, index) => {
+      console.log(`🎯 Resource ${index}:`, resource);
+    });
+  }
+  
+  // Add error boundary check
+  if (!coachingSummary) {
+    console.log('🎯 InterviewResults: coachingSummary is null/undefined');
+    return (
+      <div className="container mx-auto max-w-4xl p-4 text-gray-100">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-400 mb-4">Error: No Coaching Summary Available</h2>
+          <p className="text-gray-400 mb-4">The coaching summary data is missing or corrupted.</p>
+          <Button onClick={onStartNewInterview}>Start New Interview</Button>
+        </div>
+      </div>
+    );
+  }
 
   const {
     patterns_tendencies,
@@ -73,42 +192,7 @@ const InterviewResults: React.FC<InterviewResultsProps> = ({
             {renderTextSection("Weaknesses & Areas for Development", weaknesses)}
             {renderTextSection("Key Focus Areas for Improvement", improvement_focus_areas)}
 
-            {recommended_resources && recommended_resources.length > 0 && (
-              <div>
-                <h3 className="text-xl font-semibold text-purple-400 mb-4">Recommended Resources</h3>
-                <Accordion type="single" collapsible className="w-full">
-                  {recommended_resources.map((item, index) => (
-                    <AccordionItem value={`item-${index}`} key={index} className="border-purple-500/30">
-                      <AccordionTrigger className="text-lg text-purple-300 hover:text-purple-200">
-                        {item.topic}
-                      </AccordionTrigger>
-                      <AccordionContent className="pt-2">
-                        {item.resources && item.resources.length > 0 ? (
-                          <ul className="space-y-3">
-                            {item.resources.map((resource, rIndex) => (
-                              <li key={rIndex} className="p-3 bg-gray-700/50 rounded-md hover:bg-gray-700/80 transition-colors">
-                                <a
-                                  href={resource.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="font-medium text-cyan-400 hover:text-cyan-300 group"
-                                >
-                                  {resource.title}
-                                  <ExternalLink className="inline-block ml-2 h-4 w-4 opacity-70 group-hover:opacity-100" />
-                                </a>
-                                <p className="text-sm text-gray-400 mt-1">{resource.snippet}</p>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-gray-400 italic">No specific resources found for this topic.</p>
-                        )}
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
-              </div>
-            )}
+            {renderRecommendedResources(recommended_resources)}
           </div>
         </CardContent>
       </Card>

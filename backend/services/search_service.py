@@ -51,7 +51,7 @@ class SerperProvider(SearchProvider):
     def __init__(self, api_key: Optional[str] = None):
         """Initialize the Serper provider."""
         super().__init__(api_key or SERPER_KEY)
-        self.base_url = "https://serper.dev/search"
+        self.base_url = "https://google.serper.dev/search"
     
     @backoff.on_exception(backoff.expo, 
                          (httpx.HTTPError, httpx.TimeoutException),
@@ -196,6 +196,10 @@ class SearchService:
             self.logger.info(f"Searching for resources: {query}")
             search_results = await self.provider.search(query, num_results=num_results)
             
+            # Log the number of results from search provider
+            organic_count = len(search_results.get("organic", []))
+            self.logger.info(f"Search provider returned {organic_count} organic results")
+            
             # Process results
             resources = self._process_search_results(
                 search_results, skill, proficiency_level, job_role
@@ -206,14 +210,22 @@ class SearchService:
                 self._search_cache[cache_key] = resources
                 self._search_cache_timestamps[cache_key] = now
             
-            self.logger.info(f"Found {len(resources)} resources for: {query}")
+            self.logger.info(f"Found {len(resources)} processed resources for: {query}")
+            
+            # If we got very few results, log warning but still return them
+            if len(resources) < 3:
+                self.logger.warning(f"Only found {len(resources)} resources for query '{query}'. This may indicate search provider issues.")
+            
             return resources
             
         except Exception as e:
             self.logger.error(f"Search failed for query '{query}': {e}")
+            self.logger.warning(f"Falling back to fallback resources for skill: {skill}")
             # Return fallback resources
             fallback_data = FallbackResourceGenerator.generate_fallback_resources(skill, proficiency_level)
-            return [Resource(**data) for data in fallback_data]
+            fallback_resources = [Resource(**data) for data in fallback_data]
+            self.logger.info(f"Generated {len(fallback_resources)} fallback resources")
+            return fallback_resources
     
     def _generate_query(
         self,
