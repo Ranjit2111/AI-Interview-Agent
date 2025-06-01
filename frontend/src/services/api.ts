@@ -407,6 +407,18 @@ export async function getSessionStats(sessionId: string): Promise<StatsResponse>
   return handleResponse(response);
 }
 
+export async function getPerTurnFeedback(sessionId: string): Promise<PerTurnFeedbackItem[]> {
+  const response = await fetch(`${API_BASE_URL}/interview/per-turn-feedback`, {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+  });
+
+  return handleResponse(response);
+}
+
 export async function resetInterview(sessionId: string): Promise<ResetResponse> {
   const response = await fetch(`${API_BASE_URL}/interview/reset`, {
     method: 'POST',

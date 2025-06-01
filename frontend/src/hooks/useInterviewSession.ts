@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   AgentResponse, 
   InterviewStartRequest, 
@@ -8,7 +8,8 @@ import {
   startInterview as apiStartInterview,
   sendMessage as apiSendMessage,
   endInterview as apiEndInterview,
-  resetInterview as apiResetInterview
+  resetInterview as apiResetInterview,
+  getPerTurnFeedback
 } from '../services/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -31,6 +32,15 @@ export interface Message {
   timestamp?: string;     // To store timestamp
 }
 
+// Add real-time coach feedback tracking
+export interface CoachFeedbackState {
+  [messageIndex: number]: {
+    isAnalyzing: boolean;
+    feedback?: string;
+    hasChecked: boolean;
+  };
+}
+
 export type InterviewState = 'idle' | 'configuring' | 'interviewing' | 'reviewing_feedback' | 'completed';
 
 export interface InterviewResults {
@@ -45,7 +55,83 @@ export function useInterviewSession() {
   const [results, setResults] = useState<InterviewResults | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  
+  // Real-time coach feedback tracking
+  const [coachFeedbackStates, setCoachFeedbackStates] = useState<CoachFeedbackState>({});
+  const [lastFeedbackCount, setLastFeedbackCount] = useState(0);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
   const { toast } = useToast();
+
+  // Polling for real-time coach feedback
+  useEffect(() => {
+    if (sessionId && state === 'interviewing') {
+      const pollForFeedback = async () => {
+        try {
+          const feedback = await getPerTurnFeedback(sessionId);
+          
+          // Update coach feedback states based on current feedback
+          if (feedback.length > lastFeedbackCount) {
+            setCoachFeedbackStates(prev => {
+              const newState = { ...prev };
+              
+              // Mark analyzing for new user messages that don't have feedback yet
+              const userMessageIndexes = messages
+                .map((msg, index) => ({ msg, index }))
+                .filter(({ msg }) => msg.role === 'user')
+                .map(({ index }) => index);
+              
+              userMessageIndexes.forEach((msgIndex, userMsgNumber) => {
+                if (userMsgNumber < feedback.length) {
+                  // Feedback is available
+                  newState[msgIndex] = {
+                    isAnalyzing: false,
+                    feedback: feedback[userMsgNumber].feedback,
+                    hasChecked: true
+                  };
+                } else {
+                  // No feedback yet, should be analyzing if not already checked
+                  if (!newState[msgIndex]?.hasChecked) {
+                    newState[msgIndex] = {
+                      isAnalyzing: true,
+                      hasChecked: false
+                    };
+                  }
+                }
+              });
+              
+              return newState;
+            });
+            
+            setLastFeedbackCount(feedback.length);
+          }
+        } catch (error) {
+          // Silently handle polling errors to avoid UI disruption
+          console.log('Polling for feedback failed:', error);
+        }
+      };
+
+      // Start polling
+      pollForFeedback();
+      pollingIntervalRef.current = setInterval(pollForFeedback, 2000); // Poll every 2 seconds
+
+      return () => {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      };
+    }
+  }, [sessionId, state, messages.length, lastFeedbackCount]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
 
   const startInterview = async (config: InterviewStartRequest) => {
     try {
@@ -118,7 +204,20 @@ export function useInterviewSession() {
         content: message,
         timestamp: new Date().toISOString() // Add timestamp for user message
       };
+      
+      // Get the index where this user message will be placed
+      const userMessageIndex = messages.length;
+      
       setMessages((prev) => [...prev, userMessage]);
+      
+      // Mark coach as analyzing for this user message
+      setCoachFeedbackStates(prev => ({
+        ...prev,
+        [userMessageIndex]: {
+          isAnalyzing: true,
+          hasChecked: false
+        }
+      }));
       
       setIsLoading(true);
       
@@ -199,6 +298,9 @@ export function useInterviewSession() {
       setMessages([]);
       setResults(null);
       setSessionId(null);
+      // Reset coach feedback states
+      setCoachFeedbackStates({});
+      setLastFeedbackCount(0);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to reset interview';
       toast({
@@ -250,6 +352,7 @@ export function useInterviewSession() {
     isLoading,
     results,
     selectedVoice,
+    coachFeedbackStates,
     actions: {
       startInterview,
       sendMessage,
