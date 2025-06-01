@@ -20,6 +20,16 @@ const Index = () => {
     actions
   } = useInterviewSession();
   
+  // Add debugging logs
+  console.log('🎯 Index render - Current state:', state);
+  console.log('🎯 Index render - Results:', results);
+  console.log('🎯 Index render - Results type:', typeof results);
+  if (results) {
+    console.log('🎯 Index render - coachingSummary:', results.coachingSummary);
+    console.log('🎯 Index render - coachingSummary type:', typeof results.coachingSummary);
+    console.log('🎯 Index render - perTurnFeedback:', results.perTurnFeedback);
+  }
+  
   // Move hook calls to top level to fix React hooks violation
   const { user } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -43,6 +53,13 @@ const Index = () => {
   // Animation for elements that should appear when in view
   const [isVisible, setIsVisible] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
+  
+  // Debug effect for tracking completed state
+  useEffect(() => {
+    if (state === 'completed' && results?.coachingSummary) {
+      console.log('🎯 Rendering InterviewResults with coachingSummary:', results.coachingSummary);
+    }
+  }, [state, results?.coachingSummary]);
   
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {

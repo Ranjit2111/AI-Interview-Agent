@@ -9,10 +9,11 @@ from datetime import datetime
 
 from backend.agents.base import BaseAgent, AgentContext
 from backend.agents.interviewer import InterviewerAgent
-from backend.agents.coach import CoachAgent
+from backend.agents.agentic_coach import AgenticCoachAgent
 from backend.utils.event_bus import Event, EventBus, EventType
 from backend.agents.config_models import SessionConfig
 from backend.services.llm_service import LLMService
+from backend.services import get_search_service
 from backend.utils.common import get_current_timestamp
 from backend.agents.constants import (
     ERROR_AGENT_LOAD_FAILED, ERROR_PROCESSING_REQUEST,
@@ -93,10 +94,11 @@ class AgentSessionManager:
                     use_time_based_interview=self.session_config.use_time_based_interview
                 )
             elif agent_type == "coach":
-                return CoachAgent(
+                return AgenticCoachAgent(
                     llm_service=self._llm_service, 
+                    search_service=get_search_service(),
                     event_bus=self.event_bus,
-                    logger=self.logger.getChild("CoachAgent"),
+                    logger=self.logger.getChild("AgenticCoachAgent"),
                     resume_content=self.session_config.resume_content,
                     job_description=self.session_config.job_description
                 )
@@ -184,6 +186,8 @@ class AgentSessionManager:
     
     def _generate_coaching_feedback(self, user_message_data: Dict[str, Any]) -> None:
         """Generate coaching feedback for the user's answer if applicable."""
+        feedback_start_time = datetime.utcnow()
+        
         question_that_was_answered = self._find_last_interviewer_question()
         
         if not question_that_was_answered or not user_message_data.get("content"):
@@ -195,10 +199,14 @@ class AgentSessionManager:
             return
             
         try:
+            self.logger.info("Starting coaching feedback generation...")
             feedback = self._get_coach_feedback(coach_agent, question_that_was_answered, user_message_data["content"])
+            feedback_duration = (datetime.utcnow() - feedback_start_time).total_seconds()
+            self.logger.info(f"Coaching feedback generated in {feedback_duration:.2f} seconds")
             self._log_coach_feedback(question_that_was_answered, user_message_data["content"], feedback)
         except Exception as e:
-            self.logger.exception(f"Error during CoachAgent evaluate_answer: {e}")
+            feedback_duration = (datetime.utcnow() - feedback_start_time).total_seconds()
+            self.logger.exception(f"Error during CoachAgent evaluate_answer after {feedback_duration:.2f}s: {e}")
             self._log_coach_feedback(question_that_was_answered, user_message_data["content"], COACH_FEEDBACK_ERROR)
     
     def _find_last_interviewer_question(self) -> Optional[str]:
@@ -213,7 +221,7 @@ class AgentSessionManager:
                 return prev_msg.get("content")
         return None
     
-    def _get_coach_feedback(self, coach_agent: CoachAgent, question: str, answer: str) -> str:
+    def _get_coach_feedback(self, coach_agent: AgenticCoachAgent, question: str, answer: str) -> str:
         """Get coaching feedback from the coach agent."""
         # Get justification from the latest interviewer metadata
         justification = None
@@ -222,12 +230,44 @@ class AgentSessionManager:
             if latest_msg.get("agent") == "interviewer":
                 justification = latest_msg.get("metadata", {}).get("justification")
         
+        # Create filtered conversation history that excludes the latest interviewer response
+        # to prevent future leakage (coach shouldn't see the next question)
+        filtered_history = self._create_filtered_history_for_coach()
+        
+        # Log the filtering for debugging
+        original_count = len(self.conversation_history)
+        filtered_count = len(filtered_history)
+        if original_count != filtered_count:
+            self.logger.debug(f"Coach feedback: Filtered conversation history from {original_count} to {filtered_count} messages to prevent future leakage")
+        
         return coach_agent.evaluate_answer(
             question=question,
             answer=answer,
             justification=justification,
-            conversation_history=self.conversation_history 
+            conversation_history=filtered_history
         )
+    
+    def _create_filtered_history_for_coach(self) -> List[Dict[str, Any]]:
+        """
+        Create a filtered conversation history for coach feedback that excludes
+        the latest interviewer response (next question) to prevent future leakage.
+        
+        Returns:
+            Filtered conversation history up to the user's latest answer
+        """
+        if not self.conversation_history:
+            return []
+        
+        # If the last message is from the interviewer (next question), exclude it
+        # Coach should only see conversation up to the user's answer
+        if (self.conversation_history and 
+            self.conversation_history[-1].get("role") == "assistant" and
+            self.conversation_history[-1].get("agent") == "interviewer"):
+            # Return history excluding the last interviewer response (next question)
+            return self.conversation_history[:-1]
+        else:
+            # Return full history if last message is not interviewer response
+            return self.conversation_history
     
     def _log_coach_feedback(self, question: str, answer: str, feedback: str) -> None:
         """Log coaching feedback to the feedback log."""
@@ -289,7 +329,6 @@ class AgentSessionManager:
             coaching_summary = self._generate_final_coaching_summary()
             if coaching_summary:
                 final_results["coaching_summary"] = coaching_summary
-                self._add_recommended_resources(final_results)
         except Exception as e:
             self.logger.exception(f"Error generating final coaching summary: {e}")
             final_results["coaching_summary"] = {"error": f"Final coaching summary generation failed: {e}"}
@@ -297,50 +336,13 @@ class AgentSessionManager:
         return final_results
     
     def _generate_final_coaching_summary(self) -> Optional[Dict[str, Any]]:
-        """Generate final coaching summary using coach agent."""
+        """Generate final coaching summary using agentic coach agent."""
         coach_agent = self._get_agent("coach")
         if not coach_agent:
             return None
             
-        return coach_agent.generate_final_summary(self.conversation_history)
-    
-    def _add_recommended_resources(self, final_results: Dict[str, Any]) -> None:
-        """Add recommended resources based on search topics."""
-        coaching_summary = final_results.get("coaching_summary", {})
-        if not isinstance(coaching_summary, dict):
-            return
-            
-        search_topics = coaching_summary.get("resource_search_topics", [])
-        if not search_topics:
-            return
-            
-        # Mock resource search (simplified for this refactor)
-        recommended_resources = []
-        for topic in search_topics[:3]:
-            try:
-                resources = self._mock_search_resources(topic)
-                if resources:
-                    recommended_resources.append({
-                        "topic": topic,
-                        "resources": resources[:3]
-                    })
-            except Exception as e:
-                self.logger.error(f"Error performing web search for topic '{topic}': {e}")
-        
-        coaching_summary["recommended_resources"] = recommended_resources
-    
-    def _mock_search_resources(self, topic: str) -> List[Dict[str, str]]:
-        """Mock resource search - replace with real implementation if needed."""
-        # Simplified mock data
-        mock_resources = {
-            "effective communication in interviews": [
-                {"title": "Essential Interview Questions for Communication", "url": "#", "snippet": "..."}
-            ],
-            "STAR method for behavioral questions": [
-                {"title": "Using the STAR method effectively", "url": "#", "snippet": "..."}
-            ]
-        }
-        return mock_resources.get(topic, [])
+        # Use the new agentic method that includes resource search
+        return coach_agent.generate_final_summary_with_resources(self.conversation_history)
 
     def get_conversation_history(self) -> List[Dict[str, Any]]:
         """Returns the full conversation history."""

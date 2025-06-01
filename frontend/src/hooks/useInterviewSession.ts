@@ -154,16 +154,31 @@ export function useInterviewSession() {
     
     try {
       setIsLoading(true);
-      const response = await apiEndInterview(sessionId);
+      console.log('🔄 Starting endInterview API call...');
       
-      setResults({
+      const response = await apiEndInterview(sessionId);
+      console.log('📥 Raw API response:', response);
+      console.log('📥 Response type:', typeof response);
+      console.log('📥 Response.results:', response.results);
+      console.log('📥 Response.results type:', typeof response.results);
+      console.log('📥 Response.per_turn_feedback:', response.per_turn_feedback);
+      
+      const resultsToSet = {
         coachingSummary: response.results,
         perTurnFeedback: response.per_turn_feedback
-      });
+      };
       
+      console.log('📦 Setting results state to:', resultsToSet);
+      console.log('📦 coachingSummary will be:', resultsToSet.coachingSummary);
+      console.log('📦 coachingSummary type:', typeof resultsToSet.coachingSummary);
+      
+      setResults(resultsToSet);
+      
+      console.log('🔄 Transitioning to reviewing_feedback state');
       // Transition to a new state for reviewing per-turn feedback first
       setState('reviewing_feedback');
     } catch (error) {
+      console.error('❌ Error in endInterview:', error);
       const message = error instanceof Error ? error.message : 'Failed to end interview';
       toast({
         title: 'Error',
@@ -195,8 +210,17 @@ export function useInterviewSession() {
   };
 
   const proceedToFinalSummary = () => {
+    console.log('🎯 proceedToFinalSummary called');
+    console.log('🎯 Current state:', state);
+    console.log('🎯 Results available:', !!results);
+    console.log('🎯 coachingSummary available:', !!results?.coachingSummary);
+    console.log('🎯 Full results object:', results);
+    
     if (state === 'reviewing_feedback') {
+      console.log('🎯 Transitioning state from reviewing_feedback to completed');
       setState('completed');
+    } else {
+      console.log('🎯 State transition blocked - not in reviewing_feedback state');
     }
   };
 

@@ -70,34 +70,40 @@ PROFICIENCY_LEVEL_TERMS = {
 # Fallback platform templates
 FALLBACK_PLATFORMS = [
     {
-        "title_template": "Learn {skill} on Coursera",
-        "url_template": "https://www.coursera.org/courses?query={skill}",
-        "description_template": "Find online courses on {skill} from leading universities and companies.",
+        "title_template": "Free {skill} Course on freeCodeCamp",
+        "url_template": "https://www.freecodecamp.org/learn",
+        "description_template": "Learn {skill} with free, hands-on coding tutorials and projects.",
         "type": "course"
     },
     {
-        "title_template": "{skill} tutorials on Udemy",
-        "url_template": "https://www.udemy.com/courses/search/?q={skill}",
-        "description_template": "Explore a wide range of {skill} courses for all skill levels.",
+        "title_template": "{skill} Documentation and Tutorials",
+        "url_template": "https://developer.mozilla.org/en-US/",
+        "description_template": "Comprehensive {skill} documentation and learning resources from Mozilla Developer Network.",
+        "type": "documentation"
+    },
+    {
+        "title_template": "{skill} Learning Path on GitHub",
+        "url_template": "https://github.com/topics/learning-resources",
+        "description_template": "Open source {skill} learning materials, projects, and examples on GitHub.",
+        "type": "tutorial"
+    },
+    {
+        "title_template": "Interactive {skill} Tutorials",
+        "url_template": "https://www.codecademy.com/catalog",
+        "description_template": "Interactive coding lessons and exercises for learning {skill} at {proficiency_level} level.",
+        "type": "interactive"
+    },
+    {
+        "title_template": "{skill} Community on Reddit",
+        "url_template": "https://www.reddit.com/r/learnprogramming/",
+        "description_template": "Active community discussions, resources, and help for learning {skill}.",
+        "type": "community"
+    },
+    {
+        "title_template": "Khan Academy {skill} Course",
+        "url_template": "https://www.khanacademy.org/computing",
+        "description_template": "Free educational content for learning {skill} fundamentals with visual explanations.",
         "type": "course"
-    },
-    {
-        "title_template": "{skill} on YouTube",
-        "url_template": "https://www.youtube.com/results?search_query={skill}+{proficiency_level}+tutorial",
-        "description_template": "Watch free video tutorials on {skill} at {proficiency_level} level.",
-        "type": "video"
-    },
-    {
-        "title_template": "{skill} community on Stack Overflow",
-        "url_template": "https://stackoverflow.com/questions/tagged/{skill_tag}",
-        "description_template": "Find answers to your {skill} questions from the developer community.",
-        "type": "community"
-    },
-    {
-        "title_template": "{skill} on GitHub",
-        "url_template": "https://github.com/topics/{skill_tag}",
-        "description_template": "Explore {skill} projects, libraries, and resources on GitHub.",
-        "type": "community"
     }
 ]
 
