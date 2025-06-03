@@ -17,6 +17,7 @@ from .search_helpers import (
     ResourceType, ResourceClassifier, RelevanceScorer, 
     DomainQualityEvaluator, FallbackResourceGenerator
 )
+from backend.services.rate_limiting import get_rate_limiter
 
 load_dotenv()
 
@@ -46,19 +47,20 @@ class SearchProvider:
 
 
 class SerperProvider(SearchProvider):
-    """Serper.dev search provider."""
+    """Serper.dev search provider with rate limiting."""
     
     def __init__(self, api_key: Optional[str] = None):
         """Initialize the Serper provider."""
         super().__init__(api_key or SERPER_KEY)
         self.base_url = "https://google.serper.dev/search"
+        self.rate_limiter = get_rate_limiter()
     
     @backoff.on_exception(backoff.expo, 
                          (httpx.HTTPError, httpx.TimeoutException),
                          max_tries=3)
     async def search(self, query: str, **kwargs) -> Dict[str, Any]:
         """
-        Perform a search using Serper.dev.
+        Perform a search using Serper.dev with rate limiting.
         
         Args:
             query: Search query string
@@ -70,26 +72,35 @@ class SerperProvider(SearchProvider):
         if not self.api_key:
             raise ValueError("Serper.dev API key not provided")
         
-        params = {
-            "q": query,
-            "num": kwargs.get("num_results", 10),
-            "gl": kwargs.get("country", "us"),
-            "hl": kwargs.get("language", "en"),
-        }
+        # Acquire rate limit slot
+        if not await self.rate_limiter.acquire_search():
+            raise Exception("Search API rate limit exceeded - no available slots")
         
-        headers = {
-            "X-API-KEY": self.api_key,
-            "Content-Type": "application/json"
-        }
-        
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                self.base_url, 
-                json=params,
-                headers=headers
-            )
-            response.raise_for_status()
-            return response.json()
+        try:
+            params = {
+                "q": query,
+                "num": kwargs.get("num_results", 10),
+                "gl": kwargs.get("country", "us"),
+                "hl": kwargs.get("language", "en"),
+            }
+            
+            headers = {
+                "X-API-KEY": self.api_key,
+                "Content-Type": "application/json"
+            }
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    self.base_url, 
+                    json=params,
+                    headers=headers
+                )
+                response.raise_for_status()
+                return response.json()
+                
+        finally:
+            # Always release the rate limit slot
+            self.rate_limiter.release_search()
 
 
 class Resource:
@@ -130,7 +141,7 @@ class Resource:
 class SearchService:
     """
     Service for searching and retrieving learning resources.
-    Provides caching and result processing.
+    Provides caching and result processing with rate limiting.
     """
     
     def __init__(
@@ -156,7 +167,7 @@ class SearchService:
         self._search_cache = {}
         self._search_cache_timestamps = {}
         
-        self.logger.info("Initialized search service with helper components")
+        self.logger.info("Initialized search service with helper components and rate limiting")
     
     async def search_resources(
         self,

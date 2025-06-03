@@ -8,6 +8,7 @@ import { Message, CoachFeedbackState } from '@/hooks/useInterviewSession';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface InterviewSessionProps {
+  sessionId?: string; // Add sessionId for voice component integration
   messages: Message[];
   isLoading: boolean;
   onSendMessage: (message: string) => void;
@@ -17,6 +18,7 @@ interface InterviewSessionProps {
 }
 
 const InterviewSession: React.FC<InterviewSessionProps> = ({
+  sessionId,
   messages,
   isLoading,
   onSendMessage,
@@ -57,6 +59,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       isLoading,
       state: 'interviewing', // We know it's interviewing since this component only renders in that state
       selectedVoice,
+      sessionId, // Pass sessionId for speech task tracking
     }, 
     onSendMessage
   );

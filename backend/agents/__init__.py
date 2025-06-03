@@ -8,7 +8,6 @@ from typing import Dict, Type
 from .base import BaseAgent, AgentContext
 
 from .interviewer import InterviewerAgent
-from .coach import CoachAgent
 from .agentic_coach import AgenticCoachAgent
 
 from .orchestrator import AgentSessionManager
@@ -18,7 +17,6 @@ __all__ = [
     'BaseAgent',
     'AgentContext',
     'InterviewerAgent',
-    'CoachAgent',
     'AgenticCoachAgent',
     'AgentSessionManager',
     'InterviewState',
@@ -27,6 +25,5 @@ __all__ = [
 
 AGENT_REGISTRY: Dict[str, Type[BaseAgent]] = {
     'interviewer': InterviewerAgent,
-    'coach': CoachAgent,
-    'agentic_coach': AgenticCoachAgent,
+    'coach': AgenticCoachAgent,
 } 

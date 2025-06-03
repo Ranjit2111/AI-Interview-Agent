@@ -52,6 +52,7 @@ export interface SpeechTranscriptionEvent {
 }
 
 export interface StreamingSpeechOptions {
+  sessionId?: string;  // Add session ID for linking speech tasks
   onTranscript: (transcript: string, isFinal: boolean) => void;
   onError: (error: string) => void;
   onConnected: () => void;
@@ -109,8 +110,14 @@ export class StreamingSpeechRecognition {
 
   private async connectWebSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Build WebSocket URL with optional session ID
+      let wsUrl = `${WS_BASE_URL}/api/speech-to-text/stream`;
+      if (this.options.sessionId) {
+        wsUrl += `?session_id=${encodeURIComponent(this.options.sessionId)}`;
+      }
+      
       // Create WebSocket connection
-      this.ws = new WebSocket(`${WS_BASE_URL}/api/speech-to-text/stream`);
+      this.ws = new WebSocket(wsUrl);
       
       // Set binary type to arraybuffer
       this.ws.binaryType = 'arraybuffer';

@@ -8,3 +8,8 @@ i would like for the coach to feel like a real time agent running during the int
 
 - improve the coach agent prompt or processing, currently the coach agent has the next interviewer response to the user's answer, so the coaching is telling based on the next interviewer's response, which is stupid i believe, because how i am supposed to know what im supposed to say when just introudcing
 - also the interviewer agent seems to be stuck on asking the same or similar set of questions over and over again, in an interview, the interviewer would move to the next question if the user is good at it or bad at it, regardless they will not sit in the same or similar set of questions for a longgg time. so yeah
+
+- remove speech_tasks table from supabase, if users come in flies, because it doesn't scale beyond a certain point.
+
+- how is time utilised? where and how can it be made better?
+- 

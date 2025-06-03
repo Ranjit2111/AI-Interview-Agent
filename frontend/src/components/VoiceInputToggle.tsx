@@ -6,11 +6,13 @@ import VoiceRecorder from './VoiceRecorder';
 import StreamingVoiceRecorder from './StreamingVoiceRecorder';
 
 interface VoiceInputToggleProps {
+  sessionId?: string;
   onTranscriptionComplete: (text: string) => void;
   isDisabled?: boolean;
 }
 
 const VoiceInputToggle: React.FC<VoiceInputToggleProps> = ({
+  sessionId,
   onTranscriptionComplete,
   isDisabled = false
 }) => {
@@ -131,6 +133,7 @@ const VoiceInputToggle: React.FC<VoiceInputToggleProps> = ({
       <div className="flex justify-center">
         {useStreaming ? (
           <StreamingVoiceRecorder 
+            sessionId={sessionId}
             onTranscriptUpdate={handleStreamingTranscript}
             isDisabled={isDisabled}
           />

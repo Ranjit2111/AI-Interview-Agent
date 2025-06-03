@@ -17,16 +17,13 @@ from backend.agents.tools.search_tool import LearningResourceSearchTool
 from backend.services.llm_service import LLMService
 from backend.services.search_service import SearchService
 from backend.utils.event_bus import EventBus
-from backend.agents.templates.coach_templates import (
-    EVALUATE_ANSWER_TEMPLATE,
-    FINAL_SUMMARY_TEMPLATE
-)
 from backend.utils.llm_utils import (
     invoke_chain_with_error_handling,
     parse_json_with_fallback,
     format_conversation_history
 )
 from backend.utils.common import safe_get_or_default
+from backend.utils.async_utils import run_async_safe
 from backend.agents.constants import DEFAULT_VALUE_NOT_PROVIDED
 
 
@@ -59,7 +56,27 @@ Your coaching should be:
 - Actionable with clear next steps
 - Supported by relevant learning resources when appropriate
 
-Remember: You are not just analyzing - you are actively helping the user improve by finding the right resources. **Always provide multiple learning resources to add real value to the user's learning journey.**"""
+Remember: You are not just analyzing - you are actively helping the user improve by finding the right resources. **Always provide multiple learning resources to add real value to the user's learning journey.**
+
+**IMPORTANT OUTPUT FORMAT:**
+For final summaries, you MUST return a valid JSON object with these exact keys:
+{
+    "patterns_tendencies": "Your analysis text...",
+    "strengths": "Your analysis text...", 
+    "weaknesses": "Your analysis text...",
+    "improvement_focus_areas": "Your analysis text...",
+    "recommended_resources": [
+        {
+            "title": "Resource Title",
+            "url": "https://example.com",
+            "description": "Resource description",
+            "resource_type": "tutorial|course|documentation|article",
+            "relevance_score": 0.85
+        }
+    ]
+}
+
+Make sure to populate recommended_resources with actual results from your search tool usage."""
 
 
 class AgenticCoachAgent(BaseAgent):
@@ -123,7 +140,7 @@ class AgenticCoachAgent(BaseAgent):
         """
         if not self.agent_executor:
             # Fallback to simple evaluation if agent setup failed
-            return self._fallback_evaluate_answer(question, answer, justification, conversation_history)
+            return self._simple_evaluate_answer(question, answer, justification, conversation_history)
         
         try:
             # Create the evaluation prompt for the agent
@@ -148,7 +165,7 @@ class AgenticCoachAgent(BaseAgent):
             
         except Exception as e:
             self.logger.error(f"Error in agentic evaluation: {e}")
-            return self._fallback_evaluate_answer(question, answer, justification, conversation_history)
+            return self._simple_evaluate_answer(question, answer, justification, conversation_history)
     
     def generate_final_summary_with_resources(self, conversation_history: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -159,7 +176,7 @@ class AgenticCoachAgent(BaseAgent):
         """
         if not self.agent_executor:
             # Fallback to simple summary if agent setup failed
-            return self._fallback_final_summary(conversation_history)
+            return self._simple_final_summary(conversation_history)
         
         try:
             # Create the summary prompt for the agent
@@ -176,13 +193,13 @@ class AgenticCoachAgent(BaseAgent):
             if result and "messages" in result:
                 last_message = result["messages"][-1]
                 if hasattr(last_message, 'content'):
-                    return self._parse_agentic_summary(last_message.content)
+                    return self._parse_structured_summary(last_message.content)
             
             return self._create_default_summary()
             
         except Exception as e:
             self.logger.error(f"Error in agentic final summary: {e}")
-            return self._fallback_final_summary(conversation_history)
+            return self._simple_final_summary(conversation_history)
     
     def _build_evaluation_prompt(
         self, 
@@ -264,19 +281,20 @@ to find specific learning resources for the user's identified weaknesses and imp
 - Domain-specific knowledge
 - Interview skills and confidence
 
-Format your final response as a JSON object with these keys:
-- patterns_tendencies
-- strengths  
-- weaknesses
-- improvement_focus_areas
-- recommended_resources (this should be populated by your search tool usage)
-
 **CRITICAL**: You must actually USE the search tool multiple times to find at least 3-4 resources. Do not proceed without doing multiple searches.
 """
         return prompt
     
-    def _parse_agentic_summary(self, content: str) -> Dict[str, Any]:
-        """Parse the agentic summary response into the expected format."""
+    def _parse_structured_summary(self, content: str) -> Dict[str, Any]:
+        """
+        Parse the agentic summary response using structured JSON extraction.
+        
+        Args:
+            content: The full response from the agent
+            
+        Returns:
+            Parsed summary dictionary
+        """
         try:
             # Try to extract JSON from the response
             if "```json" in content:
@@ -291,6 +309,7 @@ Format your final response as a JSON object with these keys:
                 json_str = content[start:end]
             else:
                 # No JSON found, create default structure
+                self.logger.warning("No JSON structure found in agent response")
                 return self._create_default_summary()
             
             parsed = json.loads(json_str)
@@ -301,29 +320,43 @@ Format your final response as a JSON object with these keys:
                 if key not in parsed:
                     parsed[key] = f"Could not generate {key.replace('_', ' ')} feedback."
             
-            # Extract and format resources from the agent's tool usage
-            parsed["recommended_resources"] = self._extract_resources_from_agent_response(content)
+            # Validate and extract resources
+            resources = parsed.get("recommended_resources", [])
+            if not resources or not isinstance(resources, list):
+                # Extract resources from search tool usage in the response
+                self.logger.info("No structured resources found, extracting from search results")
+                resources = self._extract_resources_from_search_results(content)
+                parsed["recommended_resources"] = resources
+            
+            # Ensure we have at least some resources
+            if len(resources) < 2:
+                self.logger.warning("Insufficient resources found, adding fallbacks")
+                fallback_resources = self._get_minimal_fallback_resources()
+                resources.extend(fallback_resources[:3 - len(resources)])
+                parsed["recommended_resources"] = resources[:4]
             
             return parsed
             
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON parsing error: {e}")
+            return self._create_default_summary()
         except Exception as e:
-            self.logger.error(f"Error parsing agentic summary: {e}")
+            self.logger.error(f"Error parsing structured summary: {e}")
             return self._create_default_summary()
     
-    def _extract_resources_from_agent_response(self, agent_response: str) -> List[Dict[str, Any]]:
+    def _extract_resources_from_search_results(self, agent_response: str) -> List[Dict[str, Any]]:
         """
-        Extract resources from the agent's response when it used the search tool.
+        Extract resources from search tool results in agent response.
         
         Args:
             agent_response: The full response from the agent
             
         Returns:
-            List of formatted resources for frontend consumption
+            List of extracted resource dictionaries
         """
         resources = []
         
         try:
-            # Look for search tool results in the agent response
             lines = agent_response.split('\n')
             in_search_results = False
             current_resource = {}
@@ -338,15 +371,15 @@ Format your final response as a JSON object with these keys:
                 
                 # Stop processing at end markers
                 if in_search_results and ("All resources have been filtered" in line or line.startswith("```")):
-                    if current_resource and all(key in current_resource for key in ["title", "url", "description"]):
+                    if self._is_valid_resource(current_resource):
                         resources.append(current_resource)
                     break
                 
                 if in_search_results:
                     # Parse numbered resource entries
                     if line and line[0].isdigit() and "." in line:
-                        # Save previous resource if it has required fields
-                        if current_resource and all(key in current_resource for key in ["title", "url", "description"]):
+                        # Save previous resource if valid
+                        if self._is_valid_resource(current_resource):
                             resources.append(current_resource)
                         
                         # Start new resource
@@ -357,308 +390,160 @@ Format your final response as a JSON object with these keys:
                     
                     elif line.startswith("Type:"):
                         current_resource["resource_type"] = line.replace("Type:", "").strip()
-                    
                     elif line.startswith("URL:"):
                         current_resource["url"] = line.replace("URL:", "").strip()
-                    
                     elif line.startswith("Description:"):
                         current_resource["description"] = line.replace("Description:", "").strip()
-                    
                     elif line.startswith("Relevance Score:"):
                         score_str = line.replace("Relevance Score:", "").strip()
                         try:
                             current_resource["relevance_score"] = float(score_str)
                         except ValueError:
                             current_resource["relevance_score"] = 0.0
-                    
-                    elif line.startswith("Domain Quality:"):
-                        current_resource["domain_quality"] = line.replace("Domain Quality:", "").strip()
             
-            # Add the last resource if exists and not already added
-            if current_resource and all(key in current_resource for key in ["title", "url", "description"]):
-                # Check if this resource is already in the list (avoid duplicates)
-                resource_exists = any(
-                    r["title"] == current_resource["title"] and r["url"] == current_resource["url"] 
-                    for r in resources
-                )
-                if not resource_exists:
-                    resources.append(current_resource)
+            # Add the last resource if valid
+            if self._is_valid_resource(current_resource):
+                resources.append(current_resource)
             
-            # Ensure required fields exist and validate
-            valid_resources = []
-            for resource in resources:
-                if all(key in resource for key in ["title", "url", "description"]):
-                    # Ensure required fields exist
-                    if "resource_type" not in resource:
-                        resource["resource_type"] = "article"
-                    valid_resources.append(resource)
-            
-            self.logger.info(f"Extracted {len(valid_resources)} resources from agent response")
-            return valid_resources
+            self.logger.info(f"Extracted {len(resources)} resources from search results")
+            return resources
             
         except Exception as e:
-            self.logger.error(f"Error extracting resources from agent response: {e}")
+            self.logger.error(f"Error extracting resources from search results: {e}")
             return []
     
-    def _create_default_summary(self) -> Dict[str, Any]:
-        """Create a default summary structure."""
-        return {
-            "patterns_tendencies": "Could not generate patterns/tendencies feedback.",
-            "strengths": "Could not generate strengths feedback.",
-            "weaknesses": "Could not generate weaknesses feedback.",
-            "improvement_focus_areas": "Could not generate improvement focus areas.",
-            "recommended_resources": self._get_hardcoded_fallback_resources()
-        }
+    def _is_valid_resource(self, resource: Dict[str, Any]) -> bool:
+        """Check if a resource has all required fields."""
+        required_fields = ["title", "url", "description"]
+        return all(field in resource and resource[field] for field in required_fields)
     
-    def _fallback_evaluate_answer(
+    def _simple_evaluate_answer(
         self, 
         question: str, 
         answer: str, 
         justification: Optional[str], 
         conversation_history: List[Dict[str, Any]]
     ) -> str:
-        """Fallback evaluation method if agentic approach fails."""
-        # Use the original template-based approach
-        from langchain.prompts import PromptTemplate
-        from langchain.chains import LLMChain
-        
+        """Simple evaluation fallback when agentic approach fails."""
         try:
-            chain = LLMChain(
-                llm=self.llm,
-                prompt=PromptTemplate.from_template(EVALUATE_ANSWER_TEMPLATE),
-                output_key="evaluation_text"
-            )
+            # Basic template-based evaluation
+            if not answer or len(answer.strip()) < 10:
+                return "Consider providing more detailed answers to help the interviewer understand your thought process."
             
-            inputs = {
-                "resume_content": safe_get_or_default(self.resume_content, DEFAULT_VALUE_NOT_PROVIDED),
-                "job_description": safe_get_or_default(self.job_description, DEFAULT_VALUE_NOT_PROVIDED),
-                "conversation_history": format_conversation_history(conversation_history, max_messages=10, max_content_length=200),
-                "question": question or "No question provided.",
-                "answer": answer or "No answer provided.",
-                "justification": justification or "No justification provided."
+            if any(phrase in answer.lower() for phrase in ["i don't know", "not sure", "can't remember"]):
+                return "When you're uncertain, try to think through the problem out loud or discuss related concepts you do know."
+            
+            return "Good answer! Consider adding more specific examples or details to strengthen your response."
+            
+        except Exception as e:
+            self.logger.error(f"Error in simple evaluation: {e}")
+            return "Could not generate coaching feedback for this answer."
+    
+    def _simple_final_summary(self, conversation_history: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Simple summary fallback when agentic approach fails."""
+        try:
+            # Analyze conversation for basic patterns
+            conversation_text = " ".join([msg.get("content", "") for msg in conversation_history])
+            
+            # Generate basic resources based on conversation content
+            resources = self._generate_contextual_resources(conversation_text)
+            
+            return {
+                "patterns_tendencies": "Unable to generate detailed pattern analysis. Consider reviewing your answers for consistency and depth.",
+                "strengths": "You engaged well with the interview process and provided responses to all questions.",
+                "weaknesses": "Consider providing more specific examples and technical details in your answers.",
+                "improvement_focus_areas": "Focus on: 1) Adding specific examples to answers, 2) Providing technical details, 3) Practicing common interview questions.",
+                "recommended_resources": resources
             }
             
-            response = invoke_chain_with_error_handling(
-                chain, inputs, self.logger, "FallbackEvaluateAnswerChain", output_key="evaluation_text"
-            )
-            
-            if isinstance(response, str) and response.strip():
-                return response
-            elif isinstance(response, dict) and 'evaluation_text' in response:
-                return response['evaluation_text']
-            
         except Exception as e:
-            self.logger.error(f"Error in fallback evaluation: {e}")
-        
-        return "Could not generate coaching feedback for this answer."
+            self.logger.error(f"Error in simple summary: {e}")
+            return self._create_default_summary()
     
-    def _fallback_final_summary(self, conversation_history: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Fallback summary method if agentic approach fails."""
-        from langchain.prompts import PromptTemplate
-        from langchain.chains import LLMChain
-        
-        try:
-            chain = LLMChain(
-                llm=self.llm,
-                prompt=PromptTemplate.from_template(FINAL_SUMMARY_TEMPLATE),
-                output_key="summary_json"
-            )
-            
-            inputs = {
-                "resume_content": safe_get_or_default(self.resume_content, DEFAULT_VALUE_NOT_PROVIDED),
-                "job_description": safe_get_or_default(self.job_description, DEFAULT_VALUE_NOT_PROVIDED),
-                "conversation_history": format_conversation_history(conversation_history)
-            }
-            
-            response = invoke_chain_with_error_handling(
-                chain, inputs, self.logger, "FallbackFinalSummaryChain", output_key="summary_json"
-            )
-            
-            if isinstance(response, dict):
-                summary = response
-            elif isinstance(response, str):
-                summary = parse_json_with_fallback(response, self._create_default_summary(), self.logger)
-            else:
-                summary = self._create_default_summary()
-            
-            # Generate actual resources using the search service if we have search topics
-            if "resource_search_topics" in summary and summary["resource_search_topics"]:
-                self.logger.info("Fallback: Generating resources from search topics")
-                summary["recommended_resources"] = self._generate_resources_from_topics(summary["resource_search_topics"])
-            elif "recommended_resources" not in summary or not summary["recommended_resources"]:
-                # Generate default resources based on conversation analysis
-                self.logger.info("Fallback: Generating default resources")
-                summary["recommended_resources"] = self._generate_default_resources_from_conversation(conversation_history)
-            
-            return summary
-            
-        except Exception as e:
-            self.logger.error(f"Error in fallback summary: {e}")
-            return self._create_default_summary_with_resources()
-    
-    def _generate_resources_from_topics(self, topics: List[str]) -> List[Dict[str, Any]]:
-        """Generate resources from search topics using the search service."""
+    def _generate_contextual_resources(self, conversation_text: str) -> List[Dict[str, Any]]:
+        """Generate resources based on conversation content."""
         resources = []
         
-        self.logger.info(f"Generating resources from {len(topics)} topics: {topics}")
+        # Identify skill areas from conversation
+        skill_keywords = {
+            "algorithm": "algorithms and data structures",
+            "python": "Python programming",
+            "javascript": "JavaScript development", 
+            "system": "system design",
+            "database": "database design",
+            "api": "API development"
+        }
         
-        try:
-            for i, topic in enumerate(topics[:3]):  # Limit to first 3 topics
-                self.logger.info(f"Searching for resources for topic {i+1}: {topic}")
-                
-                # Use asyncio to run the async search
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    topic_resources = loop.run_until_complete(
-                        self.search_service.search_resources(
-                            skill=topic,
-                            proficiency_level="intermediate",
-                            num_results=3,
-                            use_cache=False  # Don't use cache for fresh results
-                        )
-                    )
-                    
-                    # Convert Resource objects to dictionaries
-                    for resource in topic_resources[:2]:  # Take top 2 from each topic
-                        resource_dict = {
-                            "title": resource.title,
-                            "url": resource.url,
-                            "description": resource.description,
-                            "resource_type": resource.resource_type,
-                            "relevance_score": resource.relevance_score
-                        }
-                        resources.append(resource_dict)
-                        self.logger.info(f"Added resource: {resource.title[:50]}...")
-                    
-                finally:
-                    loop.close()
+        identified_skills = []
+        for keyword, skill in skill_keywords.items():
+            if keyword in conversation_text.lower():
+                identified_skills.append(skill)
         
-        except Exception as e:
-            self.logger.error(f"Error generating resources from topics: {e}")
-            # Fall back to hardcoded resources
-            resources = self._get_hardcoded_fallback_resources()
-        
-        self.logger.info(f"Generated {len(resources)} total resources from topics")
-        return resources[:4]  # Ensure we don't exceed 4 resources
-    
-    def _generate_default_resources_from_conversation(self, conversation_history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Generate default resources based on conversation analysis."""
-        self.logger.info("Generating default resources based on conversation patterns")
-        
-        # Analyze conversation for skill gaps
-        conversation_text = " ".join([msg.get("content", "") for msg in conversation_history])
-        
-        default_skills = []
-        
-        # Check for algorithm/data structure mentions
-        if any(term in conversation_text.lower() for term in ["sort", "algorithm", "complexity", "data structure"]):
-            default_skills.append("algorithms")
-        
-        # Check for system design mentions
-        if any(term in conversation_text.lower() for term in ["system", "design", "architecture", "scale"]):
-            default_skills.append("system design")
-        
-        # Check for communication issues
-        if any(term in conversation_text.lower() for term in ["not sure", "don't know", "can't remember"]):
-            default_skills.append("technical communication")
-        
-        # Default to programming fundamentals if no specific patterns found
-        if not default_skills:
-            default_skills = ["programming fundamentals", "interview preparation"]
-        
-        # Generate resources for identified skills
-        resources = []
-        for skill in default_skills[:3]:  # Max 3 skills
+        # Use search service to find resources
+        for skill in identified_skills[:2]:  # Limit to 2 skills
             try:
-                search_results = self.search_tool._run(
-                    skill=skill,
-                    proficiency_level="intermediate",
-                    num_results=2
+                search_results = run_async_safe(
+                    self.search_service.search_resources(
+                        skill=skill,
+                        proficiency_level="intermediate",
+                        num_results=2,
+                        use_cache=True
+                    )
                 )
-                skill_resources = self._extract_resources_from_search_text(search_results)
-                resources.extend(skill_resources[:2])  # Take top 2 from each skill
+                
+                for resource in search_results[:2]:  # Top 2 per skill
+                    resources.append({
+                        "title": resource.title,
+                        "url": resource.url,
+                        "description": resource.description,
+                        "resource_type": resource.resource_type,
+                        "relevance_score": resource.relevance_score
+                    })
+                    
             except Exception as e:
                 self.logger.error(f"Error searching for {skill}: {e}")
         
-        # Ensure we have at least 3 resources by adding fallbacks if needed
+        # Add fallbacks if needed
         if len(resources) < 3:
-            fallback_resources = self._get_hardcoded_fallback_resources()
+            fallback_resources = self._get_minimal_fallback_resources()
             resources.extend(fallback_resources[:3 - len(resources)])
         
         return resources[:4]  # Maximum 4 resources
     
-    def _extract_resources_from_search_text(self, search_text: str) -> List[Dict[str, Any]]:
-        """Extract resources from search tool output text."""
-        resources = []
-        
-        if "No suitable free learning resources found" in search_text:
-            return resources
-        
-        lines = search_text.split('\n')
-        current_resource = {}
-        
-        for line in lines:
-            line = line.strip()
-            
-            if line and line[0].isdigit() and "." in line:
-                # Save previous resource
-                if current_resource and all(key in current_resource for key in ["title", "url", "description"]):
-                    resources.append(current_resource)
-                
-                # Start new resource
-                title = line.split(".", 1)[1].strip()
-                if title.startswith("**") and title.endswith("**"):
-                    title = title[2:-2]
-                current_resource = {"title": title}
-            
-            elif line.startswith("Type:"):
-                current_resource["resource_type"] = line.replace("Type:", "").strip()
-            elif line.startswith("URL:"):
-                current_resource["url"] = line.replace("URL:", "").strip()
-            elif line.startswith("Description:"):
-                current_resource["description"] = line.replace("Description:", "").strip()
-        
-        # Add last resource
-        if current_resource and all(key in current_resource for key in ["title", "url", "description"]):
-            if "resource_type" not in current_resource:
-                current_resource["resource_type"] = "article"
-            resources.append(current_resource)
-        
-        return resources
-    
-    def _get_hardcoded_fallback_resources(self) -> List[Dict[str, Any]]:
-        """Get hardcoded fallback resources as a last resort."""
+    def _get_minimal_fallback_resources(self) -> List[Dict[str, Any]]:
+        """Get minimal fallback resources as last resort."""
         return [
             {
-                "title": "Free Programming Courses on freeCodeCamp",
+                "title": "freeCodeCamp - Learn to Code for Free",
                 "url": "https://www.freecodecamp.org/learn",
-                "description": "Comprehensive free coding curriculum with hands-on projects and certifications.",
-                "resource_type": "course"
-            },
-            {
-                "title": "Algorithm Fundamentals on Khan Academy",
-                "url": "https://www.khanacademy.org/computing/computer-science/algorithms",
-                "description": "Learn algorithmic thinking and fundamental computer science concepts.",
-                "resource_type": "course"
+                "description": "Comprehensive free coding curriculum with hands-on projects.",
+                "resource_type": "course",
+                "relevance_score": 0.8
             },
             {
                 "title": "Technical Interview Preparation",
                 "url": "https://www.geeksforgeeks.org/interview-preparation/",
-                "description": "Practice coding problems and learn interview strategies for technical roles.",
-                "resource_type": "tutorial"
+                "description": "Practice coding problems and learn interview strategies.",
+                "resource_type": "tutorial",
+                "relevance_score": 0.7
+            },
+            {
+                "title": "Khan Academy Computer Science",
+                "url": "https://www.khanacademy.org/computing",
+                "description": "Free educational content for computer science fundamentals.",
+                "resource_type": "course",
+                "relevance_score": 0.7
             }
         ]
     
-    def _create_default_summary_with_resources(self) -> Dict[str, Any]:
-        """Create a default summary structure with fallback resources."""
+    def _create_default_summary(self) -> Dict[str, Any]:
+        """Create a default summary structure."""
         return {
-            "patterns_tendencies": "Could not generate patterns/tendencies feedback.",
-            "strengths": "Could not generate strengths feedback.",
-            "weaknesses": "Could not generate weaknesses feedback.",
-            "improvement_focus_areas": "Could not generate improvement focus areas.",
-            "recommended_resources": self._get_hardcoded_fallback_resources()
+            "patterns_tendencies": "Could not generate detailed patterns analysis.",
+            "strengths": "Could not generate detailed strengths feedback.",
+            "weaknesses": "Could not generate detailed weaknesses feedback.",
+            "improvement_focus_areas": "Could not generate detailed improvement focus areas.",
+            "recommended_resources": self._get_minimal_fallback_resources()
         }
     
     def process(self, context: AgentContext) -> Any:

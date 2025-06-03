@@ -3,7 +3,6 @@ Learning Resource Search Tool for the Coach Agent.
 Provides intelligent search capabilities for finding educational resources.
 """
 
-import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from langchain_core.tools import BaseTool
@@ -11,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from backend.services.search_service import SearchService, Resource
 from backend.services.search_config import BOOK_DOMAINS
+from backend.utils.async_utils import run_async_safe
 
 
 class SearchInput(BaseModel):
@@ -115,15 +115,10 @@ class LearningResourceSearchTool(BaseTool):
             String representation of search results for the LLM
         """
         try:
-            # Use asyncio to run the async search
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                resources = loop.run_until_complete(
-                    self._async_search(skill, proficiency_level, job_role, num_results)
-                )
-            finally:
-                loop.close()
+            # Use the new async utility instead of manual loop management
+            resources = run_async_safe(
+                self._async_search(skill, proficiency_level, job_role, num_results)
+            )
             
             return self._format_results_for_llm(resources, skill)
             
