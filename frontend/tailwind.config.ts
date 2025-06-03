@@ -192,6 +192,20 @@ export default {
 						opacity: '1'
 					}
 				},
+				'breathing-slow': {
+					'0%, 100%': { 
+						transform: 'scale(1)',
+						opacity: '0.8'
+					},
+					'50%': { 
+						transform: 'scale(1.02)',
+						opacity: '0.9'
+					}
+				},
+				'pulse-very-slow': {
+					'0%, 100%': { opacity: '1' },
+					'50%': { opacity: '0.6' },
+				},
 				'mic-pulse': {
 					'0%': { 
 						transform: 'scale(1)',
@@ -250,6 +264,8 @@ export default {
 				'apple-ripple': 'apple-ripple 1.5s ease-out',
 				'voice-wave': 'voice-wave 1.2s ease-in-out infinite',
 				'breathing': 'breathing 3s ease-in-out infinite',
+				'breathing-slow': 'breathing-slow 20s ease-in-out infinite',
+				'pulse-very-slow': 'pulse-very-slow 15s ease-in-out infinite',
 				'mic-pulse': 'mic-pulse 2s infinite',
 				'slide-up': 'slide-up 0.3s ease-out',
 				'slide-right': 'slide-right 0.3s ease-out',
