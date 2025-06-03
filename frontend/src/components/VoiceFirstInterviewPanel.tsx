@@ -153,6 +153,7 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
       <div className="voice-first-layout">
         
         {/* Minimal Message Display - Positioned at top */}
+        {/* 
         {showMessages && (
           <div className="absolute top-0 left-0 right-0 z-20">
             <MinimalMessageDisplay
@@ -164,6 +165,7 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
             />
           </div>
         )}
+        */}
 
         {/* Central Microphone Button - Main focal point */}
         <div className="flex-1 flex items-center justify-center min-h-screen">

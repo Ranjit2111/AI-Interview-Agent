@@ -5,7 +5,7 @@ import TranscriptDrawer from './TranscriptDrawer';
 import OffScreenCoachFeedback from './OffScreenCoachFeedback';
 import { useVoiceFirstInterview } from '../hooks/useVoiceFirstInterview';
 import { Message, CoachFeedbackState } from '@/hooks/useInterviewSession';
-import { X } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface InterviewSessionProps {
   messages: Message[];
@@ -25,8 +25,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   coachFeedbackStates,
 }) => {
   // State for emergency fallback mode
-  const [showFallbackMode, setShowFallbackMode] = useState(false);
-  const [fallbackInput, setFallbackInput] = useState('');
+  // const [showFallbackMode, setShowFallbackMode] = useState(false);
+  // const [fallbackInput, setFallbackInput] = useState('');
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   
   // Ref to track if we've set the default voice (avoids infinite loop)
@@ -86,34 +86,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       }
   };
 
-  // Emergency fallback to text input
-  const handleFallbackSubmit = () => {
-    if (fallbackInput.trim()) {
-      onSendMessage(fallbackInput.trim());
-      setFallbackInput('');
-      setShowFallbackMode(false);
-    }
-  };
-
   // Emergency exit button (top-right corner)
   const EmergencyExitButton = () => (
     <div className="fixed top-4 right-4 z-50 flex items-center space-x-2">
-      {/* Fallback Text Input Toggle */}
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setShowFallbackMode(!showFallbackMode)}
-        className="
-          bg-white/5 hover:bg-white/10 
-          border-white/20 hover:border-white/30
-          text-white/80 hover:text-white
-          transition-all duration-300
-        "
-        title="Toggle text input mode"
-      >
-        Aa
-      </Button>
-
       {/* End Interview Button */}
           <Button
             variant="outline"
@@ -133,52 +108,27 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         </div>
   );
 
-  // Fallback text input overlay
-  const FallbackTextInput = () => {
-    if (!showFallbackMode) return null;
-
-            return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center p-4">
-        <div className="bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl p-6 max-w-md w-full">
-          <h3 className="text-lg font-semibold text-white mb-4">Text Input Mode</h3>
-          <textarea
-            value={fallbackInput}
-            onChange={(e) => setFallbackInput(e.target.value)}
-            placeholder="Type your response here..."
-            className="
-              w-full h-32 p-3 
-              bg-gray-800/50 border border-gray-600 
-              rounded-lg text-white placeholder-gray-400
-              focus:border-blue-500 focus:ring-1 focus:ring-blue-500
-              resize-none
-            "
-            autoFocus
-          />
-          <div className="flex justify-end space-x-2 mt-4">
-                <Button
-              variant="outline"
-              onClick={() => setShowFallbackMode(false)}
-              className="bg-white/5 hover:bg-white/10 border-white/20"
-                >
-              Cancel
-                </Button>
-            <Button
-              onClick={handleFallbackSubmit}
-              disabled={!fallbackInput.trim() || isLoading}
-              className="bg-blue-600 hover:bg-blue-500"
-            >
-              Send
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="relative w-full h-screen overflow-hidden">
       {/* Emergency Controls */}
       <EmergencyExitButton />
+
+      {/* Transcript Toggle Button */}
+      <button
+        onClick={toggleTranscript}
+        className={`
+          fixed top-1/2 -translate-y-1/2 z-30 p-2 
+          bg-gray-800/70 hover:bg-gray-700/90 backdrop-blur-sm
+          border border-gray-600/80 hover:border-gray-500
+          rounded-r-md shadow-lg text-white transition-all duration-300 ease-in-out
+          ${transcriptVisible ? 'left-80 md:left-96' : 'left-0'}
+        `}
+        title={transcriptVisible ? 'Hide Transcript' : 'Show Transcript'}
+        aria-label={transcriptVisible ? 'Hide Transcript' : 'Show Transcript'}
+        aria-expanded={transcriptVisible}
+      >
+        {transcriptVisible ? <ChevronLeft size={20} /> : <ChevronRight size={20} />}
+      </button>
 
       {/* Main Voice-First Interface */}
       <VoiceFirstInterviewPanel
@@ -201,6 +151,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         messages={messages}
         onClose={toggleTranscript}
         onPlayMessage={playTextToSpeech}
+        onSendTextFromTranscript={onSendMessage}
       />
 
       {/* Off-Screen Coach Feedback */}
@@ -211,9 +162,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         onToggle={toggleCoachFeedback}
         onClose={closeCoachFeedback}
       />
-
-      {/* Fallback Text Input Mode */}
-      <FallbackTextInput />
     </div>
   );
 };
