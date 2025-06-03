@@ -143,7 +143,8 @@ def create_agent_api(app):
     async def start_interview(
         start_request: InterviewStartRequest,
         session_manager: AgentSessionManager = Depends(get_session_manager),
-        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry)
     ):
         """
         Configure an existing session, reset its state, and return the initial introduction message.
@@ -168,6 +169,13 @@ def create_agent_api(app):
             initial_response = session_manager.process_message(message="")
             logger.info(f"Generated initial introduction for session {session_manager.session_id}")
             
+            # CRITICAL FIX: Save session state to database after processing
+            save_success = await session_registry.save_session(session_manager.session_id)
+            if not save_success:
+                logger.error(f"Failed to save session {session_manager.session_id} after start_interview")
+            else:
+                logger.debug(f"Successfully saved session {session_manager.session_id} after start_interview")
+            
             # Debug: Log the response structure 
             logger.info(f"🔍 DEBUG - Initial response structure: {initial_response}")
             logger.info(f"🔍 DEBUG - Response type: {type(initial_response)}")
@@ -185,7 +193,8 @@ def create_agent_api(app):
     async def post_message(
         user_input: UserInput,
         session_manager: AgentSessionManager = Depends(get_session_manager),
-        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry)
     ):
         """
         Send a user message to the interview session.
@@ -196,6 +205,15 @@ def create_agent_api(app):
         try:
             interviewer_response_dict = session_manager.process_message(message=user_input.message)
             logger.info(f"Session {session_manager.session_id} generated response")
+            
+            # CRITICAL FIX: Save session state to database after processing message
+            save_success = await session_registry.save_session(session_manager.session_id)
+            if not save_success:
+                logger.error(f"Failed to save session {session_manager.session_id} after processing message")
+                # Don't fail the request, but log the error
+            else:
+                logger.debug(f"Successfully saved session {session_manager.session_id} after processing message")
+            
             return interviewer_response_dict
 
         except Exception as e:
@@ -205,7 +223,8 @@ def create_agent_api(app):
     @router.post("/end", response_model=EndResponse)
     async def end_interview(
         session_manager: AgentSessionManager = Depends(get_session_manager),
-        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry)
     ):
         """
         End the interview session and retrieve final results.
@@ -216,6 +235,13 @@ def create_agent_api(app):
         try:
             final_session_results = session_manager.end_interview()
             logger.info(f"Session {session_manager.session_id} ended with results")
+
+            # CRITICAL FIX: Save session state to database after ending interview
+            save_success = await session_registry.save_session(session_manager.session_id)
+            if not save_success:
+                logger.error(f"Failed to save session {session_manager.session_id} after ending interview")
+            else:
+                logger.debug(f"Successfully saved session {session_manager.session_id} after ending interview")
 
             return EndResponse(
                 results=final_session_results.get("coaching_summary", {}),
@@ -288,7 +314,8 @@ def create_agent_api(app):
     @router.post("/reset", response_model=ResetResponse)
     async def reset_interview(
         session_manager: AgentSessionManager = Depends(get_session_manager),
-        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry)
     ):
         """
         Reset the session state.
@@ -299,6 +326,13 @@ def create_agent_api(app):
         try:
             session_manager.reset_session()
             logger.info(f"Session {session_manager.session_id} reset")
+
+            # CRITICAL FIX: Save session state to database after reset
+            save_success = await session_registry.save_session(session_manager.session_id)
+            if not save_success:
+                logger.error(f"Failed to save session {session_manager.session_id} after reset")
+            else:
+                logger.debug(f"Successfully saved session {session_manager.session_id} after reset")
 
             return ResetResponse(
                 message="Session reset successfully",

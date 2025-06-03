@@ -115,7 +115,7 @@ class ThreadSafeSessionRegistry:
 
     async def save_session(self, session_id: str) -> bool:
         """
-        Save session state to database.
+        Save session state to database with enhanced error handling.
         
         Args:
             session_id: The session ID to save
@@ -124,9 +124,27 @@ class ThreadSafeSessionRegistry:
             bool: True if successful, False otherwise
         """
         if session_id in self._active_sessions:
-            manager = self._active_sessions[session_id]
-            state_data = manager.to_dict()
-            return await self.db_manager.save_session_state(session_id, state_data)
+            try:
+                manager = self._active_sessions[session_id]
+                state_data = manager.to_dict()
+                
+                # Log session data size for monitoring
+                conversation_count = len(state_data.get("conversation_history", []))
+                feedback_count = len(state_data.get("per_turn_feedback_log", []))
+                logger.debug(f"Saving session {session_id}: {conversation_count} messages, {feedback_count} feedback items")
+                
+                success = await self.db_manager.save_session_state(session_id, state_data)
+                
+                if success:
+                    logger.debug(f"Successfully saved session {session_id} to database")
+                else:
+                    logger.error(f"Database save failed for session {session_id}")
+                
+                return success
+                
+            except Exception as e:
+                logger.exception(f"Error saving session {session_id}: {e}")
+                return False
         else:
             logger.warning(f"Attempted to save inactive session: {session_id}")
             return False

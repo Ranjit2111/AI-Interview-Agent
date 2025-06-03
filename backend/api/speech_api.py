@@ -93,6 +93,94 @@ async def validate_websocket_token(token: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+async def transcribe_audio_assemblyai(audio_file_path: str) -> Dict[str, Any]:
+    """
+    Core transcription function using AssemblyAI API.
+    
+    Args:
+        audio_file_path: Path to the audio file to transcribe
+        
+    Returns:
+        Dict containing transcription results or error information
+    """
+    assemblyai_api_key = os.environ.get("ASSEMBLYAI_API_KEY", "")
+    
+    if not assemblyai_api_key:
+        raise Exception("AssemblyAI API key not configured")
+
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            # Upload file to AssemblyAI
+            with open(audio_file_path, 'rb') as f:
+                upload_response = await client.post(
+                    "https://api.assemblyai.com/v2/upload",
+                    headers={"authorization": assemblyai_api_key},
+                    files={"file": f}
+                )
+            
+            if upload_response.status_code != 200:
+                raise Exception(f"Upload failed: {upload_response.text}")
+            
+            upload_url = upload_response.json()["upload_url"]
+            
+            # Request transcription
+            transcript_request = {
+                "audio_url": upload_url,
+                "language_detection": True,
+                "punctuate": True,
+                "format_text": True
+            }
+            
+            transcript_response = await client.post(
+                "https://api.assemblyai.com/v2/transcript",
+                headers={"authorization": assemblyai_api_key},
+                json=transcript_request,
+                timeout=30.0
+            )
+            
+            if transcript_response.status_code != 200:
+                raise Exception(f"Transcription request failed: {transcript_response.text}")
+            
+            transcript_id = transcript_response.json()["id"]
+            
+            # Poll for completion
+            max_poll_attempts = 60  # 5 minutes max
+            poll_attempt = 0
+            
+            while poll_attempt < max_poll_attempts:
+                status_response = await client.get(
+                    f"https://api.assemblyai.com/v2/transcript/{transcript_id}",
+                    headers={"authorization": assemblyai_api_key},
+                    timeout=30.0
+                )
+                
+                if status_response.status_code != 200:
+                    raise Exception(f"Status check failed: {status_response.text}")
+                
+                result = status_response.json()
+                status = result["status"]
+                
+                if status == "completed":
+                    return {
+                        "text": result["text"],
+                        "confidence": result.get("confidence", 0.0),
+                        "language": result.get("language_code", "unknown"),
+                        "duration": result.get("audio_duration"),
+                        "processing_time": poll_attempt * 5  # Approximate processing time
+                    }
+                elif status == "error":
+                    raise Exception(result.get("error", "Transcription failed"))
+                
+                poll_attempt += 1
+                await asyncio.sleep(5)  # Wait 5 seconds before next check
+            
+            raise Exception("Transcription timed out after 5 minutes")
+            
+    except Exception as e:
+        logger.error(f"AssemblyAI transcription error: {e}")
+        raise
+
+
 async def transcribe_with_assemblyai_rate_limited(
     audio_file_path: str, 
     task_id: str, 
@@ -101,171 +189,109 @@ async def transcribe_with_assemblyai_rate_limited(
     max_retries: int = 3
 ):
     """
-    Transcribe audio using AssemblyAI API with rate limiting and retry logic.
+    Transcribe audio using AssemblyAI with rate limiting and retries.
     
     Args:
         audio_file_path: Path to the audio file
-        task_id: Unique task identifier
-        session_id: Session ID for database storage
-        db_manager: Database manager instance
-        max_retries: Maximum retry attempts
+        task_id: Speech task ID for tracking
+        session_id: Session ID for context
+        db_manager: Database manager for task updates
+        max_retries: Maximum number of retries
     """
-    assemblyai_api_key = os.environ.get("ASSEMBLYAI_API_KEY", "")
-    
-    if not assemblyai_api_key:
-        await db_manager.update_speech_task(
-            task_id, 
-            "error", 
-            error_message="AssemblyAI API key not configured"
-        )
-        return
-
-    # Acquire rate limiting slot
-    if not await rate_limiter.acquire_assemblyai():
-        await db_manager.update_speech_task(
-            task_id,
-            "error",
-            error_message="AssemblyAI service temporarily unavailable due to rate limiting"
-        )
-        return
-
     try:
+        # Update task status to processing
         await db_manager.update_speech_task(
-            task_id, 
-            "processing", 
-            progress_data={"step": "uploading", "message": "Uploading audio..."}
+            task_id=task_id,
+            status="processing",
+            progress_data={"stage": "uploading", "progress": 0}
         )
         
-        for attempt in range(max_retries):
-            try:
-                # Upload file to AssemblyAI
-                async with httpx.AsyncClient(timeout=300.0) as client:
-                    with open(audio_file_path, 'rb') as f:
-                        upload_response = await client.post(
-                            "https://api.assemblyai.com/v2/upload",
-                            headers={"authorization": assemblyai_api_key},
-                            files={"file": f}
-                        )
-                    
-                    if upload_response.status_code != 200:
-                        raise HTTPException(
-                            status_code=upload_response.status_code, 
-                            detail=f"Upload failed: {upload_response.text}"
-                        )
-                    
-                    upload_url = upload_response.json()["upload_url"]
-                    
-                    await db_manager.update_speech_task(
-                        task_id, 
-                        "processing", 
-                        progress_data={"step": "transcribing", "message": "Starting transcription..."}
-                    )
-                    
-                    # Request transcription
-                    transcript_request = {
-                        "audio_url": upload_url,
-                        "language_detection": True,
-                        "punctuate": True,
-                        "format_text": True
-                    }
-                    
-                    transcript_response = await client.post(
-                        "https://api.assemblyai.com/v2/transcript",
-                        headers={"authorization": assemblyai_api_key},
-                        json=transcript_request,
-                        timeout=30.0
-                    )
-                    
-                    if transcript_response.status_code != 200:
-                        raise HTTPException(
-                            status_code=transcript_response.status_code,
-                            detail=f"Transcription request failed: {transcript_response.text}"
-                        )
-                    
-                    transcript_id = transcript_response.json()["id"]
-                    await db_manager.update_speech_task(
-                        task_id, 
-                        "processing", 
-                        progress_data={"step": "processing", "message": "Transcription in progress...", "transcript_id": transcript_id}
-                    )
-                    
-                    # Poll for completion
-                    max_poll_attempts = 60  # 5 minutes max
-                    poll_attempt = 0
-                    
-                    while poll_attempt < max_poll_attempts:
-                        status_response = await client.get(
-                            f"https://api.assemblyai.com/v2/transcript/{transcript_id}",
-                            headers={"authorization": assemblyai_api_key},
-                            timeout=30.0
-                        )
-                        
-                        if status_response.status_code != 200:
-                            raise HTTPException(
-                                status_code=status_response.status_code,
-                                detail=f"Status check failed: {status_response.text}"
-                            )
-                        
-                        result = status_response.json()
-                        status = result["status"]
-                        
-                        if status == "completed":
-                            await db_manager.update_speech_task(
-                                task_id,
-                                "completed",
-                                result_data={
-                                    "transcription": result["text"],
-                                    "confidence": result.get("confidence", 0.0),
-                                    "language": result.get("language_code", "unknown"),
-                                    "duration": result.get("audio_duration")
-                                }
-                            )
-                            return
-                        elif status == "error":
-                            await db_manager.update_speech_task(
-                                task_id,
-                                "error",
-                                error_message=result.get("error", "Transcription failed")
-                            )
-                            return
-                        
-                        poll_attempt += 1
-                        await asyncio.sleep(5)  # Wait 5 seconds before next check
-                    
-                    if poll_attempt >= max_poll_attempts:
-                        await db_manager.update_speech_task(
-                            task_id,
-                            "error",
-                            error_message="Transcription timed out after 5 minutes"
-                        )
-                    return
-                    
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    # Exponential backoff with jitter
-                    delay = (2 ** attempt) + random.uniform(0, 1)
-                    logger.warning(f"AssemblyAI attempt {attempt + 1}/{max_retries} failed: {e}. Retrying in {delay:.2f}s")
-                    await asyncio.sleep(delay)
-                    continue
-                else:
-                    logger.exception(f"AssemblyAI transcription error for task {task_id}")
-                    await db_manager.update_speech_task(
-                        task_id,
-                        "error",
-                        error_message=f"Transcription failed after {max_retries} attempts: {str(e)}"
-                    )
-                    return
-                    
-    finally:
-        # Always release the rate limiting slot
-        rate_limiter.release_assemblyai()
-        
-        # Clean up uploaded file
+        # Acquire rate limiting slot
+        if not await rate_limiter.acquire_assemblyai():
+            await db_manager.update_speech_task(
+                task_id=task_id,
+                status="error",
+                error_message="AssemblyAI service temporarily unavailable due to rate limiting"
+            )
+            return
+            
         try:
-            if os.path.exists(audio_file_path):
-                os.unlink(audio_file_path)
+            # Perform transcription with retries
+            transcription_result = None
+            last_error = None
+            
+            for attempt in range(max_retries):
+                try:
+                    transcription_result = await transcribe_audio_assemblyai(audio_file_path)
+                    break  # Success - exit retry loop
+                except Exception as e:
+                    last_error = e
+                    if attempt < max_retries - 1:
+                        # Exponential backoff with jitter
+                        delay = (2 ** attempt) + random.uniform(0, 1)
+                        logger.warning(f"AssemblyAI attempt {attempt + 1}/{max_retries} failed: {e}. Retrying in {delay:.2f}s")
+                        await asyncio.sleep(delay)
+                    else:
+                        logger.error(f"AssemblyAI transcription failed after {max_retries} attempts: {e}")
+            
+            if transcription_result and "text" in transcription_result:
+                # Update task with successful result
+                await db_manager.update_speech_task(
+                    task_id=task_id,
+                    status="completed",
+                    result_data={
+                        "text": transcription_result["text"],
+                        "confidence": transcription_result.get("confidence", 0.0),
+                        "language": transcription_result.get("language", "unknown"),
+                        "duration": transcription_result.get("duration"),
+                        "processing_time": transcription_result.get("processing_time", 0)
+                    }
+                )
+                logger.info(f"Transcription completed for task {task_id}")
+            else:
+                # Update task with error
+                error_msg = f"Transcription failed after {max_retries} attempts"
+                if last_error:
+                    error_msg += f": {str(last_error)}"
+                await db_manager.update_speech_task(
+                    task_id=task_id,
+                    status="error", 
+                    error_message=error_msg
+                )
+                logger.error(f"Transcription failed for task {task_id}: {error_msg}")
+                
+        finally:
+            # Always release the rate limiting slot
+            rate_limiter.release_assemblyai()
+            
+    except Exception as e:
+        # Update task with error
+        await db_manager.update_speech_task(
+            task_id=task_id,
+            status="error",
+            error_message=str(e)
+        )
+        logger.exception(f"Transcription error for task {task_id}: {e}")
+        
+    finally:
+        # Clean up temporary file
+        try:
+            Path(audio_file_path).unlink(missing_ok=True)
+            logger.debug(f"Cleaned up temporary file: {audio_file_path}")
         except Exception as e:
-            logger.error(f"Failed to clean up audio file {audio_file_path}: {e}")
+            logger.warning(f"Failed to clean up temporary file {audio_file_path}: {e}")
+            
+        # ENHANCEMENT: Try to save session state if session is active
+        # This ensures speech task results are captured in session context
+        try:
+            if hasattr(db_manager, '_app_state') and hasattr(db_manager._app_state, 'agent_manager'):
+                session_registry = db_manager._app_state.agent_manager
+                if session_id in session_registry._active_sessions:
+                    save_success = await session_registry.save_session(session_id)
+                    if save_success:
+                        logger.debug(f"Saved session {session_id} after speech task {task_id} completion")
+        except Exception as e:
+            logger.debug(f"Could not save session after speech task completion: {e}")
 
 
 def create_speech_api(app):
@@ -389,14 +415,17 @@ def create_speech_api(app):
     @router.websocket("/api/speech-to-text/stream")
     async def websocket_stream_endpoint(
         websocket: WebSocket,
-        token: Optional[str] = Query(None, description="Optional JWT token for authentication")
+        token: Optional[str] = Query(None, description="Optional JWT token for authentication"),
+        session_id: Optional[str] = Query(None, description="Optional session ID for linking speech tasks")
     ):
         """
         WebSocket endpoint for real-time speech-to-text streaming with optional authentication.
+        Now creates database entries for speech task tracking.
         
         Args:
             websocket: WebSocket connection
-            token: Optional JWT token passed as query parameter
+            token: Optional JWT token passed as query parameter  
+            session_id: Optional session ID for linking speech tasks
         """
         # Optional authentication
         user = None
@@ -406,12 +435,52 @@ def create_speech_api(app):
         else:
             logger.info("WebSocket STT connection from anonymous user")
         
+        # Create speech task for tracking this streaming session
+        db_manager = await get_database_manager()
+        speech_task_id = None
+        
         try:
+            # Create speech task entry for this streaming session
+            speech_task_id = await db_manager.create_speech_task(
+                session_id or "anonymous", 
+                "stt_stream"
+            )
+            logger.info(f"Created speech task {speech_task_id} for WebSocket streaming session")
+            
+            # Update task status to processing
+            await db_manager.update_speech_task(
+                speech_task_id,
+                "processing",
+                progress_data={"stage": "streaming", "message": "Real-time transcription active"}
+            )
+            
+            # Handle the actual streaming
             await stt_service.handle_websocket_stream(websocket)
+            
+            # If we reach here, connection ended normally
+            if speech_task_id:
+                await db_manager.update_speech_task(
+                    speech_task_id,
+                    "completed",
+                    result_data={"message": "Streaming session completed normally"}
+                )
+            
         except WebSocketDisconnect:
             logger.debug("WebSocket client disconnected")
+            if speech_task_id:
+                await db_manager.update_speech_task(
+                    speech_task_id,
+                    "completed", 
+                    result_data={"message": "Client disconnected"}
+                )
         except Exception as e:
             logger.exception(f"WebSocket error: {e}")
+            if speech_task_id:
+                await db_manager.update_speech_task(
+                    speech_task_id,
+                    "error",
+                    error_message=f"WebSocket streaming error: {str(e)}"
+                )
             try:
                 await websocket.close(code=1011, reason="Internal server error")
             except:

@@ -6,6 +6,7 @@ import logging
 import json
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+import uuid
 
 from backend.agents.base import BaseAgent, AgentContext
 from backend.agents.interviewer import InterviewerAgent
@@ -29,23 +30,38 @@ class AgentSessionManager:
     
     def __init__(self, llm_service: LLMService, event_bus: EventBus, logger: logging.Logger, 
                  session_config: SessionConfig, session_id: Optional[str] = None):
-        self.session_id = session_id or "local_session"  # Add session-specific ID
-        self.session_config = session_config
-        self.conversation_history: List[Dict[str, Any]] = []
-        self.per_turn_coaching_feedback_log: List[Dict[str, Any]] = []
+        """
+        Initialize the AgentSessionManager.
         
-        self.logger = logger
+        Args:
+            llm_service: LLM service for agent interactions
+            event_bus: Event bus for communication
+            logger: Logger instance for debugging
+            session_config: Configuration for the session
+            session_id: Optional session ID (generated if not provided)
+        """
+        self.llm_service = llm_service
         self.event_bus = event_bus
-        self._llm_service = llm_service
+        self.logger = logger
+        self.session_config = session_config
+        self.session_id = session_id or str(uuid.uuid4())
         
-        # Statistics
+        # Session state tracking
+        self.session_status = "active"  # Track session status: active, completed, failed
+        
+        # Initialize conversation and feedback tracking
+        self.conversation_history: List[Dict[str, Any]] = []
+        self.per_turn_coaching_feedback_log: List[Dict[str, str]] = []
+        
+        # Initialize agents dictionary
+        self._agents: Dict[str, BaseAgent] = {}
+        
+        # Initialize performance tracking
         self.response_times: List[float] = []
         self.total_response_time = 0.0
         self.total_tokens_used = 0
         self.api_call_count = 0
         
-        self._agents: Dict[str, BaseAgent] = {}
-
         # Publish session start event
         config_dict = self.session_config.model_dump() if hasattr(self.session_config, 'model_dump') else vars(self.session_config)
         if config_dict:
@@ -80,7 +96,7 @@ class AgentSessionManager:
             if agent_type == "interviewer":
                 self.logger.info(f"🔍 Creating InterviewerAgent with config: job_role={self.session_config.job_role}, style={self.session_config.style}")
                 return InterviewerAgent(
-                    llm_service=self._llm_service, 
+                    llm_service=self.llm_service, 
                     event_bus=self.event_bus,
                     logger=self.logger.getChild("InterviewerAgent"),
                     interview_style=self.session_config.style,
@@ -95,7 +111,7 @@ class AgentSessionManager:
                 )
             elif agent_type == "coach":
                 return AgenticCoachAgent(
-                    llm_service=self._llm_service, 
+                    llm_service=self.llm_service, 
                     search_service=get_search_service(),
                     event_bus=self.event_bus,
                     logger=self.logger.getChild("AgenticCoachAgent"),
@@ -333,6 +349,7 @@ class AgentSessionManager:
             self.logger.exception(f"Error generating final coaching summary: {e}")
             final_results["coaching_summary"] = {"error": f"Final coaching summary generation failed: {e}"}
 
+        self.session_status = "completed"
         return final_results
     
     def _generate_final_coaching_summary(self) -> Optional[Dict[str, Any]]:
@@ -373,6 +390,9 @@ class AgentSessionManager:
         self.total_tokens_used = 0
         self.api_call_count = 0
         
+        # Reset session status back to active
+        self.session_status = "active"
+        
         self.event_bus.publish(Event(event_type=EventType.SESSION_RESET, source='AgentSessionManager', data={}))
 
     @classmethod
@@ -410,6 +430,9 @@ class AgentSessionManager:
         manager.total_tokens_used = session_data.get("session_stats", {}).get("total_tokens_used", 0)
         manager.api_call_count = session_data.get("session_stats", {}).get("total_api_calls", 0)
         
+        # Restore session status from database
+        manager.session_status = session_data.get("status", "active")
+        
         logger.info(f"Restored session manager from database: {manager.session_id}")
         return manager
 
@@ -434,7 +457,7 @@ class AgentSessionManager:
             "conversation_history": self.conversation_history,
             "per_turn_feedback_log": self.per_turn_coaching_feedback_log,
             "session_stats": self.get_session_stats(),
-            "status": "active"  # Could be enhanced to track different states
+            "status": self.session_status
         }
 
     def get_langchain_config(self) -> Dict:
