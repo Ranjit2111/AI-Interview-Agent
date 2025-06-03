@@ -53,6 +53,9 @@ class AgentSessionManager:
         self.conversation_history: List[Dict[str, Any]] = []
         self.per_turn_coaching_feedback_log: List[Dict[str, str]] = []
         
+        # Initialize final summary storage
+        self.final_summary: Optional[Dict[str, Any]] = None
+        
         # Initialize agents dictionary
         self._agents: Dict[str, BaseAgent] = {}
         
@@ -345,9 +348,14 @@ class AgentSessionManager:
             coaching_summary = self._generate_final_coaching_summary()
             if coaching_summary:
                 final_results["coaching_summary"] = coaching_summary
+                # CRITICAL FIX: Store the final summary in session state for database persistence
+                self.final_summary = coaching_summary
+                self.logger.info(f"Stored final coaching summary in session state: {len(str(coaching_summary))} chars")
         except Exception as e:
             self.logger.exception(f"Error generating final coaching summary: {e}")
             final_results["coaching_summary"] = {"error": f"Final coaching summary generation failed: {e}"}
+            # Store the error summary as well
+            self.final_summary = {"error": f"Final coaching summary generation failed: {e}"}
 
         self.session_status = "completed"
         return final_results
@@ -383,6 +391,7 @@ class AgentSessionManager:
         """Resets the session state, including history and agent instances."""
         self.conversation_history = []
         self.per_turn_coaching_feedback_log = []
+        self.final_summary = None  # CRITICAL FIX: Clear final summary on reset
         self._agents = {}
         
         self.response_times = []
@@ -426,6 +435,7 @@ class AgentSessionManager:
         # Restore state from database
         manager.conversation_history = session_data.get("conversation_history", [])
         manager.per_turn_coaching_feedback_log = session_data.get("per_turn_feedback_log", [])
+        manager.final_summary = session_data.get("final_summary")  # CRITICAL FIX: Restore final summary from database
         manager.total_response_time = session_data.get("session_stats", {}).get("total_response_time_seconds", 0.0)
         manager.total_tokens_used = session_data.get("session_stats", {}).get("total_tokens_used", 0)
         manager.api_call_count = session_data.get("session_stats", {}).get("total_api_calls", 0)
@@ -456,6 +466,7 @@ class AgentSessionManager:
             "session_config": session_config_dict,
             "conversation_history": self.conversation_history,
             "per_turn_feedback_log": self.per_turn_coaching_feedback_log,
+            "final_summary": self.final_summary,
             "session_stats": self.get_session_stats(),
             "status": self.session_status
         }
