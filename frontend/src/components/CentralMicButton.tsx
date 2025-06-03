@@ -114,6 +114,16 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
             />
           )}
 
+          {/* AI Speaking Activity Ring */}
+          {turnState === 'ai' && !isProcessing && (
+            <div
+              className="absolute inset-0 rounded-full border-2 border-orange-500/70 animate-pulse-slow"
+              style={{
+                boxShadow: `0 0 30px rgba(255, 149, 0, 0.4)`,
+              }}
+            />
+          )}
+
           {/* Processing Ring */}
           {isProcessing && (
             <div className="absolute inset-0 rounded-full border-2 border-white/30 animate-spin opacity-60" 
@@ -140,16 +150,16 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
         </button>
       </AppleIntelligenceGlow>
 
-      {/* Voice Activity Waveform */}
-      {isListening && voiceActivity > 0.1 && (
+      {/* Voice Activity Waveform - User */}
+      {isListening && (
         <div className="voice-activity-wave mt-6 text-blue-400">
-          <div className="wave-bar" style={{ height: `${4 + voiceActivity * 16}px` }} />
-          <div className="wave-bar" style={{ height: `${4 + voiceActivity * 12}px` }} />
-          <div className="wave-bar" style={{ height: `${4 + voiceActivity * 20}px` }} />
-          <div className="wave-bar" style={{ height: `${4 + voiceActivity * 14}px` }} />
-          <div className="wave-bar" style={{ height: `${4 + voiceActivity * 18}px` }} />
-          <div className="wave-bar" style={{ height: `${4 + voiceActivity * 10}px` }} />
-          <div className="wave-bar" style={{ height: `${4 + voiceActivity * 16}px` }} />
+          <div className="wave-bar animate-voice-wave animation-delay-0" />
+          <div className="wave-bar animate-voice-wave animation-delay-100" />
+          <div className="wave-bar animate-voice-wave animation-delay-200" />
+          <div className="wave-bar animate-voice-wave animation-delay-300" />
+          <div className="wave-bar animate-voice-wave animation-delay-400" />
+          <div className="wave-bar animate-voice-wave animation-delay-500" />
+          <div className="wave-bar animate-voice-wave animation-delay-600" />
         </div>
       )}
 

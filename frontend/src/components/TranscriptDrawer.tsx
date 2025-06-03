@@ -7,17 +7,20 @@ interface TranscriptDrawerProps {
   messages: Message[];
   onClose: () => void;
   onPlayMessage?: (message: string) => void;
+  onSendTextFromTranscript: (message: string) => void;
 }
 
 const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
   isOpen,
   messages,
   onClose,
-  onPlayMessage
+  onPlayMessage,
+  onSendTextFromTranscript
 }) => {
   const drawerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [newMessage, setNewMessage] = useState('');
 
   // Handle escape key press
   useEffect(() => {
@@ -121,26 +124,45 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
     };
   };
 
-  if (!isOpen) return null;
+  const handleSendMessage = () => {
+    if (newMessage.trim()) {
+      onSendTextFromTranscript(newMessage.trim());
+      setNewMessage('');
+    }
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // if (!isOpen) return null; // Keep the component in DOM for transitions, control visibility via transform
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop - REMOVED for side panel style */}
+      {/* 
       <div 
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-300"
         onClick={onClose}
       />
+      */}
 
-      {/* Drawer */}
+      {/* Drawer - MODIFIED for left slide-out panel */}
       <div 
         ref={drawerRef}
         className={`
-          transcript-drawer
-          ${isOpen ? 'open' : ''}
+          fixed inset-y-0 left-0 z-30 w-80 md:w-96 
+          bg-gray-900/95 shadow-xl flex flex-col 
+          transition-transform duration-300 ease-in-out
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
+        aria-hidden={!isOpen}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 px-6 py-4 border-b border-white/10 backdrop-blur-xl bg-black/80">
+        <div className="sticky top-0 z-10 px-4 sm:px-6 py-4 border-b border-white/10 bg-gray-900/80 backdrop-blur-md">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-white">Interview Transcript</h2>
@@ -228,9 +250,6 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
                         <span className="text-xs font-medium text-gray-300">
                           {message.role === 'user' ? 'You' : 'AI Interviewer'}
                         </span>
-                        <span className="text-xs text-gray-500">
-                          {message.timestamp ? new Date(message.timestamp).toLocaleTimeString() : 'Now'}
-                        </span>
                       </div>
                       
                       <p className={`text-sm leading-relaxed ${styling.text}`}>
@@ -281,11 +300,24 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
           )}
         </div>
 
-        {/* Footer */}
-        <div className="sticky bottom-0 px-6 py-3 border-t border-white/10 backdrop-blur-xl bg-black/80">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>Scroll to navigate • Press ESC to close</span>
-            <span>{new Date().toLocaleString()}</span>
+        {/* Footer - MODIFIED to include text input */}
+        <div className="sticky bottom-0 px-4 sm:px-6 py-3 border-t border-white/10 bg-gray-900/80 backdrop-blur-md">
+          <div className="flex items-center space-x-2">
+            <textarea
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your message... (Enter to send)"
+              rows={1}
+              className="flex-1 p-2 bg-gray-800/60 border border-gray-600/70 rounded-lg text-sm text-white placeholder-gray-400 resize-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!newMessage.trim()}
+              className="p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 transition-colors"
+            >
+              Send
+            </button>
           </div>
         </div>
       </div>
