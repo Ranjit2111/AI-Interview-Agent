@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, MessageSquare, ChevronRight, Lightbulb } from 'lucide-react';
+import { X, MessageSquare, ChevronRight, Brain, Loader2 } from 'lucide-react';
 import { CoachFeedbackState } from '../hooks/useInterviewSession';
 
 interface OffScreenCoachFeedbackProps {
@@ -67,20 +67,23 @@ const OffScreenCoachFeedback: React.FC<OffScreenCoachFeedbackProps> = ({
               shadow-lg shadow-yellow-500/20
               transition-all duration-300
               hover:scale-110 hover:shadow-yellow-500/40
-              animate-breathing
+              animate-breathing-slow
             "
           >
             {/* Pulsing Ring for New Feedback */}
             {hasNewFeedback && (
-              <div className="absolute -inset-1 rounded-full border-2 border-yellow-400/50 animate-pulse" />
+              <div className="absolute -inset-1 rounded-full border-2 border-yellow-400/50 animate-pulse-very-slow" />
             )}
 
             {/* Icon */}
             <div className="flex items-center justify-center h-full">
               {analysisCount > 0 ? (
                 <div className="relative">
-                  <Lightbulb className="w-5 h-5 text-yellow-300" />
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full text-xs text-black font-bold flex items-center justify-center animate-pulse">
+                  <div className="relative">
+                    <Brain className="w-5 h-5 text-yellow-300" />
+                    <Loader2 className="absolute inset-0 w-5 h-5 text-yellow-400 animate-spin" />
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full text-xs text-black font-bold flex items-center justify-center animate-pulse-very-slow">
                     {analysisCount}
                   </div>
                 </div>
@@ -114,7 +117,7 @@ const OffScreenCoachFeedback: React.FC<OffScreenCoachFeedbackProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold text-yellow-100 flex items-center">
-                <Lightbulb className="w-5 h-5 mr-2 text-yellow-300" />
+                <Brain className="w-5 h-5 mr-2 text-yellow-300" />
                 Coach Feedback
               </h3>
               <p className="text-sm text-yellow-200/80 mt-1">
@@ -186,10 +189,9 @@ const OffScreenCoachFeedback: React.FC<OffScreenCoachFeedbackProps> = ({
                 {/* Feedback Content */}
                 {item.isAnalyzing ? (
                   <div className="flex items-center space-x-3 p-3 bg-yellow-900/20 border border-yellow-500/20 rounded-lg">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce animation-delay-100" />
-                      <div className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce animation-delay-200" />
+                    <div className="flex items-center space-x-2">
+                      <Loader2 className="w-4 h-4 text-yellow-400 animate-spin" />
+                      <Brain className="w-4 h-4 text-yellow-300" />
                     </div>
                     <span className="text-sm text-yellow-200">
                       Analyzing your response...
@@ -198,7 +200,7 @@ const OffScreenCoachFeedback: React.FC<OffScreenCoachFeedbackProps> = ({
                 ) : item.feedback ? (
                   <div className="p-3 bg-yellow-900/20 border border-yellow-500/20 rounded-lg">
                     <div className="flex items-start space-x-2">
-                      <Lightbulb className="w-4 h-4 text-yellow-300 mt-0.5 flex-shrink-0" />
+                      <Brain className="w-4 h-4 text-yellow-300 mt-0.5 flex-shrink-0" />
                       <div>
                         <h4 className="text-sm font-medium text-yellow-100 mb-1">Coach Analysis</h4>
                         <p className="text-sm text-yellow-200 leading-relaxed">
@@ -225,7 +227,7 @@ const OffScreenCoachFeedback: React.FC<OffScreenCoachFeedbackProps> = ({
             <span>Real-time feedback • Updates automatically</span>
             {analysisCount > 0 && (
               <span className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                <Loader2 className="w-2 h-2 text-yellow-400 animate-spin" />
                 <span>Analyzing {analysisCount} response{analysisCount > 1 ? 's' : ''}</span>
               </span>
             )}

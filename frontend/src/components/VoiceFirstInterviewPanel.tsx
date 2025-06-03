@@ -21,6 +21,7 @@ interface VoiceFirstInterviewPanelProps {
   // Display preferences
   showMessages?: boolean;
   showTranscriptButton?: boolean;
+  accumulatedTranscript?: string;
 }
 
 const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
@@ -33,7 +34,8 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
   onToggleMicrophone,
   onToggleTranscript,
   showMessages = true,
-  showTranscriptButton = true
+  showTranscriptButton = true,
+  accumulatedTranscript
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
   const [ambientIntensity, setAmbientIntensity] = useState(0.3);
@@ -157,7 +159,7 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
               lastUserMessage={lastUserMessage}
               lastAIMessage={lastAIMessage}
               isVisible={Boolean(lastUserMessage || lastAIMessage)}
-              autoHideTimeout={30000}
+              autoHideTimeout={8000}
               onToggleTranscript={showTranscriptButton ? onToggleTranscript : undefined}
             />
           </div>
@@ -175,9 +177,54 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
           />
         </div>
 
+        {/* User Transcript Display */}
+        {accumulatedTranscript && accumulatedTranscript.trim() && (
+          <div className="
+            mt-6 px-6 py-4 
+            bg-gray-900/40 backdrop-blur-sm 
+            border border-blue-500/20 
+            rounded-xl shadow-lg
+            max-w-2xl mx-auto
+            transition-all duration-300
+          ">
+            <div className="flex items-start space-x-3">
+              <div className="
+                w-8 h-8 rounded-full 
+                bg-blue-500/20 border border-blue-400/30
+                flex items-center justify-center flex-shrink-0 mt-0.5
+              ">
+                <span className="text-blue-300 text-sm font-medium">You</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  {accumulatedTranscript}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Status Area - Fixed at bottom */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
           <div className="text-center space-y-4">
+            
+            {/* Persistent Transcript Button */}
+            {showTranscriptButton && (
+              <button
+                onClick={onToggleTranscript}
+                className="
+                  px-4 py-2 mb-4
+                  bg-white/10 hover:bg-white/20 
+                  border border-white/20 hover:border-white/30
+                  rounded-lg text-white text-sm
+                  transition-all duration-300
+                  backdrop-blur-sm
+                "
+              >
+                View Transcript
+              </button>
+            )}
+
             {/* Ambient Audio Visualizer */}
             {(isListening || turnState === 'ai') && (
               <div className="flex items-center space-x-2 opacity-40 mb-4">

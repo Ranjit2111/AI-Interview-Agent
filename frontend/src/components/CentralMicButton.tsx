@@ -79,7 +79,6 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
         isActive={isListening || turnState === 'ai'}
         mode={glowMode}
         voiceActivity={voiceActivity}
-        className="p-6"
       >
         <button
           ref={buttonRef}
@@ -98,44 +97,13 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
           style={{
             '--voice-intensity': '0',
             transform: `scale(${isPressed ? '0.95' : '1'}) scale(calc(1 + var(--voice-intensity, 0) * 0.1))`,
+            background: 'transparent',
+            border: 'none',
           } as React.CSSProperties}
         >
-          {/* Button Background Layers */}
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-gray-700/50 to-gray-900/80 backdrop-blur-sm" />
-          
-          {/* Voice Activity Ring */}
-          {isListening && (
-            <div 
-              className="absolute inset-0 rounded-full border-2 transition-all duration-200"
-              style={{
-                borderColor: `rgba(0, 122, 255, ${Math.max(0.3, voiceActivity)})`,
-                boxShadow: `0 0 ${20 + voiceActivity * 20}px rgba(0, 122, 255, ${Math.max(0.2, voiceActivity * 0.8)})`,
-              }}
-            />
-          )}
-
-          {/* Processing Ring */}
-          {isProcessing && (
-            <div className="absolute inset-0 rounded-full border-2 border-white/30 animate-spin opacity-60" 
-                 style={{ animationDuration: '2s' }} />
-          )}
-
           {/* Icon */}
           <div className="relative z-10 flex items-center justify-center">
             {getIconComponent()}
-          </div>
-
-          {/* Ripple Effect on Click */}
-          <div className="absolute inset-0 rounded-full overflow-hidden">
-            <div 
-              className={`
-                absolute inset-0 rounded-full opacity-0 
-                ${isPressed ? 'animate-apple-ripple' : ''}
-              `}
-              style={{
-                background: `radial-gradient(circle, ${glowMode === 'user' ? 'rgba(0, 122, 255, 0.3)' : 'rgba(255, 149, 0, 0.3)'} 0%, transparent 70%)`,
-              }}
-            />
           </div>
         </button>
       </AppleIntelligenceGlow>

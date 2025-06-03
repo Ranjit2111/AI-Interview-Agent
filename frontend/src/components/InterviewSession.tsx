@@ -80,10 +80,10 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       
       // The accumulated transcript will be automatically sent via the voice-first hook
       // No manual integration needed as it's handled in stopVoiceRecognition
-    } else {
+      } else {
       // Start listening
       toggleMicrophone();
-    }
+      }
   };
 
   // Emergency fallback to text input
@@ -115,11 +115,11 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       </Button>
 
       {/* End Interview Button */}
-      <Button
-        variant="outline"
+          <Button
+            variant="outline"
         size="sm"
-        onClick={onEndInterview}
-        disabled={isLoading}
+            onClick={onEndInterview}
+            disabled={isLoading}
         className="
           bg-red-900/20 hover:bg-red-900/40 
           border-red-500/30 hover:border-red-500/50
@@ -128,16 +128,16 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         "
       >
         <X className="w-4 h-4 mr-1" />
-        End Interview
-      </Button>
-    </div>
+            End Interview
+          </Button>
+        </div>
   );
 
   // Fallback text input overlay
   const FallbackTextInput = () => {
     if (!showFallbackMode) return null;
 
-    return (
+            return (
       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 flex items-center justify-center p-4">
         <div className="bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl p-6 max-w-md w-full">
           <h3 className="text-lg font-semibold text-white mb-4">Text Input Mode</h3>
@@ -155,13 +155,13 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             autoFocus
           />
           <div className="flex justify-end space-x-2 mt-4">
-            <Button
+                <Button
               variant="outline"
               onClick={() => setShowFallbackMode(false)}
               className="bg-white/5 hover:bg-white/10 border-white/20"
-            >
+                >
               Cancel
-            </Button>
+                </Button>
             <Button
               onClick={handleFallbackSubmit}
               disabled={!fallbackInput.trim() || isLoading}
@@ -192,6 +192,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         onToggleTranscript={toggleTranscript}
         showMessages={true}
         showTranscriptButton={true}
+        accumulatedTranscript={accumulatedTranscript}
       />
 
       {/* Transcript Drawer */}
@@ -213,20 +214,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
 
       {/* Fallback Text Input Mode */}
       <FallbackTextInput />
-
-      {/* Loading Overlay for Interview State Changes */}
-      {isLoading && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 flex items-center justify-center">
-          <div className="bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl p-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-6 h-6">
-                <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-              </div>
-              <span className="text-white font-medium">Processing...</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

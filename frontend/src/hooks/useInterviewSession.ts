@@ -75,50 +75,50 @@ export function useInterviewSession() {
       return;
     }
 
-    const pollForFeedback = async () => {
-      try {
-        const feedback = await getPerTurnFeedback(sessionId);
-        
-        // Update coach feedback states based on current feedback
-        if (feedback.length > lastFeedbackCount) {
-          setCoachFeedbackStates(prev => {
-            const newState = { ...prev };
-            
-            // Mark analyzing for new user messages that don't have feedback yet
-            const userMessageIndexes = messages
-              .map((msg, index) => ({ msg, index }))
-              .filter(({ msg }) => msg.role === 'user')
-              .map(({ index }) => index);
-            
-            userMessageIndexes.forEach((msgIndex, userMsgNumber) => {
-              if (userMsgNumber < feedback.length) {
-                // Feedback is available
-                newState[msgIndex] = {
-                  isAnalyzing: false,
-                  feedback: feedback[userMsgNumber].feedback,
-                  hasChecked: true
-                };
-              } else {
-                // No feedback yet, should be analyzing if not already checked
-                if (!newState[msgIndex]?.hasChecked) {
+      const pollForFeedback = async () => {
+        try {
+          const feedback = await getPerTurnFeedback(sessionId);
+          
+          // Update coach feedback states based on current feedback
+          if (feedback.length > lastFeedbackCount) {
+            setCoachFeedbackStates(prev => {
+              const newState = { ...prev };
+              
+              // Mark analyzing for new user messages that don't have feedback yet
+              const userMessageIndexes = messages
+                .map((msg, index) => ({ msg, index }))
+                .filter(({ msg }) => msg.role === 'user')
+                .map(({ index }) => index);
+              
+              userMessageIndexes.forEach((msgIndex, userMsgNumber) => {
+                if (userMsgNumber < feedback.length) {
+                  // Feedback is available
                   newState[msgIndex] = {
-                    isAnalyzing: true,
-                    hasChecked: false
+                    isAnalyzing: false,
+                    feedback: feedback[userMsgNumber].feedback,
+                    hasChecked: true
                   };
+                } else {
+                  // No feedback yet, should be analyzing if not already checked
+                  if (!newState[msgIndex]?.hasChecked) {
+                    newState[msgIndex] = {
+                      isAnalyzing: true,
+                      hasChecked: false
+                    };
+                  }
                 }
-              }
+              });
+              
+              return newState;
             });
             
-            return newState;
-          });
-          
-          setLastFeedbackCount(feedback.length);
+            setLastFeedbackCount(feedback.length);
+          }
+        } catch (error) {
+          // Silently handle polling errors to avoid UI disruption
+          console.log('Polling for feedback failed:', error);
         }
-      } catch (error) {
-        // Silently handle polling errors to avoid UI disruption
-        console.log('Polling for feedback failed:', error);
-      }
-    };
+      };
 
     // FIXED: Only poll if there are pending messages that need analysis
     const userMessageCount = messages.filter(m => m.role === 'user').length;
@@ -132,9 +132,9 @@ export function useInterviewSession() {
     } else if (!shouldPoll && pollingIntervalRef.current) {
       // Stop polling when all messages have been analyzed
       console.log('Stopping coach feedback polling - all messages analyzed');
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
   }, [sessionId, state, messages.length]); // REMOVED lastFeedbackCount to prevent loops
 
   // Cleanup polling on unmount or session change
@@ -247,9 +247,10 @@ export function useInterviewSession() {
       };
       setMessages((prev) => [...prev, agentMessage]);
 
-      if (selectedVoice && response.agent === 'interviewer' && typeof response.content === 'string') {
-        playTextToSpeech(response.content);
-      }
+      // REMOVED: Duplicate TTS call - already handled by voice-first hook
+      // if (selectedVoice && response.agent === 'interviewer' && typeof response.content === 'string') {
+      //   playTextToSpeech(response.content);
+      // }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to send message';
       toast({

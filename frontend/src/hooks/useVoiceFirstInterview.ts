@@ -183,17 +183,14 @@ export function useVoiceFirstInterview(
           if (text && text.trim() !== '') {
             // CHANGED: Simplified accumulation logic for better reliability
             setAccumulatedTranscript(prev => {
-              console.log('🐛 onTranscript called:', { text, isFinal, prevTranscript: prev });
               if (isFinal) {
                 // Append final transcript to accumulated text
                 const newText = prev.trim() ? prev + ' ' + text : text;
                 console.log('📝 Final transcript accumulated:', text);
-                console.log('🐛 New accumulated transcript:', newText);
                 return newText;
               } else {
                 // For interim transcripts, just log them but don't send
                 console.log('📝 Interim transcript (not accumulated):', text);
-                console.log('🐛 Keeping previous transcript:', prev);
                 return prev; // Keep previous accumulated text unchanged
               }
             });
@@ -248,11 +245,6 @@ export function useVoiceFirstInterview(
 
   // Stop voice recognition
   const stopVoiceRecognition = useCallback(() => {
-    console.log('🐛 stopVoiceRecognition called');
-    console.log('🐛 Current accumulatedTranscript at stop:', accumulatedTranscriptRef.current);
-    console.log('🐛 accumulatedTranscript length:', accumulatedTranscriptRef.current.length);
-    console.log('🐛 accumulatedTranscript.trim():', accumulatedTranscriptRef.current.trim());
-    
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       recognitionRef.current = null;
@@ -271,23 +263,17 @@ export function useVoiceFirstInterview(
       micStreamRef.current = null;
     }
     
-    console.log('🐛 About to check if transcript should be sent...');
-    console.log('🐛 accumulatedTranscript at send check:', accumulatedTranscriptRef.current);
-    
     // CHANGED: Use ref to get latest value without dependency issues
     if (accumulatedTranscriptRef.current.trim()) {
       console.log('📤 Sending accumulated transcript on manual stop:', accumulatedTranscriptRef.current.trim());
       if (onSendMessageRef.current) {
-        console.log('🐛 Calling onSendMessage with:', accumulatedTranscriptRef.current.trim());
         onSendMessageRef.current(accumulatedTranscriptRef.current.trim());
       } else {
         console.log('📝 Accumulated transcript ready:', accumulatedTranscriptRef.current.trim());
-        console.log('🐛 No onSendMessage callback available');
       }
       setAccumulatedTranscript('');
     } else {
       console.log('⚠️ No transcript to send - user may have stopped without speaking');
-      console.log('🐛 accumulatedTranscript was empty/whitespace:', JSON.stringify(accumulatedTranscriptRef.current));
     }
     
     // Reset to idle after processing
@@ -346,8 +332,6 @@ export function useVoiceFirstInterview(
   const playTextToSpeech = useCallback(async (text: string) => {
     const { selectedVoice } = sessionData;
     
-    console.log('🔊 TTS playTextToSpeech called with:', { text: text.slice(0, 50), selectedVoice });
-    
     if (!selectedVoice) {
       console.warn('⚠️ No selectedVoice available for TTS');
       return;
@@ -356,7 +340,6 @@ export function useVoiceFirstInterview(
     handleTTSStart();
     
     try {
-      console.log('🔊 Requesting TTS audio from API...');
       const audioBlob = await api.textToSpeech(text, selectedVoice);
       const audioUrl = URL.createObjectURL(audioBlob);
       
@@ -369,12 +352,10 @@ export function useVoiceFirstInterview(
       const audio = new Audio(audioUrl);
       currentAudioRef.current = audio;
       
-      console.log('🔊 Starting audio playback...');
       await audio.play();
       
       // Clean up the URL object after the audio finishes playing
       audio.onended = () => {
-        console.log('🔊 Audio playback completed');
         URL.revokeObjectURL(audioUrl);
         currentAudioRef.current = null;
         handleTTSEnd();
@@ -405,8 +386,6 @@ export function useVoiceFirstInterview(
   const lastProcessedMessageRef = useRef<string | null>(null);
   
   useEffect(() => {
-    console.log('🔊 TTS auto-play effect triggered. LastMessage:', lastMessage?.role, lastMessage?.agent);
-    
     if (lastMessage && 
         lastMessage.role === 'assistant' && 
         lastMessage.agent !== 'coach' &&
@@ -415,20 +394,14 @@ export function useVoiceFirstInterview(
       // Create a unique key from message index and content
       const messageKey = `${messages.length - 1}-${lastMessage.content.slice(0, 50)}`;
       
-      console.log('🔊 Checking if should play TTS:', { messageKey, lastProcessed: lastProcessedMessageRef.current });
-      
       if (messageKey !== lastProcessedMessageRef.current) {
         // Mark this message as processed to avoid re-triggering
         lastProcessedMessageRef.current = messageKey;
         
-        console.log('🔊 Auto-playing TTS for AI response:', lastMessage.content.slice(0, 50));
+        console.log('🔊 Auto-playing TTS for AI response');
         // Auto-play TTS for AI interviewer responses
         playTextToSpeech(lastMessage.content);
-      } else {
-        console.log('🔊 Skipping TTS - already processed this message');
       }
-    } else {
-      console.log('🔊 Skipping TTS - not an AI interviewer message');
     }
   }, [lastMessage]); // REMOVED playTextToSpeech dependency that was causing loops
 

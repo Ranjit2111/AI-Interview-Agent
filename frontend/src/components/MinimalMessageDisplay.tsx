@@ -13,7 +13,7 @@ const MinimalMessageDisplay: React.FC<MinimalMessageDisplayProps> = ({
   lastUserMessage,
   lastAIMessage,
   isVisible,
-  autoHideTimeout = 30000, // 30 seconds
+  autoHideTimeout = 8000, // Reduced from 30 seconds to 8 seconds
   onToggleTranscript
 }) => {
   const [shouldShow, setShouldShow] = useState(isVisible);
@@ -61,7 +61,7 @@ const MinimalMessageDisplay: React.FC<MinimalMessageDisplayProps> = ({
     if (autoHideTimeout > 0 && isVisible) {
       const timer = setTimeout(() => {
         setShouldShow(false);
-      }, 5000); // Shorter timeout after hover
+      }, 3000); // Shorter timeout after hover (3 seconds)
       setHideTimer(timer);
     }
   };
@@ -114,44 +114,6 @@ const MinimalMessageDisplay: React.FC<MinimalMessageDisplayProps> = ({
                 </p>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Transcript Access Button */}
-        {onToggleTranscript && (
-          <div className="flex justify-center mt-8">
-            <button
-              onClick={onToggleTranscript}
-              className="
-                group relative px-4 py-2 
-                bg-white/5 hover:bg-white/10 
-                border border-white/10 hover:border-white/20
-                rounded-full 
-                backdrop-blur-sm
-                transition-all duration-300
-                text-xs font-medium text-gray-300 hover:text-white
-              "
-            >
-              <span className="relative z-10 flex items-center space-x-2">
-                <span>View Full Transcript</span>
-                <svg 
-                  className="w-3 h-3 transition-transform duration-200 group-hover:translate-y-0.5" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </span>
-              
-              {/* Hover Effect */}
-              <div className="
-                absolute inset-0 rounded-full 
-                bg-gradient-to-r from-blue-500/10 to-purple-500/10 
-                opacity-0 group-hover:opacity-100 
-                transition-opacity duration-300
-              " />
-            </button>
           </div>
         )}
       </div>
