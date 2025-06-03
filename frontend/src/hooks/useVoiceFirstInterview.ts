@@ -32,6 +32,7 @@ export interface SessionData {
   isLoading: boolean;
   state: string;
   selectedVoice: string | null;
+  sessionId?: string; // Add sessionId for speech task tracking
   results?: any; // Add results field
 }
 
@@ -165,6 +166,7 @@ export function useVoiceFirstInterview(
 
       // Create streaming recognition instance
       recognitionRef.current = api.createStreamingSpeechRecognition({
+        sessionId: sessionData.sessionId,
         onConnected: () => {
           console.log('Connected to streaming STT service');
           setMicrophoneActive(true);

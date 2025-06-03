@@ -368,6 +368,7 @@ export function useInterviewSession() {
     results,
     selectedVoice,
     coachFeedbackStates,
+    sessionId,
     actions: {
       startInterview,
       sendMessage,

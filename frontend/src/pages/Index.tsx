@@ -18,6 +18,7 @@ const Index = () => {
     results,
     selectedVoice,
     coachFeedbackStates,
+    sessionId,
     actions
   } = useInterviewSession();
   
@@ -374,6 +375,7 @@ const Index = () => {
             onEndInterview={actions.endInterview}
             onVoiceSelect={actions.setSelectedVoice}
             coachFeedbackStates={coachFeedbackStates}
+            sessionId={sessionId}
           />
         )}
 

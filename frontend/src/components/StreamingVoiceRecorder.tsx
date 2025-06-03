@@ -5,11 +5,13 @@ import { useToast } from '@/hooks/use-toast';
 import { api, StreamingSpeechRecognition } from '@/services/api';
 
 interface StreamingVoiceRecorderProps {
+  sessionId?: string;  // Add session ID for speech task tracking
   onTranscriptUpdate: (text: string, isFinal: boolean) => void;
   isDisabled?: boolean;
 }
 
 const StreamingVoiceRecorder: React.FC<StreamingVoiceRecorderProps> = ({
+  sessionId,
   onTranscriptUpdate,
   isDisabled = false
 }) => {
@@ -51,6 +53,7 @@ const StreamingVoiceRecorder: React.FC<StreamingVoiceRecorderProps> = ({
       
       // Create streaming recognition instance
       recognitionRef.current = api.createStreamingSpeechRecognition({
+        sessionId,
         onConnected: () => {
           console.log('Connected to streaming STT service');
           toast({
@@ -160,8 +163,7 @@ const StreamingVoiceRecorder: React.FC<StreamingVoiceRecorderProps> = ({
           {isSpeaking && (
             <div className="flex items-center animation-pulse">
               <Volume2 
-                className="h-5 w-5 text-green-400 animate-pulse" 
-                title={`Speaking detected at ${speakingTimestamp || 'unknown'}`}
+                className="h-5 w-5 text-green-400 animate-pulse"
               />
             </div>
           )}
