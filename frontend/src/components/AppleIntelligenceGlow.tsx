@@ -47,8 +47,9 @@ const AppleIntelligenceGlow: React.FC<AppleIntelligenceGlowProps> = ({
 
   const getGlowClass = () => {
     if (!isActive && mode === 'idle') return 'glow-breathing';
-    if (mode === 'user' && isActive) return 'apple-glow-user';
-    if (mode === 'ai' && isActive) return 'apple-glow-ai';
+    // When active, rely on inner radial gradient layers for glow, not box-shadow on root
+    // if (mode === 'user' && isActive) return 'apple-glow-user';
+    // if (mode === 'ai' && isActive) return 'apple-glow-ai';
     return '';
   };
 
