@@ -26,6 +26,7 @@ from backend.api.agent_api import create_agent_api
 from backend.api.speech_api import create_speech_api
 from backend.api.file_processing_api import create_file_processing_api
 from backend.api.auth_api import create_auth_api
+from backend.middleware import SessionSavingMiddleware
 
 
 load_dotenv()
@@ -70,6 +71,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add session saving middleware for automatic session persistence
+app.add_middleware(SessionSavingMiddleware)
 
 # Register API routes
 create_auth_api(app)
