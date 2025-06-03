@@ -79,7 +79,7 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
         isActive={isListening || turnState === 'ai'}
         mode={glowMode}
         voiceActivity={voiceActivity}
-        className="p-6"
+        className="p-6 rounded-full bg-transparent"
       >
         <button
           ref={buttonRef}
