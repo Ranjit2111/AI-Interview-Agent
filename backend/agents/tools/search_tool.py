@@ -109,68 +109,99 @@ class LearningResourceSearchTool(BaseTool):
     def _run(self, skill: str, proficiency_level: str = "intermediate", 
              job_role: Optional[str] = None, num_results: int = 5) -> str:
         """
-        Synchronous wrapper for the async search operation.
+        Synchronous wrapper for the search operation.
         
         Returns:
             String representation of search results for the LLM
         """
         try:
-            # Check if we're already in an async context
+            # Check if we're in an async context
             try:
-                # Try to get the current event loop
                 loop = asyncio.get_running_loop()
-                # If we get here, we're in an async context
-                # We need to use asyncio.create_task or similar
-                self.logger.warning("Search tool called from async context - this may cause issues")
-                # For now, return a placeholder result
-                return f"Search not available in async context for skill: {skill}"
+                # We're in an async context - create a task and wait for it
+                import concurrent.futures
+                import threading
+                
+                # Create a future to hold the result
+                future = concurrent.futures.Future()
+                
+                def run_async_search():
+                    """Run the async search in a separate thread with its own event loop"""
+                    try:
+                        # Create new event loop for this thread
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            result = new_loop.run_until_complete(
+                                self._perform_search(skill, proficiency_level, job_role, num_results)
+                            )
+                            future.set_result(result)
+                        finally:
+                            new_loop.close()
+                    except Exception as e:
+                        future.set_exception(e)
+                
+                # Run in a separate thread to avoid event loop conflicts
+                thread = threading.Thread(target=run_async_search)
+                thread.start()
+                thread.join()
+                
+                # Get the result
+                return future.result()
+                
             except RuntimeError:
                 # No running loop, safe to create one
-                return asyncio.run(self._async_search_wrapper(skill, proficiency_level, job_role, num_results))
-            
+                return asyncio.run(self._perform_search(skill, proficiency_level, job_role, num_results))
+                
         except Exception as e:
-            self.logger.error(f"Error in search tool: {e}")
+            self.logger.error(f"Error in sync search tool: {e}")
             return f"Search failed: {str(e)}"
     
-    async def _async_search_wrapper(self, skill: str, proficiency_level: str,
-                                  job_role: Optional[str], num_results: int) -> str:
+    async def _arun(self, skill: str, proficiency_level: str = "intermediate", 
+                    job_role: Optional[str] = None, num_results: int = 5) -> str:
         """
-        Async wrapper that properly handles the search operation.
+        Async implementation for LangGraph and other async contexts.
+        
+        Returns:
+            String representation of search results for the LLM
+        """
+        try:
+            return await self._perform_search(skill, proficiency_level, job_role, num_results)
+        except Exception as e:
+            self.logger.error(f"Error in async search tool: {e}")
+            return f"Search failed: {str(e)}"
+    
+    async def _perform_search(self, skill: str, proficiency_level: str,
+                             job_role: Optional[str], num_results: int) -> str:
+        """
+        Core search functionality used by both sync and async methods.
         
         Returns:
             Formatted search results for LLM
         """
         try:
-            resources = await self._async_search(skill, proficiency_level, job_role, num_results)
-            return self._format_results_for_llm(resources, skill)
+            # Search for significantly more results than needed since we'll filter
+            search_count = min(num_results * 4, 40)  # Get 4x more to account for filtering
+            
+            all_resources = await self.search_service.search_resources(
+                skill=skill,
+                proficiency_level=proficiency_level,
+                job_role=job_role,
+                num_results=search_count,
+                use_cache=True
+            )
+            
+            # Filter out paid content
+            free_resources = self._filter_free_resources(all_resources)
+            
+            # Return top results, ensuring we try to meet the requested number
+            final_resources = free_resources[:num_results]
+            
+            return self._format_results_for_llm(final_resources, skill)
+            
         except Exception as e:
-            self.logger.error(f"Error in async search wrapper: {e}")
-            return f"Search failed: {str(e)}"
-    
-    async def _async_search(self, skill: str, proficiency_level: str,
-                           job_role: Optional[str], num_results: int) -> List[Resource]:
-        """
-        Perform the actual async search operation.
-        
-        Returns:
-            List of filtered resources
-        """
-        # Search for significantly more results than needed since we'll filter
-        search_count = min(num_results * 4, 40)  # Get 4x more to account for filtering
-        
-        all_resources = await self.search_service.search_resources(
-            skill=skill,
-            proficiency_level=proficiency_level,
-            job_role=job_role,
-            num_results=search_count,
-            use_cache=True
-        )
-        
-        # Filter out paid content
-        free_resources = self._filter_free_resources(all_resources)
-        
-        # Return top results, ensuring we try to meet the requested number
-        return free_resources[:num_results]
+            self.logger.error(f"Error in search operation: {e}")
+            return f"Search failed for '{skill}': {str(e)}"
     
     def _format_results_for_llm(self, resources: List[Resource], skill: str) -> str:
         """
