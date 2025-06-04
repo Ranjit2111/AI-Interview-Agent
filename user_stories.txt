@@ -11,7 +11,8 @@ i would like for the coach to feel like a real time agent running during the int
 
 - remove speech_tasks table from supabase, if users come in flies, because it doesn't scale beyond a certain point.
 
-- how is time utilised? where and how can it be made better?
+- how is time utilised? where and how can it be made better?    
 - improve interview agent
 - call out if the user keeps saying something irrelevant - prompt better
 - deal with interview end_interview
+- deepgram doesn't properly take all text inside
