@@ -357,6 +357,7 @@ TIME AWARENESS:
             time_info = self.time_manager.get_time_based_prompt_context()
             base_inputs.update({
                 "use_time_based": True,
+                "interview_type": "Time-based",
                 "current_time_phase": time_info["current_time_phase"],
                 "time_progress_percentage": time_info["time_progress_percentage"],
                 "remaining_minutes": time_info["remaining_minutes"],
@@ -367,6 +368,7 @@ TIME AWARENESS:
             # Question-based interview context
             base_inputs.update({
                 "use_time_based": False,
+                "interview_type": "Question-based",
                 "target_question_count": self.question_count,
                 "questions_asked_count": self.state.asked_question_count,
                 "current_time_phase": "question_based",

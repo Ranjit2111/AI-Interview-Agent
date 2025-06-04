@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InterviewStartRequest, api } from '@/services/api';
-import { UploadCloud, BriefcaseBusiness, Building2, FileText, Settings, Users, MessageSquare, Loader2 } from 'lucide-react';
+import { UploadCloud, BriefcaseBusiness, Building2, FileText, Settings, Clock, MessageSquare, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
 interface InterviewConfigProps {
@@ -20,7 +20,7 @@ const InterviewConfig: React.FC<InterviewConfigProps> = ({ onSubmit, isLoading }
   const [resumeContent, setResumeContent] = useState('');
   const [style, setStyle] = useState<'formal' | 'casual' | 'aggressive' | 'technical'>('formal');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
-  const [questionCount, setQuestionCount] = useState(5);
+  const [interviewDuration, setInterviewDuration] = useState(10);
   const [company, setCompany] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
@@ -92,14 +92,20 @@ const InterviewConfig: React.FC<InterviewConfigProps> = ({ onSubmit, isLoading }
       return;
     }
     
+    if (interviewDuration < 5 || interviewDuration > 30) {
+      toast({ title: "Invalid Duration", description: "Interview duration must be between 5 and 30 minutes.", variant: "destructive" });
+      return;
+    }
+    
     const config: InterviewStartRequest = {
       job_role: jobRole,
       job_description: jobDescription || undefined,
       resume_content: resumeContent || undefined,
       style,
       difficulty,
-      target_question_count: questionCount,
       company_name: company || undefined,
+      interview_duration_minutes: interviewDuration,
+      use_time_based_interview: true,
     };
     
     onSubmit(config);
@@ -241,19 +247,23 @@ const InterviewConfig: React.FC<InterviewConfigProps> = ({ onSubmit, isLoading }
             </div>
             
             <div className="space-y-2 group">
-              <Label htmlFor="questions" className="flex items-center gap-2 text-gray-300 group-focus-within:text-white">
-                <Users className="h-4 w-4 text-purple-500" />
-                Number of Questions
+              <Label htmlFor="duration" className="flex items-center gap-2 text-gray-300 group-focus-within:text-white">
+                <Clock className="h-4 w-4 text-purple-500" />
+                Interview Duration (5-30 minutes)
               </Label>
               <Input
-                id="questions"
+                id="duration"
                 type="number"
-                min={1}
-                max={20}
-                value={questionCount}
-                onChange={(e) => setQuestionCount(parseInt(e.target.value) || 5)}
+                min={5}
+                max={30}
+                value={interviewDuration}
+                onChange={(e) => setInterviewDuration(parseInt(e.target.value) || 10)}
                 className="glass-effect border-white/10 bg-black/50 focus:border-purple-500/50 focus:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition-all duration-300"
+                placeholder="10"
               />
+              <p className="text-xs text-gray-500">
+                How long would you like the interview to last? Default is 10 minutes.
+              </p>
             </div>
           </div>
         </CardContent>

@@ -62,6 +62,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       state: 'interviewing', // We know it's interviewing since this component only renders in that state
       selectedVoice,
       sessionId, // Pass sessionId for speech task tracking
+      disableAutoTTS: showInstructions, // Disable auto-TTS while instructions modal is open
     }, 
     onSendMessage
   );
@@ -112,6 +113,27 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
           </Button>
         </div>
   );
+
+  // Handle modal close and trigger TTS for introduction
+  const handleInstructionsClose = () => {
+    setShowInstructions(false);
+    
+    // Wait for state to update before triggering TTS to ensure proper integration
+    setTimeout(() => {
+      // Find the first assistant message (introduction) and play it via TTS
+      const introMessage = messages.find(msg => 
+        msg.role === 'assistant' && 
+        msg.agent === 'interviewer' && 
+        typeof msg.content === 'string'
+      );
+      
+      if (introMessage && typeof introMessage.content === 'string') {
+        console.log('🔊 Playing introduction message via TTS after modal close');
+        console.log('🎯 Current audio state before manual TTS:', { audioPlaying, turnState, isDisabled });
+        playTextToSpeech(introMessage.content);
+      }
+    }, 100); // Small delay to ensure state has updated
+  };
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
@@ -170,7 +192,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       {/* Interview Instructions Modal */}
       <InterviewInstructionsModal
         isOpen={showInstructions}
-        onClose={() => setShowInstructions(false)}
+        onClose={handleInstructionsClose}
       />
     </div>
   );

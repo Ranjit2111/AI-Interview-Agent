@@ -122,7 +122,7 @@ INTERVIEW CONTEXT:
 - Difficulty Level: {difficulty_level}
 
 TIME MANAGEMENT CONTEXT:
-- Interview Type: {"Time-based" if use_time_based else "Question-based"}
+- Interview Type: {interview_type}
 - Current Time Phase: {current_time_phase}
 - Time Progress: {time_progress_percentage}% complete
 - Remaining Time: {remaining_minutes} minutes
