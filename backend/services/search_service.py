@@ -17,7 +17,7 @@ from .search_helpers import (
     ResourceType, ResourceClassifier, RelevanceScorer, 
     DomainQualityEvaluator, FallbackResourceGenerator
 )
-from backend.services.rate_limiting import get_rate_limiter
+from .rate_limiting import get_rate_limiter
 
 load_dotenv()
 
@@ -72,9 +72,9 @@ class SerperProvider(SearchProvider):
         if not self.api_key:
             raise ValueError("Serper.dev API key not provided")
         
-        # Acquire rate limit slot
+        # Acquire rate limiting slot
         if not await self.rate_limiter.acquire_search():
-            raise Exception("Search API rate limit exceeded - no available slots")
+            raise RuntimeError("Search API rate limit exceeded - no slots available")
         
         try:
             params = {
@@ -97,9 +97,8 @@ class SerperProvider(SearchProvider):
                 )
                 response.raise_for_status()
                 return response.json()
-                
         finally:
-            # Always release the rate limit slot
+            # Always release the rate limiting slot
             self.rate_limiter.release_search()
 
 

@@ -3,6 +3,7 @@ Learning Resource Search Tool for the Coach Agent.
 Provides intelligent search capabilities for finding educational resources.
 """
 
+import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from langchain_core.tools import BaseTool
@@ -10,7 +11,6 @@ from pydantic import BaseModel, Field
 
 from backend.services.search_service import SearchService, Resource
 from backend.services.search_config import BOOK_DOMAINS
-from backend.utils.async_utils import run_async_safe
 
 
 class SearchInput(BaseModel):
@@ -115,15 +115,36 @@ class LearningResourceSearchTool(BaseTool):
             String representation of search results for the LLM
         """
         try:
-            # Use the new async utility instead of manual loop management
-            resources = run_async_safe(
-                self._async_search(skill, proficiency_level, job_role, num_results)
-            )
-            
-            return self._format_results_for_llm(resources, skill)
+            # Check if we're already in an async context
+            try:
+                # Try to get the current event loop
+                loop = asyncio.get_running_loop()
+                # If we get here, we're in an async context
+                # We need to use asyncio.create_task or similar
+                self.logger.warning("Search tool called from async context - this may cause issues")
+                # For now, return a placeholder result
+                return f"Search not available in async context for skill: {skill}"
+            except RuntimeError:
+                # No running loop, safe to create one
+                return asyncio.run(self._async_search_wrapper(skill, proficiency_level, job_role, num_results))
             
         except Exception as e:
             self.logger.error(f"Error in search tool: {e}")
+            return f"Search failed: {str(e)}"
+    
+    async def _async_search_wrapper(self, skill: str, proficiency_level: str,
+                                  job_role: Optional[str], num_results: int) -> str:
+        """
+        Async wrapper that properly handles the search operation.
+        
+        Returns:
+            Formatted search results for LLM
+        """
+        try:
+            resources = await self._async_search(skill, proficiency_level, job_role, num_results)
+            return self._format_results_for_llm(resources, skill)
+        except Exception as e:
+            self.logger.error(f"Error in async search wrapper: {e}")
             return f"Search failed: {str(e)}"
     
     async def _async_search(self, skill: str, proficiency_level: str,

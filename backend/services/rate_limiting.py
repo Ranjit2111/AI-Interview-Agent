@@ -23,7 +23,7 @@ class APIRateLimiter:
         self.assemblyai_limit = 5  # 5 concurrent transcriptions
         self.polly_limit = 26      # 26 concurrent generative voice requests
         self.deepgram_limit = 10   # Conservative limit for streaming connections
-        self.search_limit = 8      # 8 concurrent search requests for Serper.dev
+        self.search_limit = 3      # Conservative limit for search API (Serper.dev)
         
         # Initialize semaphores directly
         self.assemblyai_semaphore = asyncio.Semaphore(self.assemblyai_limit)
@@ -39,7 +39,7 @@ class APIRateLimiter:
             'search': {'active': 0, 'total_requests': 0, 'errors': 0}
         }
         
-        logger.info("APIRateLimiter initialized with limits: AssemblyAI=5, Polly=26, Deepgram=10, Search=8")
+        logger.info("APIRateLimiter initialized with limits: AssemblyAI=5, Polly=26, Deepgram=10, Search=3")
     
     async def acquire_assemblyai(self) -> bool:
         """
