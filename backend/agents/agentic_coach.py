@@ -95,18 +95,47 @@ class AgenticCoachAgent(BaseAgent):
     def _setup_agentic_executor(self) -> None:
         """Set up the LangGraph reactive agent with tools and memory."""
         try:
-            # Create the reactive agent with search tool - use simpler approach without memory for now
-            self.agent_executor = create_react_agent(
-                model=self.llm,
-                tools=[self.search_tool]
-            )
+            self.logger.info("Setting up LangGraph agentic executor with search tool")
             
-            self.logger.info("Agentic coach executor created successfully with search tool")
+            # Validate LLM is available
+            if not self.llm:
+                raise ValueError("LLM service not available for agent setup")
+            
+            # Validate search tool is available
+            if not self.search_tool:
+                raise ValueError("Search tool not available for agent setup")
+            
+            self.logger.debug(f"LLM type: {type(self.llm)}")
+            self.logger.debug(f"Search tool type: {type(self.search_tool)}")
+            
+            # TEMPORARY: Disable agentic approach due to LangGraph 0.1.8 compatibility issues
+            # The '__start__' KeyError is a known issue in LangGraph 0.1.8 that was fixed in 0.2+
+            # For now, we'll use the fallback approach which includes search functionality
+            self.logger.warning("Temporarily disabling agentic approach due to LangGraph 0.1.8 compatibility issues")
+            self.logger.warning("Consider upgrading to LangGraph 0.2+ to enable full agentic capabilities")
+            self.agent_executor = None
+            return
+            
+            # TODO: Re-enable when LangGraph is upgraded to 0.2+
+            # # Create the reactive agent with search tool
+            # self.agent_executor = create_react_agent(
+            #     model=self.llm,
+            #     tools=[self.search_tool]
+            # )
+            # 
+            # # Validate the agent was created successfully
+            # if not self.agent_executor:
+            #     raise ValueError("Failed to create LangGraph agent - executor is None")
+            # 
+            # self.logger.info("Agentic coach executor created successfully with search tool")
+            # self.logger.debug(f"Agent executor type: {type(self.agent_executor)}")
             
         except Exception as e:
             self.logger.error(f"Failed to create agentic executor: {e}")
+            self.logger.exception("Full traceback for agent setup error:")
             # Fallback: set to None and handle gracefully
             self.agent_executor = None
+            self.logger.warning("Agent executor set to None - will use fallback methods with search functionality")
     
     def evaluate_answer(
         self, 
@@ -122,7 +151,7 @@ class AgenticCoachAgent(BaseAgent):
             A string containing conversational coaching feedback.
         """
         if not self.agent_executor:
-            # Fallback to simple evaluation if agent setup failed
+            self.logger.warning("Agent executor not available for evaluation, using fallback")
             return self._fallback_evaluate_answer(question, answer, justification, conversation_history)
         
         try:
@@ -130,24 +159,46 @@ class AgenticCoachAgent(BaseAgent):
             evaluation_prompt = self._build_evaluation_prompt(
                 question, answer, justification, conversation_history
             )
+            self.logger.debug("Built evaluation prompt for agentic coach")
             
             # Get thread configuration for this conversation
-            config = {"configurable": {"thread_id": f"eval_{hash(question + answer)}"}}
+            thread_id = f"eval_{hash(question + answer)}"
+            config = {"configurable": {"thread_id": thread_id}}
+            self.logger.debug(f"Using thread ID for evaluation: {thread_id}")
             
-            # Run the agent
+            # Prepare the message for the agent
             messages = [HumanMessage(content=evaluation_prompt)]
-            result = self.agent_executor.invoke({"messages": messages}, config)
+            self.logger.debug("Starting LangGraph agent execution for evaluation")
             
-            # Extract the final response
-            if result and "messages" in result:
-                last_message = result["messages"][-1]
-                if hasattr(last_message, 'content'):
-                    return last_message.content
+            # Run the agent with enhanced error handling
+            try:
+                result = self.agent_executor.invoke({"messages": messages}, config)
+                self.logger.debug("LangGraph agent evaluation completed successfully")
+            except Exception as agent_error:
+                self.logger.error(f"LangGraph agent evaluation failed: {agent_error}")
+                self.logger.error(f"Error type: {type(agent_error).__name__}")
+                raise agent_error
+            
+            # Extract the final response with validation
+            if result and isinstance(result, dict) and "messages" in result:
+                messages_list = result["messages"]
+                if messages_list and len(messages_list) > 0:
+                    last_message = messages_list[-1]
+                    if hasattr(last_message, 'content') and last_message.content:
+                        self.logger.debug("Successfully extracted evaluation response")
+                        return last_message.content
+                    else:
+                        self.logger.warning("Last message has no content for evaluation")
+                else:
+                    self.logger.warning("No messages in evaluation result")
+            else:
+                self.logger.warning(f"Unexpected evaluation result format: {type(result)}")
             
             return "Could not generate coaching feedback for this answer."
             
         except Exception as e:
             self.logger.error(f"Error in agentic evaluation: {e}")
+            self.logger.debug("Falling back to template-based evaluation")
             return self._fallback_evaluate_answer(question, answer, justification, conversation_history)
     
     def generate_final_summary_with_resources(self, conversation_history: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -158,30 +209,58 @@ class AgenticCoachAgent(BaseAgent):
             A dictionary containing the final summary with recommended resources.
         """
         if not self.agent_executor:
-            # Fallback to simple summary if agent setup failed
+            self.logger.warning("Agent executor not available, falling back to template-based summary")
             return self._fallback_final_summary(conversation_history)
         
         try:
             # Create the summary prompt for the agent
             summary_prompt = self._build_summary_prompt(conversation_history)
+            self.logger.info("Built summary prompt for agentic coach execution")
             
-            # Get thread configuration
-            config = {"configurable": {"thread_id": f"summary_{hash(str(conversation_history))}"}}
+            # Get thread configuration with a unique thread ID
+            thread_id = f"summary_{hash(str(conversation_history))}"
+            config = {"configurable": {"thread_id": thread_id}}
+            self.logger.debug(f"Using thread ID for agent execution: {thread_id}")
             
-            # Run the agent
+            # Prepare the message for the agent
             messages = [HumanMessage(content=summary_prompt)]
-            result = self.agent_executor.invoke({"messages": messages}, config)
+            self.logger.info("Starting LangGraph agent execution for final summary")
             
-            # Extract and parse the final response
-            if result and "messages" in result:
-                last_message = result["messages"][-1]
-                if hasattr(last_message, 'content'):
-                    return self._parse_agentic_summary(last_message.content)
+            # Run the agent with enhanced error handling
+            try:
+                result = self.agent_executor.invoke({"messages": messages}, config)
+                self.logger.info("LangGraph agent execution completed successfully")
+            except Exception as agent_error:
+                self.logger.error(f"LangGraph agent execution failed: {agent_error}")
+                self.logger.error(f"Error type: {type(agent_error).__name__}")
+                # Try to get more details about the error
+                if hasattr(agent_error, '__dict__'):
+                    self.logger.error(f"Error details: {agent_error.__dict__}")
+                raise agent_error
             
+            # Extract and parse the final response with detailed validation
+            if result and isinstance(result, dict) and "messages" in result:
+                messages_list = result["messages"]
+                if messages_list and len(messages_list) > 0:
+                    last_message = messages_list[-1]
+                    if hasattr(last_message, 'content') and last_message.content:
+                        self.logger.info("Successfully extracted agent response content")
+                        self.logger.debug(f"Agent response content length: {len(last_message.content)}")
+                        return self._parse_agentic_summary(last_message.content)
+                    else:
+                        self.logger.warning("Last message has no content or empty content")
+                else:
+                    self.logger.warning("No messages in agent result")
+            else:
+                self.logger.warning(f"Unexpected agent result format: {type(result)} - {result}")
+            
+            self.logger.warning("Could not extract valid response from agent, creating default summary")
             return self._create_default_summary()
             
         except Exception as e:
             self.logger.error(f"Error in agentic final summary: {e}")
+            self.logger.exception("Full traceback for agentic summary error:")
+            self.logger.info("Falling back to template-based summary")
             return self._fallback_final_summary(conversation_history)
     
     def _build_evaluation_prompt(
