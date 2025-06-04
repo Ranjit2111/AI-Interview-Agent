@@ -25,7 +25,7 @@ class SessionConfig(BaseModel):
     resume_content: Optional[str] = None
     style: InterviewStyle = InterviewStyle.FORMAL
     difficulty: str = "medium"
-    target_question_count: Optional[int] = None  # Made optional for time-based interviews
+    target_question_count: Optional[int] = 15  # Fallback for question-based interviews
     company_name: Optional[str] = None
-    interview_duration_minutes: Optional[int] = None  # Time-based interview duration
-    use_time_based_interview: bool = False  # Whether to use time-based or question-based
+    interview_duration_minutes: Optional[int] = 30  # Default to 30-minute interviews
+    use_time_based_interview: bool = True  # Enable time-based interviews by default

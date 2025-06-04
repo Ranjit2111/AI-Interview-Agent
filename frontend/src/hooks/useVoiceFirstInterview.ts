@@ -34,6 +34,7 @@ export interface SessionData {
   selectedVoice: string | null;
   sessionId?: string; // Add sessionId for speech task tracking
   results?: any; // Add results field
+  disableAutoTTS?: boolean; // Add flag to disable auto-TTS when needed
 }
 
 export function useVoiceFirstInterview(
@@ -322,23 +323,33 @@ export function useVoiceFirstInterview(
 
   // TTS state management
   const handleTTSStart = useCallback(() => {
+    console.log('🎙️ TTS Start - Setting audioPlaying=true, turnState=ai');
     setAudioPlaying(true);
-    setVoiceState(prev => ({
-      ...prev,
-      audioState: 'playing',
-      turnState: 'ai',
-      microphoneState: 'disabled'
-    }));
+    setVoiceState(prev => {
+      const newState: VoiceState = {
+        ...prev,
+        audioState: 'playing' as const,
+        turnState: 'ai' as const,
+        microphoneState: 'disabled' as const
+      };
+      console.log('🎙️ TTS Start - Voice state updated:', newState);
+      return newState;
+    });
   }, []);
 
   const handleTTSEnd = useCallback(() => {
+    console.log('🎙️ TTS End - Setting audioPlaying=false, turnState=idle');
     setAudioPlaying(false);
-    setVoiceState(prev => ({
-      ...prev,
-      audioState: 'idle',
-      turnState: 'idle',
-      microphoneState: 'idle'
-    }));
+    setVoiceState(prev => {
+      const newState: VoiceState = {
+        ...prev,
+        audioState: 'idle' as const,
+        turnState: 'idle' as const,
+        microphoneState: 'idle' as const
+      };
+      console.log('🎙️ TTS End - Voice state updated:', newState);
+      return newState;
+    });
   }, []);
 
   // Transcript and feedback controls
@@ -363,7 +374,12 @@ export function useVoiceFirstInterview(
       return;
     }
     
-    handleTTSStart();
+    console.log('🔊 Starting TTS playback:', {
+      text: text.slice(0, 50) + '...',
+      audioPlayingBefore: audioPlaying,
+      turnStateBefore: voiceState.turnState,
+      disableAutoTTS: sessionData.disableAutoTTS
+    });
     
     try {
       const audioBlob = await api.textToSpeech(text, selectedVoice);
@@ -378,10 +394,14 @@ export function useVoiceFirstInterview(
       const audio = new Audio(audioUrl);
       currentAudioRef.current = audio;
       
-      await audio.play();
+      // Set up event handlers before playing
+      audio.onplay = () => {
+        console.log('🔊 TTS audio started playing - triggering visual effects');
+        handleTTSStart();
+      };
       
-      // Clean up the URL object after the audio finishes playing
       audio.onended = () => {
+        console.log('🔊 TTS audio playback ended');
         URL.revokeObjectURL(audioUrl);
         currentAudioRef.current = null;
         handleTTSEnd();
@@ -395,6 +415,9 @@ export function useVoiceFirstInterview(
         handleTTSEnd();
       };
       
+      console.log('🔊 TTS audio created, starting playback');
+      await audio.play();
+      
     } catch (error) {
       console.error('TTS playback failed:', error);
       handleTTSEnd();
@@ -404,14 +427,19 @@ export function useVoiceFirstInterview(
         variant: 'destructive',
       });
     }
-  }, [sessionData, handleTTSStart, handleTTSEnd, toast]);
+  }, [sessionData, handleTTSStart, handleTTSEnd, toast, audioPlaying, voiceState.turnState]);
 
   // Auto-enable voice when new AI message arrives
-  const { messages } = sessionData;
+  const { messages, disableAutoTTS } = sessionData;
   const lastMessage = messages[messages.length - 1];
   const lastProcessedMessageRef = useRef<string | null>(null);
   
   useEffect(() => {
+    // Skip auto-TTS if disabled
+    if (disableAutoTTS) {
+      return;
+    }
+    
     if (lastMessage && 
         lastMessage.role === 'assistant' && 
         lastMessage.agent !== 'coach' &&
@@ -429,7 +457,7 @@ export function useVoiceFirstInterview(
         playTextToSpeech(lastMessage.content);
       }
     }
-  }, [lastMessage]); // REMOVED playTextToSpeech dependency that was causing loops
+  }, [lastMessage, disableAutoTTS]); // Added disableAutoTTS to dependencies
 
   // Cleanup on unmount
   useEffect(() => {

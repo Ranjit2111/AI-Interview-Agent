@@ -68,8 +68,9 @@ class IntegrationTestHelper:
             'resume_content': self.test_data['resume_content'],
             'style': self.test_data['interview_style'],
             'difficulty': self.test_data['difficulty'],
-            'target_question_count': 5,
-            'use_time_based_interview': False
+            'interview_duration_minutes': 15,
+            'use_time_based_interview': True,
+            'company_name': 'TechCorp'
         }
 
 
@@ -134,10 +135,20 @@ class TestCompleteInterviewFlow:
         """Test complete interview lifecycle: registration -> session -> interview -> completion."""
         helper = IntegrationTestHelper()
         
-        # Step 1: Create session
+        # Step 1: Create session and start interview with time-based configuration
+        session_data = {
+            'job_role': 'Software Engineer',
+            'job_description': 'Python developer with experience in web frameworks',
+            'style': 'technical',
+            'difficulty': 'medium',
+            'interview_duration_minutes': 15,
+            'use_time_based_interview': True,
+            'company_name': 'TechCorp'
+        }
+        
         session_response = test_client.post(
             '/interview/session',
-            json=helper.create_interview_config(),
+            json=session_data,
             headers=helper.get_auth_headers()
         )
         
@@ -154,7 +165,7 @@ class TestCompleteInterviewFlow:
         # Step 2: Start interview
         start_response = test_client.post(
             '/interview/start',
-            json=helper.create_interview_config(),
+            json=session_data,
             headers={
                 **helper.get_auth_headers(),
                 'X-Session-ID': session_id

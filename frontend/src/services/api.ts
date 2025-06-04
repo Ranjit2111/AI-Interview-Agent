@@ -35,8 +35,9 @@ export interface InterviewStartRequest {
   resume_content?: string;
   style?: 'formal' | 'casual' | 'aggressive' | 'technical';
   difficulty?: 'easy' | 'medium' | 'hard';
-  target_question_count?: number;
   company_name?: string;
+  interview_duration_minutes?: number;
+  use_time_based_interview?: boolean;
 }
 
 // Speech recognition types

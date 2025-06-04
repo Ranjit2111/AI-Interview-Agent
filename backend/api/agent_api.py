@@ -24,10 +24,10 @@ class InterviewStartRequest(BaseModel):
     resume_content: Optional[str] = Field(None, description="Candidate's resume text")
     style: Optional[str] = Field("formal", description="Interview style (formal, casual, aggressive, technical)")
     difficulty: Optional[str] = Field("medium", description="Interview difficulty level")
-    target_question_count: Optional[int] = Field(None, description="Approximate number of questions (optional)")
+    target_question_count: Optional[int] = Field(15, description="Approximate number of questions (fallback for question-based)")
     company_name: Optional[str] = Field(None, description="Company name for context")
-    interview_duration_minutes: Optional[int] = Field(None, description="Interview duration in minutes (for time-based interviews)")
-    use_time_based_interview: Optional[bool] = Field(False, description="Whether to use time-based interview instead of question count")
+    interview_duration_minutes: Optional[int] = Field(30, description="Interview duration in minutes (for time-based interviews)")
+    use_time_based_interview: Optional[bool] = Field(True, description="Whether to use time-based interview instead of question count")
 
 class UserInput(BaseModel):
     """Request body for sending user message to the interview."""
