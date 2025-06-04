@@ -4,9 +4,11 @@ Session Manager for coordinating agents.
 
 import logging
 import json
-from typing import Dict, Any, List, Optional
-from datetime import datetime
+import threading
+import asyncio
 import uuid
+from typing import Dict, Any, List, Optional, Callable
+from datetime import datetime
 
 from backend.agents.base import BaseAgent, AgentContext
 from backend.agents.interviewer import InterviewerAgent
@@ -48,6 +50,7 @@ class AgentSessionManager:
         
         # Session state tracking
         self.session_status = "active"  # Track session status: active, completed, failed
+        self.final_summary_generating: bool = False  # Track if final summary is being generated
         
         # Initialize conversation and feedback tracking
         self.conversation_history: List[Dict[str, Any]] = []
@@ -331,6 +334,7 @@ class AgentSessionManager:
     def end_interview(self) -> Dict[str, Any]:
         """
         Ends the interview session and returns consolidated results.
+        Starts background generation of final summary while returning per-turn feedback immediately.
         """
         self.event_bus.publish(Event(
             event_type=EventType.SESSION_END,
@@ -338,28 +342,67 @@ class AgentSessionManager:
             data={}
         ))
 
+        # Return per-turn feedback immediately
         final_results = {
             "status": "Interview Ended",
-            "coaching_summary": {"error": "Coaching summary not generated yet."}, 
+            "coaching_summary": None,  # Will be filled by background task
             "per_turn_feedback": self.per_turn_coaching_feedback_log
         }
 
-        try:
-            coaching_summary = self._generate_final_coaching_summary()
-            if coaching_summary:
-                final_results["coaching_summary"] = coaching_summary
-                # CRITICAL FIX: Store the final summary in session state for database persistence
-                self.final_summary = coaching_summary
-                self.logger.info(f"Stored final coaching summary in session state: {len(str(coaching_summary))} chars")
-        except Exception as e:
-            self.logger.exception(f"Error generating final coaching summary: {e}")
-            final_results["coaching_summary"] = {"error": f"Final coaching summary generation failed: {e}"}
-            # Store the error summary as well
-            self.final_summary = {"error": f"Final coaching summary generation failed: {e}"}
+        # Start background generation of final summary
+        if not self.final_summary_generating:
+            self.final_summary_generating = True
+            # Start background thread for final summary generation
+            summary_thread = threading.Thread(
+                target=self._generate_final_summary_background,
+                daemon=True
+            )
+            summary_thread.start()
+            self.logger.info(f"Started background final summary generation for session {self.session_id}")
 
-        self.session_status = "completed"
+        # If final summary is already available, include it
+        if self.final_summary:
+            final_results["coaching_summary"] = self.final_summary
+
         return final_results
-    
+
+    def _generate_final_summary_background(self) -> None:
+        """Generate final coaching summary in background thread."""
+        try:
+            self.logger.info(f"Background final summary generation started for session {self.session_id}")
+            coaching_summary = self._generate_final_coaching_summary()
+            
+            if coaching_summary:
+                self.final_summary = coaching_summary
+                self.session_status = "completed"
+                self.logger.info(f"Background final summary completed for session {self.session_id}: {len(str(coaching_summary))} chars")
+                self.logger.info(f"🔍 DEBUG Background Thread - Final summary result preview:")
+                self.logger.info(f"  - Keys: {list(coaching_summary.keys()) if isinstance(coaching_summary, dict) else 'Not a dict'}")
+                self.logger.info(f"  - Has recommended_resources: {bool(coaching_summary.get('recommended_resources')) if isinstance(coaching_summary, dict) else False}")
+                self.logger.info(f"  - Resources count: {len(coaching_summary.get('recommended_resources', [])) if isinstance(coaching_summary, dict) else 0}")
+                self.logger.info(f"  - Session status set to: {self.session_status}")
+                self.logger.info(f"  - Final summary generating flag: {self.final_summary_generating}")
+            else:
+                error_msg = "Final coaching summary generation returned None"
+                self.final_summary = {"error": error_msg}
+                self.session_status = "completed"  # Still mark as completed but with error
+                self.logger.error(f"Background final summary failed for session {self.session_id}: {error_msg}")
+                
+        except Exception as e:
+            error_msg = f"Final coaching summary generation failed: {e}"
+            self.final_summary = {"error": error_msg}
+            self.session_status = "completed"  # Still mark as completed but with error
+            self.logger.exception(f"Background final summary error for session {self.session_id}: {e}")
+        
+        finally:
+            self.final_summary_generating = False
+            self.logger.info(f"🔍 DEBUG Background Thread - Final state after generation:")
+            self.logger.info(f"  - Session ID: {self.session_id}")
+            self.logger.info(f"  - Session status: {self.session_status}")
+            self.logger.info(f"  - Final summary generating: {self.final_summary_generating}")
+            self.logger.info(f"  - Has final summary: {bool(self.final_summary)}")
+            self.logger.info(f"  - Background thread completed")
+
     def _generate_final_coaching_summary(self) -> Optional[Dict[str, Any]]:
         """Generate final coaching summary using agentic coach agent."""
         coach_agent = self._get_agent("coach")
@@ -392,6 +435,7 @@ class AgentSessionManager:
         self.conversation_history = []
         self.per_turn_coaching_feedback_log = []
         self.final_summary = None  # CRITICAL FIX: Clear final summary on reset
+        self.final_summary_generating = False  # Reset background generation flag
         self._agents = {}
         
         self.response_times = []
@@ -436,6 +480,7 @@ class AgentSessionManager:
         manager.conversation_history = session_data.get("conversation_history", [])
         manager.per_turn_coaching_feedback_log = session_data.get("per_turn_feedback_log", [])
         manager.final_summary = session_data.get("final_summary")  # CRITICAL FIX: Restore final summary from database
+        manager.final_summary_generating = session_data.get("final_summary_generating", False)  # Restore generation flag
         manager.total_response_time = session_data.get("session_stats", {}).get("total_response_time_seconds", 0.0)
         manager.total_tokens_used = session_data.get("session_stats", {}).get("total_tokens_used", 0)
         manager.api_call_count = session_data.get("session_stats", {}).get("total_api_calls", 0)
@@ -467,6 +512,7 @@ class AgentSessionManager:
             "conversation_history": self.conversation_history,
             "per_turn_feedback_log": self.per_turn_coaching_feedback_log,
             "final_summary": self.final_summary,
+            "final_summary_generating": self.final_summary_generating,
             "session_stats": self.get_session_stats(),
             "status": self.session_status
         }

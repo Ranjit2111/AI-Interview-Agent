@@ -61,6 +61,9 @@ export function useVoiceFirstInterview(
   const [voiceActivityLevel, setVoiceActivityLevel] = useState(0);
   const [accumulatedTranscript, setAccumulatedTranscript] = useState('');
   
+  // Track current interim text for race condition fix (not for display)
+  const [currentInterimText, setCurrentInterimText] = useState('');
+  
   // Refs for voice management
   const recognitionRef = useRef<StreamingSpeechRecognition | null>(null);
   const voiceActivityRef = useRef<number>(0);
@@ -72,6 +75,9 @@ export function useVoiceFirstInterview(
   // Use refs to avoid closure issues
   const accumulatedTranscriptRef = useRef(accumulatedTranscript);
   const onSendMessageRef = useRef(onSendMessage);
+  
+  // Ref for current interim text (for race condition fix)
+  const currentInterimTextRef = useRef(currentInterimText);
   
   // Get last exchange messages for minimal display
   const getLastExchange = useCallback(() => {
@@ -164,6 +170,9 @@ export function useVoiceFirstInterview(
       // Clear any previous accumulated transcript when starting fresh
       setAccumulatedTranscript('');
       
+      // Clear any previous interim text
+      setCurrentInterimText('');
+      
       // Create streaming recognition instance
       recognitionRef.current = api.createStreamingSpeechRecognition({
         sessionId: sessionData.sessionId,
@@ -190,6 +199,12 @@ export function useVoiceFirstInterview(
                 console.log('📝 Final transcript accumulated:', text);
                 return newText;
               });
+              // Clear interim text since this segment is now final
+              setCurrentInterimText('');
+            } else {
+              // Update interim text (for race condition fix, not display)
+              setCurrentInterimText(text);
+              console.log('📝 Interim transcript (for race condition fix):', text);
             }
           }
         },
@@ -263,10 +278,15 @@ export function useVoiceFirstInterview(
     // CHANGED: Use ref to get latest value without dependency issues
     // Combine accumulated final transcript with current interim text
     const finalText = accumulatedTranscriptRef.current.trim();
+    const interimText = currentInterimTextRef.current.trim();
     
     let completeTranscript = '';
-    if (finalText) {
+    if (finalText && interimText) {
+      completeTranscript = finalText + ' ' + interimText;
+    } else if (finalText) {
       completeTranscript = finalText;
+    } else if (interimText) {
+      completeTranscript = interimText;
     }
     
     if (completeTranscript) {
@@ -277,6 +297,7 @@ export function useVoiceFirstInterview(
         console.log('📝 Complete transcript ready:', completeTranscript);
       }
       setAccumulatedTranscript('');
+      setCurrentInterimText('');
     } else {
       console.log('⚠️ No transcript to send - user may have stopped without speaking');
     }
@@ -444,6 +465,10 @@ export function useVoiceFirstInterview(
   useEffect(() => {
     accumulatedTranscriptRef.current = accumulatedTranscript;
   }, [accumulatedTranscript]);
+  
+  useEffect(() => {
+    currentInterimTextRef.current = currentInterimText;
+  }, [currentInterimText]);
   
   useEffect(() => {
     onSendMessageRef.current = onSendMessage;

@@ -5,6 +5,7 @@ import InterviewConfig from '@/components/InterviewConfig';
 import InterviewSession from '@/components/InterviewSession';
 import InterviewResults from '@/components/InterviewResults';
 import PerTurnFeedbackReview from '@/components/PerTurnFeedbackReview';
+import PostInterviewReport from '@/components/PostInterviewReport';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, Sparkles, Zap, BarChart3, Bot, Github, Linkedin, Twitter, Mail, Save, History, Award, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +17,7 @@ const Index = () => {
     messages,
     isLoading,
     results,
+    postInterviewState,
     selectedVoice,
     coachFeedbackStates,
     sessionId,
@@ -381,10 +383,12 @@ const Index = () => {
           />
         )}
 
-        {state === 'reviewing_feedback' && results?.perTurnFeedback && (
-          <PerTurnFeedbackReview 
-            feedbackItems={results.perTurnFeedback}
-            onProceedToSummary={actions.proceedToFinalSummary}
+        {state === 'post_interview' && postInterviewState && (
+          <PostInterviewReport 
+            perTurnFeedback={postInterviewState.perTurnFeedback}
+            finalSummary={postInterviewState.finalSummary}
+            resources={postInterviewState.resources}
+            onStartNewInterview={actions.resetInterview}
           />
         )}
         
