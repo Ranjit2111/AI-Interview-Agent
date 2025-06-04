@@ -83,7 +83,7 @@ class SerperProvider(SearchProvider):
                 "gl": kwargs.get("country", "us"),
                 "hl": kwargs.get("language", "en"),
             }
-            
+        
             headers = {
                 "X-API-KEY": self.api_key,
                 "Content-Type": "application/json"
@@ -98,7 +98,6 @@ class SerperProvider(SearchProvider):
                 response.raise_for_status()
                 return response.json()
         finally:
-            # Always release the rate limiting slot
             self.rate_limiter.release_search()
 
 

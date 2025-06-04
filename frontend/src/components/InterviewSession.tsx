@@ -144,7 +144,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         onToggleMicrophone={handleMicrophoneToggle}
         onToggleTranscript={toggleTranscript}
         showMessages={true}
-        showTranscriptButton={true}
         accumulatedTranscript={accumulatedTranscript}
       />
 

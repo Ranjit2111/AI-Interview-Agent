@@ -113,6 +113,12 @@ const renderRecommendedResources = (resources?: any[]) => {
                     </span>
                   )}
                   <p className="text-sm text-gray-400 mt-2">{resource.description}</p>
+                  {resource.reasoning && (
+                    <div className="mt-2 p-2 bg-blue-900/20 border-l-2 border-blue-400/50 rounded-r">
+                      <p className="text-xs text-blue-300 font-medium mb-1">Why this resource was recommended:</p>
+                      <p className="text-xs text-blue-200">{resource.reasoning}</p>
+                    </div>
+                  )}
                 </div>
               </div>
             </li>
