@@ -163,7 +163,7 @@ export function useVoiceFirstInterview(
 
       // Clear any previous accumulated transcript when starting fresh
       setAccumulatedTranscript('');
-
+      
       // Create streaming recognition instance
       recognitionRef.current = api.createStreamingSpeechRecognition({
         sessionId: sessionData.sessionId,
@@ -183,19 +183,14 @@ export function useVoiceFirstInterview(
         },
         onTranscript: (text, isFinal) => {
           if (text && text.trim() !== '') {
-            // CHANGED: Simplified accumulation logic for better reliability
-            setAccumulatedTranscript(prev => {
-              if (isFinal) {
-                // Append final transcript to accumulated text
+            if (isFinal) {
+              // Append final transcript to accumulated text and clear interim
+              setAccumulatedTranscript(prev => {
                 const newText = prev.trim() ? prev + ' ' + text : text;
                 console.log('📝 Final transcript accumulated:', text);
                 return newText;
-              } else {
-                // For interim transcripts, just log them but don't send
-                console.log('📝 Interim transcript (not accumulated):', text);
-                return prev; // Keep previous accumulated text unchanged
-              }
-            });
+              });
+            }
           }
         },
         onSpeechStarted: () => {
@@ -266,12 +261,20 @@ export function useVoiceFirstInterview(
     }
     
     // CHANGED: Use ref to get latest value without dependency issues
-    if (accumulatedTranscriptRef.current.trim()) {
-      console.log('📤 Sending accumulated transcript on manual stop:', accumulatedTranscriptRef.current.trim());
+    // Combine accumulated final transcript with current interim text
+    const finalText = accumulatedTranscriptRef.current.trim();
+    
+    let completeTranscript = '';
+    if (finalText) {
+      completeTranscript = finalText;
+    }
+    
+    if (completeTranscript) {
+      console.log('📤 Sending complete transcript on manual stop:', completeTranscript);
       if (onSendMessageRef.current) {
-        onSendMessageRef.current(accumulatedTranscriptRef.current.trim());
+        onSendMessageRef.current(completeTranscript);
       } else {
-        console.log('📝 Accumulated transcript ready:', accumulatedTranscriptRef.current.trim());
+        console.log('📝 Complete transcript ready:', completeTranscript);
       }
       setAccumulatedTranscript('');
     } else {

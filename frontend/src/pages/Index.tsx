@@ -243,10 +243,12 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-black text-gray-100 relative overflow-hidden">
-      <Header 
-        showReset={state === 'interviewing' || state === 'completed'} 
-        onReset={actions.resetInterview}
-      />
+      {state !== 'interviewing' && (
+        <Header 
+          showReset={state === 'completed'} 
+          onReset={actions.resetInterview}
+        />
+      )}
       
       <main className="flex-1 flex flex-col">
         {state === 'configuring' && (

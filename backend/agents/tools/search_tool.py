@@ -152,7 +152,7 @@ class LearningResourceSearchTool(BaseTool):
             except RuntimeError:
                 # No running loop, safe to create one
                 return asyncio.run(self._perform_search(skill, proficiency_level, job_role, num_results))
-                
+            
         except Exception as e:
             self.logger.error(f"Error in sync search tool: {e}")
             return f"Search failed: {str(e)}"

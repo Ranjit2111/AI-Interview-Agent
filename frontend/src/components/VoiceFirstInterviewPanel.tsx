@@ -20,7 +20,6 @@ interface VoiceFirstInterviewPanelProps {
   
   // Display preferences
   showMessages?: boolean;
-  showTranscriptButton?: boolean;
   accumulatedTranscript?: string;
 }
 
@@ -34,7 +33,6 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
   onToggleMicrophone,
   onToggleTranscript,
   showMessages = true,
-  showTranscriptButton = true,
   accumulatedTranscript
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -169,14 +167,16 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
 
         {/* Central Microphone Button - Main focal point */}
         <div className="flex-1 flex items-center justify-center min-h-screen">
-          <CentralMicButton
-            isListening={isListening}
-            isProcessing={isProcessing}
-            isDisabled={isDisabled}
-            voiceActivity={voiceActivity}
-            turnState={turnState}
-            onToggle={onToggleMicrophone}
-          />
+          <div className="flex flex-col items-center">
+            <CentralMicButton
+              isListening={isListening}
+              isProcessing={isProcessing}
+              isDisabled={isDisabled}
+              voiceActivity={voiceActivity}
+              turnState={turnState}
+              onToggle={onToggleMicrophone}
+            />
+          </div>
         </div>
 
         {/* User Transcript Display */}
@@ -209,23 +209,6 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
         {/* Status Area - Fixed at bottom */}
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
           <div className="text-center space-y-4">
-            
-            {/* Persistent Transcript Button */}
-            {showTranscriptButton && (
-              <button
-                onClick={onToggleTranscript}
-                className="
-                  px-4 py-2 mb-4
-                  bg-white/10 hover:bg-white/20 
-                  border border-white/20 hover:border-white/30
-                  rounded-lg text-white text-sm
-                  transition-all duration-300
-                  backdrop-blur-sm
-                "
-              >
-                View Transcript
-              </button>
-            )}
 
             {/* Ambient Audio Visualizer */}
             {(isListening || turnState === 'ai') && (
