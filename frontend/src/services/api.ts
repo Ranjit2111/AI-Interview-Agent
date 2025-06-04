@@ -245,6 +245,12 @@ export interface EndResponse {
   per_turn_feedback?: PerTurnFeedbackItem[];
 }
 
+export interface FinalSummaryStatusResponse {
+  status: 'generating' | 'completed' | 'error';
+  results?: any;
+  error?: string;
+}
+
 export interface ResumeUploadServerResponse {
   message: string;
   // Add other properties as needed based on what the server returns
@@ -416,6 +422,18 @@ export async function getSessionStats(sessionId: string): Promise<StatsResponse>
 
 export async function getPerTurnFeedback(sessionId: string): Promise<PerTurnFeedbackItem[]> {
   const response = await fetch(`${API_BASE_URL}/interview/per-turn-feedback`, {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+  });
+
+  return handleResponse(response);
+}
+
+export async function getFinalSummaryStatus(sessionId: string): Promise<FinalSummaryStatusResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/final-summary-status`, {
     method: 'GET',
     headers: {
       ...getAuthHeaders(),

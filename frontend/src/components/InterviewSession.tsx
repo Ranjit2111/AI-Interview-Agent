@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import VoiceFirstInterviewPanel from './VoiceFirstInterviewPanel';
 import TranscriptDrawer from './TranscriptDrawer';
 import OffScreenCoachFeedback from './OffScreenCoachFeedback';
+import InterviewInstructionsModal from './InterviewInstructionsModal';
 import { useVoiceFirstInterview } from '../hooks/useVoiceFirstInterview';
 import { Message, CoachFeedbackState } from '@/hooks/useInterviewSession';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -30,6 +31,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   // const [showFallbackMode, setShowFallbackMode] = useState(false);
   // const [fallbackInput, setFallbackInput] = useState('');
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(true);
   
   // Ref to track if we've set the default voice (avoids infinite loop)
   const defaultVoiceSetRef = useRef(false);
@@ -163,6 +165,12 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         isOpen={coachFeedbackVisible}
         onToggle={toggleCoachFeedback}
         onClose={closeCoachFeedback}
+      />
+
+      {/* Interview Instructions Modal */}
+      <InterviewInstructionsModal
+        isOpen={showInstructions}
+        onClose={() => setShowInstructions(false)}
       />
     </div>
   );

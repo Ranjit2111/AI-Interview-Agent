@@ -67,12 +67,11 @@ const OffScreenCoachFeedback: React.FC<OffScreenCoachFeedbackProps> = ({
               shadow-lg shadow-yellow-500/20
               transition-all duration-300
               hover:scale-110 hover:shadow-yellow-500/40
-              animate-breathing-slow
             "
           >
             {/* Pulsing Ring for New Feedback */}
             {hasNewFeedback && (
-              <div className="absolute -inset-1 rounded-full border-2 border-yellow-400/50 animate-pulse-very-slow" />
+              <div className="absolute -inset-1 rounded-full border-2 border-yellow-400/50" />
             )}
 
             {/* Icon */}
@@ -83,7 +82,7 @@ const OffScreenCoachFeedback: React.FC<OffScreenCoachFeedbackProps> = ({
                     <Brain className="w-5 h-5 text-yellow-300" />
                     <Loader2 className="absolute inset-0 w-5 h-5 text-yellow-400 animate-spin" />
                   </div>
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full text-xs text-black font-bold flex items-center justify-center animate-pulse-very-slow">
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full text-xs text-black font-bold flex items-center justify-center">
                     {analysisCount}
                   </div>
                 </div>
