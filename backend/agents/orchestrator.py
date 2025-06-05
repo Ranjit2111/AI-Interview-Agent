@@ -4,7 +4,6 @@ Session Manager for coordinating agents.
 
 import logging
 import json
-import threading
 import asyncio
 import uuid
 from typing import Dict, Any, List, Optional, Callable
@@ -100,7 +99,7 @@ class AgentSessionManager:
         """Create agent instance based on type."""
         try:
             if agent_type == "interviewer":
-                self.logger.info(f"🔍 Creating InterviewerAgent with config: job_role={self.session_config.job_role}, style={self.session_config.style}")
+                self.logger.info(f"DEBUG Creating InterviewerAgent with config: job_role={self.session_config.job_role}, style={self.session_config.style}")
                 return InterviewerAgent(
                     llm_service=self.llm_service, 
                     event_bus=self.event_bus,
@@ -201,128 +200,103 @@ class AgentSessionManager:
     def _publish_assistant_response_event(self, response_data: Dict[str, Any]) -> None:
         """Publish assistant response event."""
         self.event_bus.publish(Event(
-            event_type=EventType.ASSISTANT_RESPONSE, 
+            event_type=EventType.ASSISTANT_RESPONSE,
             source='AgentSessionManager',
             data={"response": response_data}
         ))
-    
+
     def _generate_coaching_feedback(self, user_message_data: Dict[str, Any]) -> None:
-        """Generate coaching feedback for the user's answer if applicable."""
-        feedback_start_time = datetime.utcnow()
-        
-        question_that_was_answered = self._find_last_interviewer_question()
-        
-        if not question_that_was_answered or not user_message_data.get("content"):
-            return
-            
-        coach_agent = self._get_agent("coach")
-        if not coach_agent:
-            self._log_coach_feedback_unavailable(question_that_was_answered, user_message_data["content"])
-            return
-            
+        """
+        Collects live feedback from the agentic coach agent if available.
+        Operates within the session to log feedback for retrieval.
+        """
         try:
-            self.logger.info("Starting coaching feedback generation...")
-            feedback = self._get_coach_feedback(coach_agent, question_that_was_answered, user_message_data["content"])
-            feedback_duration = (datetime.utcnow() - feedback_start_time).total_seconds()
-            self.logger.info(f"Coaching feedback generated in {feedback_duration:.2f} seconds")
-            self._log_coach_feedback(question_that_was_answered, user_message_data["content"], feedback)
+            question = self._find_last_interviewer_question()
+            answer = user_message_data.get("content", "")
+
+            if question and answer:
+                coach_agent = self._get_agent("coach")
+                if coach_agent:
+                    feedback = self._get_coach_feedback(coach_agent, question, answer)
+                    self._log_coach_feedback(question, answer, feedback)
+                else:
+                    self._log_coach_feedback_unavailable(question, answer)
         except Exception as e:
-            feedback_duration = (datetime.utcnow() - feedback_start_time).total_seconds()
-            self.logger.exception(f"Error during CoachAgent evaluate_answer after {feedback_duration:.2f}s: {e}")
-            self._log_coach_feedback(question_that_was_answered, user_message_data["content"], COACH_FEEDBACK_ERROR)
-    
+            self.logger.exception(f"Error generating coaching feedback: {e}")
+
     def _find_last_interviewer_question(self) -> Optional[str]:
-        """Find the last question asked by the interviewer."""
-        if len(self.conversation_history) <= 1:
-            return None
-            
-        for i in range(len(self.conversation_history) - 2, -1, -1):
-            prev_msg = self.conversation_history[i]
-            if (prev_msg.get("role") == "assistant" and 
-                prev_msg.get("agent") == "interviewer"):
-                return prev_msg.get("content")
+        """Find the most recent question from the interviewer."""
+        for message in reversed(self.conversation_history):
+            if (message.get("role") == "assistant" and 
+                message.get("agent") == "interviewer"):
+                return message.get("content", "")
         return None
-    
+
     def _get_coach_feedback(self, coach_agent: AgenticCoachAgent, question: str, answer: str) -> str:
-        """Get coaching feedback from the coach agent."""
-        # Get justification from the latest interviewer metadata
-        justification = None
-        if self.conversation_history:
-            latest_msg = self.conversation_history[-1]
-            if latest_msg.get("agent") == "interviewer":
-                justification = latest_msg.get("metadata", {}).get("justification")
-        
-        # Create filtered conversation history that excludes the latest interviewer response
-        # to prevent future leakage (coach shouldn't see the next question)
-        filtered_history = self._create_filtered_history_for_coach()
-        
-        # Log the filtering for debugging
-        original_count = len(self.conversation_history)
-        filtered_count = len(filtered_history)
-        if original_count != filtered_count:
-            self.logger.debug(f"Coach feedback: Filtered conversation history from {original_count} to {filtered_count} messages to prevent future leakage")
-        
-        return coach_agent.evaluate_answer(
-            question=question,
-            answer=answer,
-            justification=justification,
-            conversation_history=filtered_history
-        )
-    
+        """Get feedback from coach agent for a specific Q&A pair."""
+        try:
+            filtered_history = self._create_filtered_history_for_coach()
+            feedback_context = {
+                "conversation_history": filtered_history,
+                "current_question": question,
+                "user_answer": answer,
+                "job_role": self.session_config.job_role,
+                "interview_style": self.session_config.style
+            }
+            
+            feedback_response = coach_agent.provide_per_turn_feedback(feedback_context)
+            return feedback_response.get("feedback", COACH_FEEDBACK_UNAVAILABLE)
+        except Exception as e:
+            self.logger.exception(f"Error getting coach feedback: {e}")
+            return COACH_FEEDBACK_ERROR
+
     def _create_filtered_history_for_coach(self) -> List[Dict[str, Any]]:
-        """
-        Create a filtered conversation history for coach feedback that excludes
-        the latest interviewer response (next question) to prevent future leakage.
-        
-        Returns:
-            Filtered conversation history up to the user's latest answer
-        """
-        if not self.conversation_history:
-            return []
-        
-        # If the last message is from the interviewer (next question), exclude it
-        # Coach should only see conversation up to the user's answer
-        if (self.conversation_history and 
-            self.conversation_history[-1].get("role") == "assistant" and
-            self.conversation_history[-1].get("agent") == "interviewer"):
-            # Return history excluding the last interviewer response (next question)
-            return self.conversation_history[:-1]
-        else:
-            # Return full history if last message is not interviewer response
-            return self.conversation_history
-    
+        """Create a filtered conversation history for coach agent context."""
+        filtered_history = []
+        for message in self.conversation_history:
+            if message.get("role") in ["user", "assistant"]:
+                filtered_message = {
+                    "role": message["role"],
+                    "content": message.get("content", ""),
+                    "timestamp": message.get("timestamp", "")
+                }
+                if message.get("role") == "assistant":
+                    filtered_message["agent"] = message.get("agent", "unknown")
+                filtered_history.append(filtered_message)
+        return filtered_history
+
     def _log_coach_feedback(self, question: str, answer: str, feedback: str) -> None:
-        """Log coaching feedback to the feedback log."""
+        """Log coaching feedback for later retrieval."""
         self.per_turn_coaching_feedback_log.append({
-            "question": question,
-            "answer": answer,
+            "question": question[:200],
+            "answer": answer[:200], 
             "feedback": feedback
         })
-    
+
     def _log_coach_feedback_unavailable(self, question: str, answer: str) -> None:
-        """Log when coach feedback is unavailable."""
+        """Log when coaching feedback is unavailable."""
         self._log_coach_feedback(question, answer, COACH_FEEDBACK_UNAVAILABLE)
-    
+
     def _handle_processing_error(self, error: Exception) -> Dict[str, Any]:
-        """Handle processing errors."""
-        self.logger.exception(f"Error processing message: {error}")
+        """Handle errors in message processing."""
+        error_message = f"{ERROR_PROCESSING_REQUEST}: {str(error)}"
+        self.logger.exception(error_message)
+        
         self.event_bus.publish(Event(
             event_type=EventType.ERROR,
             source='AgentSessionManager',
-            data={"error": str(error), "details": "Error during message processing"}
+            data={"error": error_message, "session_id": self.session_id}
         ))
         
-        error_response = {
+        return {
             "role": "system",
-            "content": ERROR_PROCESSING_REQUEST,
-            "timestamp": get_current_timestamp(),
-            "is_error": True
+            "content": error_message,
+            "timestamp": datetime.utcnow().isoformat(),
+            "error": True
         }
-        self.conversation_history.append(error_response)
-        return error_response
 
     def _get_agent_context(self) -> AgentContext:
-        """Prepare the context object for an agent call."""
+        """Create agent context for processing."""
         return AgentContext(
             session_id=self.session_id,
             conversation_history=self.conversation_history,
@@ -352,12 +326,8 @@ class AgentSessionManager:
         # Start background generation of final summary
         if not self.final_summary_generating:
             self.final_summary_generating = True
-            # Start background thread for final summary generation
-            summary_thread = threading.Thread(
-                target=self._generate_final_summary_background,
-                daemon=True
-            )
-            summary_thread.start()
+            # Start async background task for final summary generation
+            asyncio.create_task(self._generate_final_summary_background())
             self.logger.info(f"Started background final summary generation for session {self.session_id}")
 
         # If final summary is already available, include it
@@ -366,8 +336,8 @@ class AgentSessionManager:
 
         return final_results
 
-    def _generate_final_summary_background(self) -> None:
-        """Generate final coaching summary in background thread."""
+    async def _generate_final_summary_background(self) -> None:
+        """Generate final coaching summary in background async task."""
         try:
             self.logger.info(f"Background final summary generation started for session {self.session_id}")
             coaching_summary = self._generate_final_coaching_summary()
@@ -376,7 +346,7 @@ class AgentSessionManager:
                 self.final_summary = coaching_summary
                 self.session_status = "completed"
                 self.logger.info(f"Background final summary completed for session {self.session_id}: {len(str(coaching_summary))} chars")
-                self.logger.info(f"🔍 DEBUG Background Thread - Final summary result preview:")
+                self.logger.info(f"DEBUG Background Task - Final summary result preview:")
                 self.logger.info(f"  - Keys: {list(coaching_summary.keys()) if isinstance(coaching_summary, dict) else 'Not a dict'}")
                 self.logger.info(f"  - Has recommended_resources: {bool(coaching_summary.get('recommended_resources')) if isinstance(coaching_summary, dict) else False}")
                 self.logger.info(f"  - Resources count: {len(coaching_summary.get('recommended_resources', [])) if isinstance(coaching_summary, dict) else 0}")
@@ -396,12 +366,12 @@ class AgentSessionManager:
         
         finally:
             self.final_summary_generating = False
-            self.logger.info(f"🔍 DEBUG Background Thread - Final state after generation:")
+            self.logger.info(f"DEBUG Background Task - Final state after generation:")
             self.logger.info(f"  - Session ID: {self.session_id}")
             self.logger.info(f"  - Session status: {self.session_status}")
             self.logger.info(f"  - Final summary generating: {self.final_summary_generating}")
             self.logger.info(f"  - Has final summary: {bool(self.final_summary)}")
-            self.logger.info(f"  - Background thread completed")
+            self.logger.info(f"  - Background task completed")
 
     def _generate_final_coaching_summary(self) -> Optional[Dict[str, Any]]:
         """Generate final coaching summary using agentic coach agent."""
