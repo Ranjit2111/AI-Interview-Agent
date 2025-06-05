@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -9,7 +9,9 @@ import {
   TrendingUp, Award, Lightbulb, Zap, Star, ArrowRight, 
   Circle, Square, Triangle, Hexagon, Activity, Eye, Database,
   Code, Users, MessageSquare, BarChart3, Timer, Sparkles,
-  Compass, Map, BookMarked, Telescope, Radar, Layers
+  Compass, Map, BookMarked, Telescope, Radar, Layers, Play,
+  Filter, Cpu, Network, Scan, Bot, ChevronDown, ChevronUp,
+  Clock, Mic, Volume2, Heart, Waves, Atom, Orbit
 } from 'lucide-react';
 import { PerTurnFeedbackItem } from '../services/api';
 
@@ -35,34 +37,163 @@ interface PostInterviewReportProps {
   onStartNewInterview: () => void;
 }
 
+// Advanced particle system for immersive backgrounds
+interface Particle {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  color: string;
+  life: number;
+  pulsation: number;
+  rotation: number;
+  rotationSpeed: number;
+}
+
+// Enhanced floating orb system
+interface FloatingOrb {
+  id: number;
+  x: number;
+  y: number;
+  size: number;
+  color: string;
+  opacity: number;
+  speed: number;
+  direction: number;
+  pulse: number;
+}
+
 const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
   perTurnFeedback,
   finalSummary,
   resources,
   onStartNewInterview,
 }) => {
-  // Enhanced state management
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [activeSection, setActiveSection] = useState<string | null>(null);
-  const [searchProgress, setSearchProgress] = useState({ step: 0, currentTopic: '', progress: 0 });
-  const [analysisProgress, setAnalysisProgress] = useState({ step: 0, currentArea: '', progress: 0 });
-  const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; vx: number; vy: number; size: number; color: string; life: number }>>([]);
+  // Advanced state management
+  const [currentView, setCurrentView] = useState<'overview' | 'analysis' | 'resources'>('overview');
+  const [mousePosition, setMousePosition] = useState({ x: 50, y: 50 });
+  const [scrollY, setScrollY] = useState(0);
+  const [isIntersecting, setIsIntersecting] = useState<Record<string, boolean>>({});
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [floatingOrbs, setFloatingOrbs] = useState<FloatingOrb[]>([]);
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [expandedFeedback, setExpandedFeedback] = useState<number | null>(null);
-  const [visibleCards, setVisibleCards] = useState<Set<string>>(new Set());
+  
+  // Analysis progress state
+  const [analysisProgress, setAnalysisProgress] = useState({
+    phase: 0,
+    currentStep: '',
+    progress: 0,
+    details: []
+  });
+  
+  // Search progress state
+  const [searchProgress, setSearchProgress] = useState({
+    phase: 0,
+    currentQuery: '',
+    foundResources: 0,
+    totalQueries: 0,
+    currentActivity: '',
+    progress: 0
+  });
   
   const containerRef = useRef<HTMLDivElement>(null);
+  const [currentSection, setCurrentSection] = useState(0);
 
-  // Enhanced mouse tracking for 3D effects
-  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+  // Enhanced mouse tracking with smoothing
+  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 100;
     const y = ((event.clientY - rect.top) / rect.height) * 100;
     setMousePosition({ x, y });
-  };
+  }, []);
 
-  // Time tracking for dynamic animations
+  // Advanced scroll tracking
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrollY(window.scrollY);
+      
+      // Determine current section based on scroll position
+      const sections = ['overview', 'analysis', 'resources'];
+      const sectionHeight = window.innerHeight;
+      const newSection = Math.floor(window.scrollY / sectionHeight);
+      setCurrentSection(Math.min(newSection, sections.length - 1));
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Dynamic particle system
+  useEffect(() => {
+    const createParticles = () => {
+      const count = finalSummary.status === 'loading' || resources.status === 'loading' ? 20 : 8;
+      return Array.from({ length: count }, (_, i) => ({
+        id: Date.now() + i,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        vx: (Math.random() - 0.5) * 0.5,
+        vy: (Math.random() - 0.5) * 0.5,
+        size: Math.random() * 3 + 1,
+        color: finalSummary.status === 'loading' ? 'blue' : resources.status === 'loading' ? 'green' : 'purple',
+        life: 1,
+        pulsation: Math.random() * Math.PI * 2,
+        rotation: 0,
+        rotationSpeed: (Math.random() - 0.5) * 0.1
+      }));
+    };
+
+    setParticles(createParticles());
+
+    const animationLoop = setInterval(() => {
+      setParticles(prev => prev.map(p => ({
+        ...p,
+        x: (p.x + p.vx + 100) % 100,
+        y: (p.y + p.vy + 100) % 100,
+        pulsation: p.pulsation + 0.1,
+        rotation: p.rotation + p.rotationSpeed,
+        life: Math.max(0, p.life - 0.005)
+      })).filter(p => p.life > 0));
+    }, 50);
+
+    return () => clearInterval(animationLoop);
+  }, [finalSummary.status, resources.status]);
+
+  // Floating orbs system
+  useEffect(() => {
+    const createOrbs = () => {
+      return Array.from({ length: 5 }, (_, i) => ({
+        id: i,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        size: Math.random() * 200 + 100,
+        color: ['cyan', 'purple', 'pink', 'blue', 'green'][i],
+        opacity: Math.random() * 0.3 + 0.1,
+        speed: Math.random() * 0.5 + 0.2,
+        direction: Math.random() * Math.PI * 2,
+        pulse: Math.random() * Math.PI * 2
+      }));
+    };
+
+    setFloatingOrbs(createOrbs());
+
+    const orbAnimation = setInterval(() => {
+      setFloatingOrbs(prev => prev.map(orb => ({
+        ...orb,
+        x: (orb.x + Math.cos(orb.direction) * orb.speed + 100) % 100,
+        y: (orb.y + Math.sin(orb.direction) * orb.speed + 100) % 100,
+        pulse: orb.pulse + 0.05,
+        direction: orb.direction + 0.01
+      })));
+    }, 100);
+
+    return () => clearInterval(orbAnimation);
+  }, []);
+
+  // Time tracking for animations
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
@@ -70,808 +201,673 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Advanced particle system for dynamic backgrounds
+  // Enhanced analysis progress simulation
   useEffect(() => {
-    const shouldShowParticles = finalSummary.status === 'loading' || resources.status === 'loading';
-    
-    if (shouldShowParticles) {
-      const particleCount = 15;
-      const newParticles = Array.from({ length: particleCount }, (_, i) => ({
-        id: Date.now() + i,
-        x: Math.random() * 100,
-        y: Math.random() * 100,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
-        size: Math.random() * 2 + 1,
-        color: finalSummary.status === 'loading' ? 'blue' : 'green',
-        life: 1
-      }));
-      setParticles(newParticles);
-      
-      const animationInterval = setInterval(() => {
-        setParticles(prev => prev.map(p => ({
-          ...p,
-          x: (p.x + p.vx + 100) % 100,
-          y: (p.y + p.vy + 100) % 100,
-          life: Math.max(0, p.life - 0.01)
-        })).filter(p => p.life > 0));
-      }, 50);
-      
-      return () => clearInterval(animationInterval);
-    } else {
-      setParticles([]);
-    }
-  }, [finalSummary.status, resources.status]);
+    if (finalSummary.status === 'loading') {
+      const analysisSteps = [
+        { step: 'Initializing AI Coach', details: 'Loading conversation context and user profile' },
+        { step: 'Processing Responses', details: 'Analyzing linguistic patterns and content quality' },
+        { step: 'Identifying Strengths', details: 'Recognizing strong performance areas' },
+        { step: 'Evaluating Weaknesses', details: 'Detecting improvement opportunities' },
+        { step: 'Generating Insights', details: 'Creating personalized recommendations' }
+      ];
 
-  // Simulate search progress for enhanced UX
-  useEffect(() => {
-    if (resources.status === 'loading' && finalSummary.data?.resource_search_topics) {
-      const topics = finalSummary.data.resource_search_topics;
-      let currentStep = 0;
-      
+      let currentPhase = 0;
       const progressInterval = setInterval(() => {
-        if (currentStep < topics.length) {
-          setSearchProgress({
-            step: currentStep,
-            currentTopic: topics[currentStep] || '',
-            progress: ((currentStep + 1) / topics.length) * 100
+        if (currentPhase < analysisSteps.length) {
+          setAnalysisProgress({
+            phase: currentPhase,
+            currentStep: analysisSteps[currentPhase].step,
+            progress: ((currentPhase + 1) / analysisSteps.length) * 100,
+            details: [analysisSteps[currentPhase].details]
           });
-          currentStep++;
+          currentPhase++;
         } else {
           clearInterval(progressInterval);
         }
       }, 2000);
-      
-      return () => clearInterval(progressInterval);
-    }
-  }, [resources.status, finalSummary.data?.resource_search_topics]);
 
-  // Simulate analysis progress
-  useEffect(() => {
-    if (finalSummary.status === 'loading') {
-      const analysisAreas = [
-        'Analyzing response patterns',
-        'Identifying strengths',
-        'Evaluating weaknesses',
-        'Generating improvement recommendations'
-      ];
-      let currentStep = 0;
-      
-      const progressInterval = setInterval(() => {
-        if (currentStep < analysisAreas.length) {
-          setAnalysisProgress({
-            step: currentStep,
-            currentArea: analysisAreas[currentStep],
-            progress: ((currentStep + 1) / analysisAreas.length) * 100
-          });
-          currentStep++;
-        } else {
-          clearInterval(progressInterval);
-        }
-      }, 1500);
-      
       return () => clearInterval(progressInterval);
     }
   }, [finalSummary.status]);
 
-  // Intersection observer for card animations
+  // Enhanced search progress simulation
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setVisibleCards(prev => new Set([...prev, entry.target.id]));
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
+    if (resources.status === 'loading' && finalSummary.data?.resource_search_topics) {
+      const topics = finalSummary.data.resource_search_topics;
+      const searchActivities = [
+        'Initializing search agents',
+        'Querying educational platforms',
+        'Filtering by quality metrics',
+        'Analyzing content relevance',
+        'Ranking by learning value',
+        'Finalizing recommendations'
+      ];
 
-    const cards = document.querySelectorAll('[data-card]');
-    cards.forEach(card => observer.observe(card));
+      let queryIndex = 0;
+      let activityIndex = 0;
+      let resourceCount = 0;
 
-    return () => observer.disconnect();
-  }, []);
+      const searchInterval = setInterval(() => {
+        if (queryIndex < topics.length) {
+          setSearchProgress({
+            phase: Math.floor((queryIndex / topics.length) * searchActivities.length),
+            currentQuery: topics[queryIndex],
+            foundResources: resourceCount,
+            totalQueries: topics.length,
+            currentActivity: searchActivities[activityIndex % searchActivities.length],
+            progress: ((queryIndex + 1) / topics.length) * 100
+          });
+          
+          queryIndex++;
+          activityIndex++;
+          resourceCount += Math.floor(Math.random() * 3) + 2;
+        } else {
+          clearInterval(searchInterval);
+        }
+      }, 1500);
 
-  // Advanced background system
+      return () => clearInterval(searchInterval);
+    }
+  }, [resources.status, finalSummary.data?.resource_search_topics]);
+
+  // Revolutionary background system with multiple layers
   const renderAdvancedBackground = () => (
-    <div className="absolute inset-0 overflow-hidden">
-      {/* Dynamic gradient background */}
+    <div className="fixed inset-0 overflow-hidden pointer-events-none">
+      {/* Base gradient that responds to mouse */}
       <div 
         className="absolute inset-0 transition-all duration-1000 ease-out"
         style={{
           background: `
             radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, 
-              rgba(34, 211, 238, 0.08) 0%, 
-              rgba(168, 85, 247, 0.05) 30%, 
-              transparent 70%),
+              rgba(6, 182, 212, 0.15) 0%, 
+              rgba(168, 85, 247, 0.1) 25%, 
+              rgba(236, 72, 153, 0.08) 50%, 
+              transparent 75%),
             radial-gradient(circle at ${100 - mousePosition.x}% ${100 - mousePosition.y}%, 
-              rgba(236, 72, 153, 0.06) 0%, 
-              rgba(34, 197, 94, 0.04) 40%, 
-              transparent 80%),
+              rgba(34, 197, 94, 0.12) 0%, 
+              rgba(249, 115, 22, 0.08) 30%, 
+              transparent 60%),
             linear-gradient(135deg, 
-              rgba(0, 0, 0, 0.98) 0%, 
-              rgba(15, 23, 42, 0.99) 50%, 
-              rgba(0, 0, 0, 0.98) 100%)
+              #0a0a0a 0%, 
+              #0f172a 25%, 
+              #1e293b 50%, 
+              #0f172a 75%, 
+              #0a0a0a 100%)
           `
         }}
       />
 
-      {/* Floating particles */}
-      {particles.map((particle) => (
+      {/* Floating orbs */}
+      {floatingOrbs.map((orb) => (
         <div
-          key={particle.id}
-          className="absolute w-1 h-1 rounded-full transition-opacity duration-500"
+          key={orb.id}
+          className="absolute rounded-full blur-3xl"
           style={{
-            left: `${particle.x}%`,
-            top: `${particle.y}%`,
-            backgroundColor: particle.color === 'blue' ? '#22D3EE' : '#10B981',
-            opacity: particle.life * 0.6,
-            transform: `scale(${particle.size})`,
-            boxShadow: `0 0 ${particle.size * 3}px currentColor`,
+            left: `${orb.x}%`,
+            top: `${orb.y}%`,
+            width: `${orb.size}px`,
+            height: `${orb.size}px`,
+            background: `radial-gradient(circle, 
+              ${orb.color === 'cyan' ? 'rgba(6, 182, 212, 0.3)' :
+                orb.color === 'purple' ? 'rgba(168, 85, 247, 0.3)' :
+                orb.color === 'pink' ? 'rgba(236, 72, 153, 0.3)' :
+                orb.color === 'blue' ? 'rgba(59, 130, 246, 0.3)' :
+                'rgba(34, 197, 94, 0.3)'} 0%, 
+              transparent 70%)`,
+            opacity: orb.opacity * (0.5 + 0.5 * Math.sin(orb.pulse)),
+            transform: `translate(-50%, -50%) scale(${0.8 + 0.2 * Math.sin(orb.pulse * 1.2)})`
           }}
         />
       ))}
 
-      {/* Geometric accents */}
-      <div className="absolute top-1/4 left-1/5 opacity-10">
-        <Circle className="w-4 h-4 text-cyan-400 animate-pulse" style={{ animationDelay: '0s' }} />
-      </div>
-      <div className="absolute top-3/4 right-1/4 opacity-15">
-        <Square className="w-3 h-3 text-purple-400 animate-bounce" style={{ animationDelay: '2s' }} />
-      </div>
-      <div className="absolute bottom-1/3 left-1/3 opacity-20">
-        <Triangle className="w-5 h-5 text-pink-400 animate-pulse" style={{ animationDelay: '4s' }} />
+      {/* Dynamic particles */}
+      {particles.map((particle) => (
+        <div
+          key={particle.id}
+          className="absolute"
+          style={{
+            left: `${particle.x}%`,
+            top: `${particle.y}%`,
+            width: `${particle.size}px`,
+            height: `${particle.size}px`,
+            background: particle.color === 'blue' ? '#3b82f6' : 
+                       particle.color === 'green' ? '#10b981' : '#a855f7',
+            borderRadius: '50%',
+            opacity: particle.life * (0.4 + 0.6 * Math.sin(particle.pulsation)),
+            boxShadow: `0 0 ${particle.size * 2}px currentColor`,
+            transform: `rotate(${particle.rotation}rad) scale(${0.5 + 0.5 * Math.sin(particle.pulsation * 2)})`
+          }}
+        />
+      ))}
+
+      {/* Parallax geometric shapes */}
+      <div 
+        className="absolute inset-0"
+        style={{ transform: `translateY(${scrollY * 0.1}px)` }}
+      >
+        <Circle className="absolute top-1/4 left-1/6 w-6 h-6 text-cyan-400/20 animate-pulse" />
+        <Square className="absolute top-1/3 right-1/4 w-4 h-4 text-purple-400/20 animate-bounce" />
+        <Triangle className="absolute bottom-1/3 left-1/3 w-5 h-5 text-pink-400/20 animate-pulse" />
+        <Hexagon className="absolute bottom-1/4 right-1/6 w-7 h-7 text-blue-400/20 animate-bounce" />
       </div>
     </div>
   );
 
-  // Premium loading state with agentic search visualization
-  const renderAgenticSearchLoading = () => (
-    <div className="space-y-6">
-      {/* Search Agent Activity */}
-      <div className="bg-black/60 backdrop-blur-2xl border border-emerald-500/30 rounded-3xl p-8 relative overflow-hidden">
-        {/* Background animation */}
-        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-cyan-500/5 animate-pulse" />
+  // Premium loading state for analysis
+  const renderAnalysisLoading = () => (
+    <div className="relative">
+      {/* Main analysis card */}
+      <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 relative overflow-hidden">
+        {/* Animated background */}
+        <div 
+          className="absolute inset-0 opacity-20"
+          style={{
+            background: `
+              linear-gradient(45deg, 
+                rgba(59, 130, 246, 0.1) 0%, 
+                rgba(168, 85, 247, 0.1) 50%, 
+                rgba(236, 72, 153, 0.1) 100%)
+            `,
+            animation: 'shimmer 3s ease-in-out infinite'
+          }}
+        />
         
-        <div className="relative z-10 space-y-6">
-          {/* Agent Header */}
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center shadow-xl shadow-emerald-500/20">
-                <Search className="w-8 h-8 text-white" />
+        <div className="relative z-10 space-y-8">
+          {/* AI Brain Header */}
+          <div className="text-center space-y-4">
+            <div className="relative mx-auto w-20 h-20">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 via-purple-600 to-pink-500 flex items-center justify-center shadow-2xl shadow-blue-500/30">
+                <Brain className="w-10 h-10 text-white animate-pulse" />
               </div>
-              <div className="absolute -inset-1 rounded-2xl border-2 border-emerald-400/50 animate-ping" />
+              <div className="absolute -inset-2 rounded-full border-2 border-blue-400/30 animate-ping" />
+              <div className="absolute -inset-4 rounded-full border border-purple-400/20 animate-pulse" />
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-white">AI Search Agent Active</h3>
-              <p className="text-emerald-300">Intelligently curating learning resources for your skill gaps</p>
+              <h3 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-400 bg-clip-text text-transparent">
+                AI Coach Analyzing
+              </h3>
+              <p className="text-blue-300/80 text-lg">Deep analysis of your interview performance</p>
             </div>
           </div>
 
-          {/* Search Progress */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-300">Search Progress</span>
-              <span className="text-sm text-emerald-400 font-medium">{Math.round(searchProgress.progress)}%</span>
+          {/* Current step */}
+          <div className="text-center space-y-4">
+            <div className="inline-flex items-center space-x-3 px-6 py-3 bg-black/40 rounded-2xl border border-blue-500/20">
+              <Activity className="w-5 h-5 text-blue-400 animate-spin" />
+              <span className="text-blue-300 font-medium">{analysisProgress.currentStep}</span>
             </div>
-            <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
-              <div 
-                className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-full transition-all duration-1000 ease-out relative"
-                style={{ width: `${searchProgress.progress}%` }}
-              >
-                <div className="absolute inset-0 bg-white/20 animate-pulse" />
+            
+            {/* Progress bar */}
+            <div className="w-full max-w-md mx-auto">
+              <div className="flex justify-between text-sm text-gray-400 mb-2">
+                <span>Progress</span>
+                <span>{Math.round(analysisProgress.progress)}%</span>
+              </div>
+              <div className="w-full bg-gray-800/50 rounded-full h-3 overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full transition-all duration-1000 ease-out relative"
+                  style={{ width: `${analysisProgress.progress}%` }}
+                >
+                  <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Current Search Topic */}
-          {searchProgress.currentTopic && (
-            <div className="flex items-center space-x-3 p-4 bg-black/40 rounded-2xl border border-emerald-500/20">
-              <Globe className="w-5 h-5 text-emerald-400 animate-spin" />
-              <div>
-                <p className="text-sm text-gray-400">Currently searching for:</p>
-                <p className="text-emerald-300 font-medium">{searchProgress.currentTopic}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Search Steps Visualization */}
-          <div className="grid grid-cols-4 gap-4">
+          {/* Analysis modules */}
+          <div className="grid grid-cols-2 gap-4">
             {[
-              { icon: Telescope, label: 'Analyzing Skills', step: 0 },
-              { icon: Database, label: 'Querying Resources', step: 1 },
-              { icon: Radar, label: 'Filtering Quality', step: 2 },
-              { icon: Target, label: 'Ranking Relevance', step: 3 }
-            ].map((item, index) => (
+              { icon: MessageSquare, label: 'Response Analysis', active: analysisProgress.phase >= 0 },
+              { icon: TrendingUp, label: 'Pattern Recognition', active: analysisProgress.phase >= 1 },
+              { icon: Award, label: 'Strength Identification', active: analysisProgress.phase >= 2 },
+              { icon: Target, label: 'Improvement Areas', active: analysisProgress.phase >= 3 }
+            ].map((module, index) => (
               <div 
                 key={index}
-                className={`text-center p-4 rounded-xl transition-all duration-500 ${
-                  searchProgress.step >= index 
-                    ? 'bg-emerald-500/20 border border-emerald-500/40' 
-                    : 'bg-gray-800/30 border border-gray-600/30'
+                className={`flex items-center space-x-3 p-4 rounded-xl transition-all duration-500 ${
+                  module.active 
+                    ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/40' 
+                    : 'bg-gray-800/20 border border-gray-600/20'
                 }`}
               >
-                <item.icon className={`w-6 h-6 mx-auto mb-2 ${
-                  searchProgress.step >= index ? 'text-emerald-400' : 'text-gray-500'
+                <module.icon className={`w-6 h-6 ${
+                  module.active ? 'text-blue-400' : 'text-gray-500'
                 }`} />
-                <p className={`text-xs ${
-                  searchProgress.step >= index ? 'text-emerald-300' : 'text-gray-500'
+                <span className={`text-sm font-medium ${
+                  module.active ? 'text-blue-300' : 'text-gray-500'
                 }`}>
-                  {item.label}
-                </p>
+                  {module.label}
+                </span>
               </div>
             ))}
           </div>
-
-          {/* Real-time activity feed */}
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2 text-xs text-gray-400">
-              <Activity className="w-3 h-3 animate-pulse" />
-              <span>Real-time search activity</span>
-            </div>
-            <div className="space-y-1 text-xs">
-              <div className="flex items-center space-x-2 text-emerald-300">
-                <div className="w-1 h-1 bg-emerald-400 rounded-full animate-ping" />
-                <span>Querying educational platforms for relevant content...</span>
-              </div>
-              <div className="flex items-center space-x-2 text-cyan-300">
-                <div className="w-1 h-1 bg-cyan-400 rounded-full animate-ping" />
-                <span>Filtering results by quality and relevance score...</span>
-              </div>
-              <div className="flex items-center space-x-2 text-blue-300">
-                <div className="w-1 h-1 bg-blue-400 rounded-full animate-ping" />
-                <span>Analyzing content depth and learning value...</span>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
   );
 
-  // Advanced analysis loading state
-  const renderAnalysisLoading = () => (
-    <div className="bg-black/60 backdrop-blur-2xl border border-blue-500/30 rounded-3xl p-8 relative overflow-hidden">
-      {/* Background animation */}
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 animate-pulse" />
-      
-      <div className="relative z-10 space-y-6">
-        {/* Agent Header */}
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-xl shadow-blue-500/20">
-              <Brain className="w-8 h-8 text-white" />
+  // Premium loading state for search
+  const renderSearchLoading = () => (
+    <div className="relative">
+      {/* Main search card */}
+      <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 relative overflow-hidden">
+        {/* Animated background */}
+        <div 
+          className="absolute inset-0 opacity-20"
+          style={{
+            background: `
+              linear-gradient(45deg, 
+                rgba(34, 197, 94, 0.1) 0%, 
+                rgba(6, 182, 212, 0.1) 50%, 
+                rgba(59, 130, 246, 0.1) 100%)
+            `,
+            animation: 'shimmer 2s ease-in-out infinite reverse'
+          }}
+        />
+        
+        <div className="relative z-10 space-y-8">
+          {/* Search Agent Header */}
+          <div className="text-center space-y-4">
+            <div className="relative mx-auto w-20 h-20">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 via-cyan-600 to-blue-500 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
+                <Search className="w-10 h-10 text-white animate-bounce" />
+              </div>
+              <div className="absolute -inset-2 rounded-full border-2 border-emerald-400/30 animate-ping" />
+              <div className="absolute -inset-4 rounded-full border border-cyan-400/20 animate-pulse" />
             </div>
-            <div className="absolute -inset-1 rounded-2xl border-2 border-blue-400/50 animate-ping" />
-          </div>
-          <div>
-            <h3 className="text-2xl font-bold text-white">AI Coach Analyzing</h3>
-            <p className="text-blue-300">Deep analysis of your interview performance in progress</p>
-          </div>
-        </div>
-
-        {/* Analysis Progress */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-300">Analysis Progress</span>
-            <span className="text-sm text-blue-400 font-medium">{Math.round(analysisProgress.progress)}%</span>
-          </div>
-          <div className="w-full bg-gray-800 rounded-full h-3 overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all duration-1000 ease-out relative"
-              style={{ width: `${analysisProgress.progress}%` }}
-            >
-              <div className="absolute inset-0 bg-white/20 animate-pulse" />
-            </div>
-          </div>
-        </div>
-
-        {/* Current Analysis Area */}
-        {analysisProgress.currentArea && (
-          <div className="flex items-center space-x-3 p-4 bg-black/40 rounded-2xl border border-blue-500/20">
-            <Eye className="w-5 h-5 text-blue-400 animate-pulse" />
             <div>
-              <p className="text-sm text-gray-400">Currently analyzing:</p>
-              <p className="text-blue-300 font-medium">{analysisProgress.currentArea}</p>
+              <h3 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent">
+                AI Search Agent Active
+              </h3>
+              <p className="text-emerald-300/80 text-lg">Curating personalized learning resources</p>
             </div>
           </div>
-        )}
 
-        {/* Analysis modules */}
-        <div className="grid grid-cols-2 gap-4">
-          {[
-            { icon: MessageSquare, label: 'Response Quality', active: analysisProgress.step >= 0 },
-            { icon: TrendingUp, label: 'Performance Patterns', active: analysisProgress.step >= 1 },
-            { icon: Award, label: 'Strength Recognition', active: analysisProgress.step >= 2 },
-            { icon: Target, label: 'Improvement Areas', active: analysisProgress.step >= 3 }
-          ].map((item, index) => (
-            <div 
-              key={index}
-              className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-500 ${
-                item.active 
-                  ? 'bg-blue-500/20 border border-blue-500/40' 
-                  : 'bg-gray-800/30 border border-gray-600/30'
-              }`}
-            >
-              <item.icon className={`w-5 h-5 ${
-                item.active ? 'text-blue-400' : 'text-gray-500'
-              }`} />
-              <span className={`text-sm ${
-                item.active ? 'text-blue-300' : 'text-gray-500'
-              }`}>
-                {item.label}
-              </span>
+          {/* Current search query */}
+          {searchProgress.currentQuery && (
+            <div className="text-center space-y-3">
+              <div className="inline-flex items-center space-x-3 px-6 py-3 bg-black/40 rounded-2xl border border-emerald-500/20">
+                <Globe className="w-5 h-5 text-emerald-400 animate-spin" />
+                <span className="text-emerald-300 font-medium">Searching: {searchProgress.currentQuery}</span>
+              </div>
+              <p className="text-gray-400 text-sm">{searchProgress.currentActivity}</p>
             </div>
-          ))}
+          )}
+
+          {/* Search statistics */}
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div className="space-y-2">
+              <div className="text-2xl font-bold text-emerald-400">{searchProgress.foundResources}</div>
+              <div className="text-xs text-gray-400">Resources Found</div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-2xl font-bold text-cyan-400">{searchProgress.totalQueries}</div>
+              <div className="text-xs text-gray-400">Topics Searched</div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-2xl font-bold text-blue-400">{Math.round(searchProgress.progress)}%</div>
+              <div className="text-xs text-gray-400">Complete</div>
+            </div>
+          </div>
+
+          {/* Search phases */}
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { icon: Telescope, label: 'Query Formation', phase: 0 },
+              { icon: Database, label: 'Platform Search', phase: 1 },
+              { icon: Filter, label: 'Quality Filter', phase: 2 },
+              { icon: Radar, label: 'Relevance Ranking', phase: 3 }
+            ].map((item, index) => (
+              <div 
+                key={index}
+                className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-500 ${
+                  searchProgress.phase >= item.phase
+                    ? 'bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/40' 
+                    : 'bg-gray-800/20 border border-gray-600/20'
+                }`}
+              >
+                <item.icon className={`w-5 h-5 ${
+                  searchProgress.phase >= item.phase ? 'text-emerald-400' : 'text-gray-500'
+                }`} />
+                <span className={`text-sm font-medium ${
+                  searchProgress.phase >= item.phase ? 'text-emerald-300' : 'text-gray-500'
+                }`}>
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 
-  // Enhanced text section with better typography and layout
-  const renderTextSection = (title: string, content?: any, icon?: React.ReactNode, gradient?: string) => {
-    const textContent = typeof content === 'string' ? content : 
-                       content !== null && content !== undefined ? JSON.stringify(content, null, 2) : '';
-    
-    if (!textContent || textContent.trim() === "") {
-      return (
-        <div className="space-y-3">
-          <div className="flex items-center space-x-3">
-            {icon}
-            <h3 className={`text-xl font-bold ${gradient || 'text-purple-400'}`}>{title}</h3>
-          </div>
-          <p className="text-gray-400 italic text-sm">No specific {title.toLowerCase()} noted for this section.</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center space-x-3">
-          {icon}
-          <h3 className={`text-xl font-bold ${gradient || 'text-purple-400'}`}>{title}</h3>
-        </div>
-        <div className="space-y-3">
-          {textContent.split('\n').map((paragraph, index) => (
-            <p key={index} className="text-gray-300 leading-relaxed whitespace-pre-wrap">
-              {paragraph}
-            </p>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // Premium resource display with enhanced visuals
-  const renderRecommendedResources = (resourcesData?: any[]) => {
-    if (!resourcesData || resourcesData.length === 0) {
-      return (
-        <div className="text-center py-8">
-          <BookOpen className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-          <p className="text-gray-400">No resources available for this session.</p>
-        </div>
-      );
-    }
-
-    // Check format and render accordingly
-    const isLegacyFormat = resourcesData.length > 0 && resourcesData[0]?.topic && resourcesData[0]?.resources;
-    
-    if (isLegacyFormat) {
-      return (
-        <div className="space-y-6">
-          {resourcesData.map((item, index) => (
-            <div key={index} className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center">
-                  <BookMarked className="w-4 h-4 text-white" />
+  // Rest of component implementation continues...
+  return (
+    <div 
+      ref={containerRef}
+      className="min-h-screen relative"
+      onMouseMove={handleMouseMove}
+    >
+      {/* Advanced background system */}
+      {renderAdvancedBackground()}
+      
+      {/* Main content with revolutionary layout */}
+      <div className="relative z-10 min-h-screen">
+        
+        {/* Hero section with dynamic navigation */}
+        <section className="min-h-screen flex flex-col justify-center items-center px-4 md:px-8 relative">
+          <div className="text-center space-y-8 max-w-4xl">
+            {/* Animated header */}
+            <div 
+              className="space-y-6"
+              style={{
+                transform: `translateY(${scrollY * 0.1}px)`,
+                opacity: Math.max(0, 1 - scrollY / 500)
+              }}
+            >
+              <div className="flex items-center justify-center space-x-4 mb-8">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500 via-purple-600 to-pink-500 flex items-center justify-center shadow-2xl">
+                  <BarChart3 className="w-8 h-8 text-white" />
                 </div>
-                <h4 className="text-lg font-semibold text-emerald-400">{item.topic}</h4>
               </div>
               
-              {item.resources && item.resources.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {item.resources.map((resource: any, rIndex: number) => (
-                    <div key={rIndex} className="group bg-black/40 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:border-emerald-500/40 hover:shadow-emerald-500/10 transition-all duration-300">
-                      <div className="flex items-start space-x-4">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
-                          <ExternalLink className="w-5 h-5 text-white" />
+              <h1 className="text-6xl md:text-7xl font-bold leading-tight">
+                <span className="bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-400 bg-clip-text text-transparent">
+                  Interview Analysis
+                </span>
+              </h1>
+              
+              <p className="text-xl md:text-2xl text-gray-300 leading-relaxed max-w-3xl mx-auto">
+                Comprehensive AI-powered insights into your interview performance 
+                with personalized learning recommendations
+              </p>
+            </div>
+
+            {/* Dynamic section navigation */}
+            <div className="flex justify-center space-x-6">
+              {[
+                { id: 'analysis', label: 'Performance Analysis', icon: Brain, status: finalSummary.status },
+                { id: 'resources', label: 'Learning Resources', icon: Search, status: resources.status },
+                { id: 'feedback', label: 'Detailed Feedback', icon: MessageSquare, status: 'completed' as const }
+              ].map((section) => (
+                <button
+                  key={section.id}
+                  onClick={() => {
+                    const element = document.getElementById(section.id);
+                    element?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="group flex flex-col items-center space-y-3 p-6 bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-white/20 transition-all duration-300 hover:scale-105"
+                >
+                  <div className="relative">
+                    <section.icon className="w-8 h-8 text-white group-hover:text-cyan-400 transition-colors" />
+                    {section.status === 'loading' && (
+                      <div className="absolute -inset-2 rounded-full border-2 border-cyan-400/50 animate-ping" />
+                    )}
+                  </div>
+                  <span className="text-white font-medium group-hover:text-cyan-400 transition-colors">
+                    {section.label}
+                  </span>
+                  <div className={`w-2 h-2 rounded-full ${
+                    section.status === 'completed' ? 'bg-green-400' :
+                    section.status === 'loading' ? 'bg-yellow-400 animate-pulse' :
+                    'bg-red-400'
+                  }`} />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Scroll indicator */}
+          <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
+            <ChevronDown className="w-6 h-6 text-white/60" />
+          </div>
+        </section>
+
+        {/* Analysis section */}
+        <section id="analysis" className="min-h-screen flex items-center px-4 md:px-8 py-16">
+          <div className="w-full max-w-6xl mx-auto">
+            {finalSummary.status === 'loading' && renderAnalysisLoading()}
+            {finalSummary.status === 'completed' && finalSummary.data && (
+              <div className="space-y-8">
+                <h2 className="text-4xl font-bold text-center bg-gradient-to-r from-blue-400 via-purple-500 to-pink-400 bg-clip-text text-transparent mb-12">
+                  Performance Analysis
+                </h2>
+                
+                {/* Analysis results grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Patterns & Tendencies */}
+                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8">
+                    <div className="flex items-center space-x-4 mb-6">
+                      <TrendingUp className="w-8 h-8 text-orange-400" />
+                      <h3 className="text-2xl font-bold text-white">Observed Patterns</h3>
+                    </div>
+                    <p className="text-gray-300 leading-relaxed">
+                      {finalSummary.data.patterns_tendencies || 'No specific patterns identified.'}
+                    </p>
+                  </div>
+
+                  {/* Strengths */}
+                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8">
+                    <div className="flex items-center space-x-4 mb-6">
+                      <Award className="w-8 h-8 text-emerald-400" />
+                      <h3 className="text-2xl font-bold text-white">Key Strengths</h3>
+                    </div>
+                    <p className="text-gray-300 leading-relaxed">
+                      {finalSummary.data.strengths || 'No specific strengths identified.'}
+                    </p>
+                  </div>
+
+                  {/* Areas for Development */}
+                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8">
+                    <div className="flex items-center space-x-4 mb-6">
+                      <Target className="w-8 h-8 text-amber-400" />
+                      <h3 className="text-2xl font-bold text-white">Development Areas</h3>
+                    </div>
+                    <p className="text-gray-300 leading-relaxed">
+                      {finalSummary.data.weaknesses || 'No specific weaknesses identified.'}
+                    </p>
+                  </div>
+
+                  {/* Improvement Focus */}
+                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8">
+                    <div className="flex items-center space-x-4 mb-6">
+                      <Lightbulb className="w-8 h-8 text-purple-400" />
+                      <h3 className="text-2xl font-bold text-white">Focus Areas</h3>
+                    </div>
+                    <p className="text-gray-300 leading-relaxed">
+                      {finalSummary.data.improvement_focus_areas || 'No specific focus areas identified.'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            {finalSummary.status === 'error' && (
+              <div className="text-center space-y-6">
+                <AlertCircle className="w-16 h-16 text-red-400 mx-auto" />
+                <h3 className="text-2xl font-bold text-red-400">Analysis Error</h3>
+                <p className="text-red-300">{finalSummary.error}</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Resources section */}
+        <section id="resources" className="min-h-screen flex items-center px-4 md:px-8 py-16">
+          <div className="w-full max-w-6xl mx-auto">
+            {resources.status === 'loading' && renderSearchLoading()}
+            {resources.status === 'completed' && resources.data && (
+              <div className="space-y-8">
+                <h2 className="text-4xl font-bold text-center bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent mb-12">
+                  Learning Resources
+                </h2>
+                
+                {/* Resources grid - simplified and cleaner */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {resources.data.map((resource: any, index: number) => (
+                    <div 
+                      key={index}
+                      className="group bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl overflow-hidden hover:border-emerald-500/40 hover:scale-105 transition-all duration-300"
+                    >
+                      <div className="p-6 space-y-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center">
+                            {resource.resource_type === 'video' ? <Video className="w-5 h-5 text-white" /> :
+                             resource.resource_type === 'course' ? <GraduationCap className="w-5 h-5 text-white" /> :
+                             <FileText className="w-5 h-5 text-white" />}
+                          </div>
+                          {resource.resource_type && (
+                            <span className="px-2 py-1 text-xs bg-emerald-500/20 text-emerald-300 rounded-lg">
+                              {resource.resource_type}
+                            </span>
+                          )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <a
-                            href={resource.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-semibold text-white hover:text-emerald-300 transition-colors group block"
-                          >
-                            {resource.title}
-                          </a>
-                          <p className="text-sm text-gray-400 mt-2 leading-relaxed">{resource.snippet}</p>
-                        </div>
+                        
+                        <h4 className="text-lg font-semibold text-white group-hover:text-emerald-300 transition-colors line-clamp-2">
+                          {resource.title}
+                        </h4>
+                        
+                        <p className="text-gray-400 text-sm line-clamp-3 leading-relaxed">
+                          {resource.description}
+                        </p>
+                        
+                        {resource.reasoning && (
+                          <div className="p-3 bg-blue-900/20 border-l-2 border-blue-400/50 rounded-r-lg">
+                            <p className="text-xs text-blue-200 leading-relaxed">
+                              <strong>AI Reasoning:</strong> {resource.reasoning}
+                            </p>
+                          </div>
+                        )}
+                        
+                        <a
+                          href={resource.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center space-x-2 text-emerald-400 hover:text-emerald-300 font-medium text-sm group-hover:translate-x-1 transition-all duration-300"
+                        >
+                          <span>Explore Resource</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </a>
                       </div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-gray-400 italic text-sm">No specific resources found for this topic.</p>
-              )}
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    // New agentic format with enhanced styling
-    return (
-      <div className="space-y-6">
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center space-x-2">
-            <Sparkles className="w-5 h-5 text-emerald-400" />
-            <p className="text-emerald-300 font-medium">AI-Curated Learning Resources</p>
-            <Sparkles className="w-5 h-5 text-emerald-400" />
+              </div>
+            )}
+            {resources.status === 'error' && (
+              <div className="text-center space-y-6">
+                <AlertCircle className="w-16 h-16 text-red-400 mx-auto" />
+                <h3 className="text-2xl font-bold text-red-400">Search Error</h3>
+                <p className="text-red-300">{resources.error}</p>
+              </div>
+            )}
           </div>
-          <p className="text-gray-400 text-sm max-w-2xl mx-auto">
-            These resources were intelligently selected based on your interview performance, 
-            skill gaps, and learning preferences by our advanced AI agent.
-          </p>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {resourcesData.map((resource: any, index: number) => (
-            <div 
-              key={index} 
-              className="group bg-black/40 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden hover:border-emerald-500/40 hover:shadow-2xl hover:shadow-emerald-500/10 transition-all duration-500"
-            >
-              {/* Resource header */}
-              <div className="p-6 space-y-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      {resource.resource_type === 'tutorial' ? <Video className="w-6 h-6 text-white" /> :
-                       resource.resource_type === 'article' ? <FileText className="w-6 h-6 text-white" /> :
-                       resource.resource_type === 'course' ? <GraduationCap className="w-6 h-6 text-white" /> :
-                       <BookOpen className="w-6 h-6 text-white" />}
-                    </div>
-                    {resource.resource_type && (
-                      <span className="px-3 py-1 text-xs font-medium bg-emerald-500/20 text-emerald-300 rounded-full border border-emerald-500/30">
-                        {resource.resource_type}
-                      </span>
-                    )}
-                  </div>
-                </div>
+        </section>
 
-                <div>
-                  <a
-                    href={resource.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group/link"
+        {/* Feedback section */}
+        <section id="feedback" className="min-h-screen flex items-center px-4 md:px-8 py-16">
+          <div className="w-full max-w-4xl mx-auto">
+            <h2 className="text-4xl font-bold text-center bg-gradient-to-r from-purple-400 via-pink-500 to-red-400 bg-clip-text text-transparent mb-12">
+              Detailed Feedback
+            </h2>
+            
+            {perTurnFeedback && perTurnFeedback.length > 0 ? (
+              <div className="space-y-6">
+                {perTurnFeedback.map((item, index) => (
+                  <div 
+                    key={index}
+                    className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl overflow-hidden"
                   >
-                    <h4 className="text-lg font-semibold text-white group-hover/link:text-emerald-300 transition-colors leading-tight">
-                      {resource.title}
-                    </h4>
-                  </a>
-                  <p className="text-gray-400 mt-3 text-sm leading-relaxed">{resource.description}</p>
-                </div>
-
-                {/* AI reasoning section */}
-                {resource.reasoning && (
-                  <div className="mt-4 p-4 bg-gradient-to-r from-blue-900/20 to-purple-900/20 border-l-4 border-blue-400/50 rounded-r-xl">
-                    <div className="flex items-start space-x-3">
-                      <Brain className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-                      <div>
-                        <p className="text-xs text-blue-300 font-medium mb-1">AI Recommendation Reasoning:</p>
-                        <p className="text-xs text-blue-200 leading-relaxed">{resource.reasoning}</p>
+                    <div className="p-6 space-y-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
+                          <span className="text-white font-bold text-sm">{index + 1}</span>
+                        </div>
+                        <h4 className="text-lg font-semibold text-white">Question {index + 1}</h4>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <h5 className="text-purple-300 font-medium mb-2">Question:</h5>
+                          <p className="text-gray-300 leading-relaxed">{item.question}</p>
+                        </div>
+                        
+                        <div>
+                          <h5 className="text-blue-300 font-medium mb-2">Your Response:</h5>
+                          <div className="bg-blue-900/10 border-l-4 border-blue-500/50 rounded-r-xl p-4">
+                            <p className="text-gray-200 leading-relaxed">{item.answer}</p>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <h5 className="text-yellow-300 font-medium mb-2">AI Coach Feedback:</h5>
+                          <div className="bg-yellow-900/10 border-l-4 border-yellow-500/50 rounded-r-xl p-4">
+                            <p className="text-gray-100 leading-relaxed">{item.feedback}</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
-
-                {/* Action button */}
-                <div className="pt-2">
-                  <a
-                    href={resource.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-cyan-600 hover:from-emerald-400 hover:to-cyan-500 text-white text-sm font-medium rounded-xl transition-all duration-300 group/btn"
-                  >
-                    <span>Explore Resource</span>
-                    <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
-                  </a>
-                </div>
+                ))}
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  // Premium error state
-  const renderErrorState = (type: 'summary' | 'resources', error: string) => (
-    <div className="bg-black/60 backdrop-blur-2xl border border-red-500/30 rounded-2xl p-8 text-center">
-      <div className="space-y-4">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-pink-600 flex items-center justify-center mx-auto">
-          <AlertCircle className="w-8 h-8 text-white" />
-        </div>
-        <div>
-          <h3 className="text-xl font-semibold text-red-300 mb-2">Generation Error</h3>
-          <p className="text-red-400 text-sm">{error}</p>
-        </div>
-        <Button
-          onClick={() => window.location.reload()}
-          variant="outline"
-          className="border-red-500/30 text-red-300 hover:bg-red-500/10"
-        >
-          Try Again
-        </Button>
-      </div>
-    </div>
-  );
-
-  // Premium per-turn feedback with enhanced design
-  const renderPerTurnFeedback = () => {
-    if (!perTurnFeedback || perTurnFeedback.length === 0) {
-      return (
-        <div className="text-center py-12">
-          <MessageSquare className="w-16 h-16 text-gray-500 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-400 mb-2">No Per-Turn Feedback</h3>
-          <p className="text-gray-500">No detailed feedback available for this session.</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-6">
-        {perTurnFeedback.map((item, index) => (
-          <div 
-            key={index} 
-            className={`group bg-black/40 backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden transition-all duration-500 hover:border-purple-500/40 hover:shadow-purple-500/10 ${
-              visibleCards.has(`feedback-${index}`) ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'
-            }`}
-            id={`feedback-${index}`}
-            data-card
-          >
-            {/* Question header */}
-            <div className="bg-gradient-to-r from-purple-900/20 to-blue-900/20 px-6 py-4 border-b border-white/5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
-                    <span className="text-white font-bold text-sm">{index + 1}</span>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 uppercase tracking-wider">Question {index + 1}</p>
-                    <h4 className="text-purple-300 font-semibold">{item.question}</h4>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setExpandedFeedback(expandedFeedback === index ? null : index)}
-                  className="text-purple-400 hover:text-purple-300"
-                >
-                  {expandedFeedback === index ? 'Collapse' : 'View Details'}
-                </Button>
+            ) : (
+              <div className="text-center space-y-6">
+                <MessageSquare className="w-16 h-16 text-gray-500 mx-auto" />
+                <h3 className="text-2xl font-bold text-gray-400">No Detailed Feedback</h3>
+                <p className="text-gray-500">No turn-by-turn feedback available for this session.</p>
               </div>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-6">
-              {/* Your answer */}
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 rounded bg-blue-500/20 flex items-center justify-center">
-                    <Users className="w-2 h-2 text-blue-400" />
-                  </div>
-                  <h5 className="text-sm font-medium text-blue-300">Your Response</h5>
-                </div>
-                <div className={`bg-blue-900/10 border-l-4 border-blue-500/50 rounded-r-xl p-4 ${
-                  expandedFeedback === index ? '' : 'line-clamp-3'
-                }`}>
-                  <p className="text-gray-200 text-sm leading-relaxed whitespace-pre-wrap">{item.answer}</p>
-                </div>
-              </div>
-
-              {/* Coach feedback */}
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 rounded bg-yellow-500/20 flex items-center justify-center">
-                    <Brain className="w-2 h-2 text-yellow-400" />
-                  </div>
-                  <h5 className="text-sm font-medium text-yellow-300">AI Coach Analysis</h5>
-                </div>
-                <div className={`bg-yellow-900/10 border-l-4 border-yellow-500/50 rounded-r-xl p-4 ${
-                  expandedFeedback === index ? '' : 'line-clamp-4'
-                }`}>
-                  <p className="text-gray-100 text-sm leading-relaxed whitespace-pre-wrap">{item.feedback}</p>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
-        ))}
-      </div>
-    );
-  };
+        </section>
 
-  return (
-    <div 
-      ref={containerRef}
-      className="min-h-screen relative overflow-hidden"
-      onMouseMove={handleMouseMove}
-    >
-      {/* Advanced background */}
-      {renderAdvancedBackground()}
-      
-      <div className="relative z-10 flex flex-col min-h-screen p-4 md:p-8">
-        <div className="w-full max-w-7xl mx-auto space-y-8">
-          
-          {/* Premium header */}
-          <div className="text-center space-y-4 py-8">
-            <div className="flex items-center justify-center space-x-2 mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center shadow-xl">
-                <BarChart3 className="w-6 h-6 text-white" />
-              </div>
+        {/* Call to action section */}
+        <section className="py-16 px-4 md:px-8">
+          <div className="max-w-2xl mx-auto text-center space-y-8">
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 via-purple-600 to-pink-500 flex items-center justify-center mx-auto shadow-2xl">
+              <Zap className="w-10 h-10 text-white" />
             </div>
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-400 bg-clip-text text-transparent">
-              Interview Analysis Report
-            </h1>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
-              Comprehensive AI-powered analysis of your interview performance with personalized recommendations
-            </p>
-          </div>
-
-          {/* Bento Grid Layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             
-            {/* Left Column - Per-turn feedback (spans 2 columns on large screens) */}
-            <div className="lg:col-span-2 space-y-8">
-              
-              {/* Turn-by-Turn Feedback */}
-              <div 
-                className={`bg-black/60 backdrop-blur-2xl border border-purple-500/30 rounded-3xl shadow-2xl transition-all duration-700 ${
-                  visibleCards.has('feedback-section') ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'
-                }`}
-                id="feedback-section"
-                data-card
-              >
-                <div className="p-8">
-                  <div className="flex items-center space-x-4 mb-8">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center shadow-xl">
-                      <MessageSquare className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="text-3xl font-bold text-white">Detailed Feedback</h2>
-                      <p className="text-purple-300">Turn-by-turn analysis of your interview responses</p>
-                    </div>
-                  </div>
-                  
-                  {renderPerTurnFeedback()}
-                </div>
-              </div>
-
-              {/* Final Summary */}
-              <div 
-                className={`bg-black/60 backdrop-blur-2xl border border-blue-500/30 rounded-3xl shadow-2xl transition-all duration-700 ${
-                  visibleCards.has('summary-section') ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'
-                }`}
-                id="summary-section"
-                data-card
-              >
-                <div className="p-8">
-                  <div className="flex items-center space-x-4 mb-8">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-xl">
-                      {finalSummary.status === 'completed' ? (
-                        <CheckCircle className="w-6 h-6 text-white" />
-                      ) : finalSummary.status === 'error' ? (
-                        <AlertCircle className="w-6 h-6 text-white" />
-                      ) : (
-                        <Brain className="w-6 h-6 text-white" />
-                      )}
-                    </div>
-                    <div>
-                      <h2 className="text-3xl font-bold text-white">Performance Analysis</h2>
-                      <p className="text-blue-300">Comprehensive evaluation by our AI coach</p>
-                    </div>
-                  </div>
-
-                  {finalSummary.status === 'loading' && renderAnalysisLoading()}
-                  {finalSummary.status === 'error' && renderErrorState('summary', finalSummary.error || 'Unknown error')}
-                  {finalSummary.status === 'completed' && finalSummary.data && (
-                    <div className="space-y-8">
-                      {renderTextSection(
-                        "Observed Patterns & Tendencies", 
-                        finalSummary.data.patterns_tendencies,
-                        <TrendingUp className="w-6 h-6 text-orange-400" />,
-                        "bg-gradient-to-r from-orange-400 to-red-400 bg-clip-text text-transparent"
-                      )}
-                      {renderTextSection(
-                        "Key Strengths", 
-                        finalSummary.data.strengths,
-                        <Award className="w-6 h-6 text-emerald-400" />,
-                        "bg-gradient-to-r from-emerald-400 to-green-400 bg-clip-text text-transparent"
-                      )}
-                      {renderTextSection(
-                        "Areas for Development", 
-                        finalSummary.data.weaknesses,
-                        <Target className="w-6 h-6 text-amber-400" />,
-                        "bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent"
-                      )}
-                      {renderTextSection(
-                        "Focus Areas for Improvement", 
-                        finalSummary.data.improvement_focus_areas,
-                        <Lightbulb className="w-6 h-6 text-purple-400" />,
-                        "bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent"
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column - Resources and CTA */}
-            <div className="space-y-8">
-              
-              {/* Learning Resources */}
-              <div 
-                className={`bg-black/60 backdrop-blur-2xl border border-emerald-500/30 rounded-3xl shadow-2xl transition-all duration-700 ${
-                  visibleCards.has('resources-section') ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'
-                }`}
-                id="resources-section"
-                data-card
-              >
-                <div className="p-8">
-                  <div className="flex items-center space-x-4 mb-8">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-600 flex items-center justify-center shadow-xl">
-                      {resources.status === 'completed' ? (
-                        <CheckCircle className="w-6 h-6 text-white" />
-                      ) : resources.status === 'error' ? (
-                        <AlertCircle className="w-6 h-6 text-white" />
-                      ) : (
-                        <Search className="w-6 h-6 text-white" />
-                      )}
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-bold text-white">Learning Resources</h2>
-                      <p className="text-emerald-300 text-sm">AI-curated materials for your growth</p>
-                    </div>
-                  </div>
-
-                  {resources.status === 'loading' && renderAgenticSearchLoading()}
-                  {resources.status === 'error' && renderErrorState('resources', resources.error || 'Unknown error')}
-                  {resources.status === 'completed' && resources.data && renderRecommendedResources(resources.data)}
-                </div>
-              </div>
-
-              {/* Action Card */}
-              <div 
-                className={`bg-black/60 backdrop-blur-2xl border border-cyan-500/30 rounded-3xl shadow-2xl p-8 text-center transition-all duration-700 ${
-                  visibleCards.has('cta-section') ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'
-                }`}
-                id="cta-section"
-                data-card
-              >
-                <div className="space-y-6">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center mx-auto shadow-xl">
-                    <Zap className="w-8 h-8 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-white mb-2">Ready for Your Next Challenge?</h3>
-                    <p className="text-gray-400">Apply what you've learned and practice again to improve further.</p>
-                  </div>
-                  <Button
-                    onClick={onStartNewInterview}
-                    size="lg"
-                    className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white shadow-lg hover:shadow-cyan-500/20 text-lg font-semibold py-4 rounded-xl transition-all duration-300 group"
-                  >
-                    <span>Start New Interview</span>
-                    <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <h3 className="text-3xl font-bold text-white">Ready for Your Next Challenge?</h3>
+            <p className="text-xl text-gray-400 leading-relaxed">
+              Apply what you've learned and practice again to improve further.
+            </p>
+            
+            <Button
+              onClick={onStartNewInterview}
+              size="lg"
+              className="bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 hover:from-cyan-400 hover:via-purple-500 hover:to-pink-400 text-white text-lg font-semibold px-8 py-4 rounded-2xl shadow-2xl hover:shadow-cyan-500/20 transition-all duration-300 group"
+            >
+              <span>Start New Interview</span>
+              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+            </Button>
           </div>
-        </div>
+        </section>
       </div>
+
+      {/* Custom styles */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes shimmer {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+          }
+          
+          .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+          
+          .line-clamp-3 {
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+        `
+      }} />
     </div>
   );
 };
