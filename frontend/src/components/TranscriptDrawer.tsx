@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Copy, Volume2, User, Bot, Download } from 'lucide-react';
-import { Message } from '../hooks/useInterviewSession';
+import { X, Volume2, User, Bot, Download, Brain, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { Message, CoachFeedbackState } from '../hooks/useInterviewSession';
 
 interface TranscriptDrawerProps {
   isOpen: boolean;
@@ -8,6 +8,7 @@ interface TranscriptDrawerProps {
   onClose: () => void;
   onPlayMessage?: (message: string) => void;
   onSendTextFromTranscript: (message: string) => void;
+  coachFeedbackStates: CoachFeedbackState;
 }
 
 const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
@@ -15,12 +16,13 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
   messages,
   onClose,
   onPlayMessage,
-  onSendTextFromTranscript
+  onSendTextFromTranscript,
+  coachFeedbackStates
 }) => {
   const drawerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
+  const [expandedCoachFeedback, setExpandedCoachFeedback] = useState<Set<number>>(new Set());
 
   // Handle escape key press
   useEffect(() => {
@@ -68,17 +70,6 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
       return JSON.stringify(content, null, 2);
     }
     return String(content);
-  };
-
-  const handleCopyMessage = async (content: string | any, messageId: string) => {
-    try {
-      const textContent = getContentAsString(content);
-      await navigator.clipboard.writeText(textContent);
-      setCopiedMessageId(messageId);
-      setTimeout(() => setCopiedMessageId(null), 2000);
-    } catch (error) {
-      console.error('Failed to copy message:', error);
-    }
   };
 
   const handleDownloadTranscript = () => {
@@ -136,6 +127,24 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
       event.preventDefault();
       handleSendMessage();
     }
+  };
+
+  // Toggle coach feedback for a specific message
+  const toggleCoachFeedback = (messageIndex: number) => {
+    setExpandedCoachFeedback(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(messageIndex)) {
+        newSet.delete(messageIndex);
+      } else {
+        newSet.add(messageIndex);
+      }
+      return newSet;
+    });
+  };
+
+  // Get coach feedback for a message
+  const getCoachFeedback = (messageIndex: number) => {
+    return coachFeedbackStates[messageIndex];
   };
 
   // if (!isOpen) return null; // Keep the component in DOM for transitions, control visibility via transform
@@ -223,77 +232,125 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
             messages.map((message, index) => {
               const messageId = `${message.role}-${index}`;
               const styling = getMessageStyling(message.role);
-              const isCopied = copiedMessageId === messageId;
               const contentText = getContentAsString(message.content);
 
               return (
-                <div
-                  key={messageId}
-                  className={`
-                    backdrop-blur-md border shadow-lg
-                    rounded-xl p-4 transition-all duration-300 hover:shadow-xl
-                    ${styling.container}
-                  `}
-                >
-                  <div className="flex items-start space-x-3">
-                    {/* Avatar */}
-                    <div className={`
-                      w-8 h-8 rounded-full border flex items-center justify-center flex-shrink-0
-                      ${styling.avatar}
-                    `}>
-                      {getMessageIcon(message.role)}
-                    </div>
-
-                    {/* Message Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-gray-300">
-                          {message.role === 'user' ? 'You' : 'AI Interviewer'}
-                        </span>
+                <div key={messageId}>
+                  <div
+                    className={`
+                      backdrop-blur-md border shadow-lg
+                      rounded-xl p-4 transition-all duration-300 hover:shadow-xl
+                      ${styling.container}
+                    `}
+                  >
+                    <div className="flex items-start space-x-3">
+                      {/* Avatar */}
+                      <div className={`
+                        w-8 h-8 rounded-full border flex items-center justify-center flex-shrink-0
+                        ${styling.avatar}
+                      `}>
+                        {getMessageIcon(message.role)}
                       </div>
-                      
-                      <p className={`text-sm leading-relaxed ${styling.text}`}>
-                        {contentText}
-                      </p>
 
-                      {/* Message Actions */}
-                      <div className="flex items-center space-x-2 mt-3">
-                        {/* Copy Button */}
-                        <button
-                          onClick={() => handleCopyMessage(message.content, messageId)}
-                          className="
-                            flex items-center space-x-1 px-2 py-1 
-                            bg-white/5 hover:bg-white/10 
-                            border border-white/10 hover:border-white/20
-                            rounded-md text-xs 
-                            transition-all duration-200
-                            group
-                          "
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>{isCopied ? 'Copied!' : 'Copy'}</span>
-                        </button>
-
-                        {/* Play Audio Button (if TTS available) */}
-                        {onPlayMessage && message.role === 'assistant' && message.agent !== 'coach' && (
-                          <button
-                            onClick={() => onPlayMessage(contentText)}
-                            className="
-                              flex items-center space-x-1 px-2 py-1 
-                              bg-white/5 hover:bg-white/10 
-                              border border-white/10 hover:border-white/20
-                              rounded-md text-xs 
-                              transition-all duration-200
-                              group
-                            "
-                          >
-                            <Volume2 className="w-3 h-3" />
-                            <span>Play</span>
-                          </button>
-                        )}
+                      {/* Message Content */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-gray-300">
+                            {message.role === 'user' ? 'You' : 'AI Interviewer'}
+                          </span>
+                        </div>
+                        
+                        <p className={`text-sm leading-relaxed ${styling.text}`}>
+                          {contentText}
+                        </p>
                       </div>
                     </div>
                   </div>
+
+                  {/* Coach Feedback Section (only for user messages) */}
+                  {message.role === 'user' && (
+                    <>
+                      {/* Coach Feedback Toggle Button */}
+                      <div className="mt-2 ml-2">
+                        {(() => {
+                          const feedbackState = getCoachFeedback(index);
+                          const hasAnalysis = feedbackState?.isAnalyzing;
+                          const hasFeedback = feedbackState?.feedback;
+                          const isExpanded = expandedCoachFeedback.has(index);
+
+                          // Don't show button if no analysis and no feedback
+                          if (!hasAnalysis && !hasFeedback) return null;
+
+                          return (
+                            <button
+                              onClick={() => toggleCoachFeedback(index)}
+                              className={`
+                                flex items-center space-x-2 px-3 py-2 rounded-xl text-xs font-medium
+                                transition-all duration-300 group
+                                ${hasAnalysis 
+                                  ? 'bg-yellow-900/30 border border-yellow-500/40 text-yellow-300 hover:bg-yellow-900/50' 
+                                  : hasFeedback 
+                                    ? 'bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 text-yellow-300 hover:border-yellow-500/50 hover:bg-yellow-900/30'
+                                    : 'bg-gray-800/30 border border-gray-600/30 text-gray-400'
+                                }
+                              `}
+                            >
+                              <div className="flex items-center space-x-2">
+                                {hasAnalysis ? (
+                                  <>
+                                    <div className="relative">
+                                      <Brain className="w-4 h-4" />
+                                      <Loader2 className="absolute inset-0 w-4 h-4 animate-spin" />
+                                    </div>
+                                    <span>Coach is analyzing...</span>
+                                  </>
+                                ) : hasFeedback ? (
+                                  <>
+                                    <Brain className="w-4 h-4" />
+                                    <span>View coach feedback</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Brain className="w-4 h-4" />
+                                    <span>No feedback yet</span>
+                                  </>
+                                )}
+                              </div>
+                              {!hasAnalysis && (
+                                isExpanded ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />
+                              )}
+                            </button>
+                          );
+                        })()}
+                      </div>
+
+                      {/* Coach Feedback Content */}
+                      {expandedCoachFeedback.has(index) && (() => {
+                        const feedbackState = getCoachFeedback(index);
+                        if (!feedbackState?.feedback) return null;
+
+                        return (
+                          <div className="mt-3 ml-2">
+                            <div className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 backdrop-blur-md border border-yellow-500/30 rounded-xl p-4">
+                              <div className="flex items-start space-x-3">
+                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-400/30 flex items-center justify-center flex-shrink-0">
+                                  <Brain className="w-4 h-4 text-yellow-300" />
+                                </div>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-medium text-yellow-300">AI Coach Feedback</span>
+                                  </div>
+                                  <p className="text-sm leading-relaxed text-yellow-100">
+                                    {feedbackState.feedback}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
                 </div>
               );
             })

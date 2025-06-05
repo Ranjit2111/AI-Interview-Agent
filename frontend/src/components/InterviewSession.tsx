@@ -2,14 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import VoiceFirstInterviewPanel from './VoiceFirstInterviewPanel';
 import TranscriptDrawer from './TranscriptDrawer';
-import OffScreenCoachFeedback from './OffScreenCoachFeedback';
 import InterviewInstructionsModal from './InterviewInstructionsModal';
 import { useVoiceFirstInterview } from '../hooks/useVoiceFirstInterview';
 import { Message, CoachFeedbackState } from '@/hooks/useInterviewSession';
 import { 
   X, ChevronLeft, ChevronRight, Mic, MicOff, Brain, Activity, 
   MessageCircle, Timer, Sparkles, Zap, Eye, Volume2, VolumeX,
-  Settings, BarChart3, Target, ArrowRight, Circle, Square,
+  BarChart3, Target, ArrowRight, Circle, Square,
   Triangle, Hexagon, Play, Pause, RotateCcw, FastForward
 } from 'lucide-react';
 
@@ -38,7 +37,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [ambientIntensity, setAmbientIntensity] = useState(0.4);
   const [isFullscreen, setIsFullscreen] = useState(true);
-  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [sessionStartTime] = useState(Date.now());
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; vx: number; vy: number; size: number; color: string; life: number }>>([]);
@@ -52,7 +50,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
     microphoneActive,
     audioPlaying,
     transcriptVisible,
-    coachFeedbackVisible,
     voiceActivityLevel,
     accumulatedTranscript,
     isListening,
@@ -61,8 +58,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
     turnState,
     toggleMicrophone,
     toggleTranscript,
-    toggleCoachFeedback,
-    closeCoachFeedback,
     playTextToSpeech,
     lastExchange
   } = useVoiceFirstInterview(
@@ -250,7 +245,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
 
   // Premium floating status panel
   const renderFloatingStatusPanel = () => (
-    <div className="fixed top-6 left-6 z-40 space-y-4">
+    <div className="fixed top-6 right-6 z-40 space-y-4">
       {/* Session info card */}
       <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-2xl p-4 hover:border-cyan-500/30 transition-all duration-500 group">
         <div className="flex items-center space-x-3">
@@ -337,14 +332,6 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             >
               <MessageCircle className="w-5 h-5 text-gray-300 group-hover:text-purple-300 group-hover:scale-110 transition-all" />
             </Button>
-
-            <Button
-              onClick={toggleCoachFeedback}
-              variant="outline"
-              className="w-14 h-14 rounded-xl bg-black/40 border-white/20 hover:border-emerald-500/40 hover:bg-emerald-500/10 transition-all duration-300 group"
-            >
-              <Brain className="w-5 h-5 text-gray-300 group-hover:text-emerald-300 group-hover:scale-110 transition-all" />
-            </Button>
           </div>
 
           {/* Center: Voice activity visualization */}
@@ -413,53 +400,17 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
           {/* Right: Secondary controls */}
           <div className="flex items-center space-x-4">
           <Button
-              onClick={() => setShowAdvancedControls(!showAdvancedControls)}
-            variant="outline"
-              className="w-14 h-14 rounded-xl bg-black/40 border-white/20 hover:border-gray-400 hover:bg-gray-500/10 transition-all duration-300 group"
-            >
-              <Settings className="w-5 h-5 text-gray-300 group-hover:text-gray-100 group-hover:rotate-90 transition-all duration-300" />
-            </Button>
-
-            <Button
             onClick={onEndInterview}
-              variant="outline"
-              className="px-6 h-14 rounded-xl bg-black/40 border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-300 hover:text-red-100 transition-all duration-300 group"
-            >
-              <X className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+            variant="outline"
+            className="px-6 h-14 rounded-xl bg-black/40 border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-300 hover:text-red-100 transition-all duration-300 group"
+          >
+            <X className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
             End Interview
           </Button>
           </div>
         </div>
-
-        {/* Expanded controls */}
-        {showAdvancedControls && (
-          <div className="mt-6 pt-6 border-t border-white/10">
-            <div className="grid grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-white">{questionCount}</div>
-                <div className="text-sm text-gray-400">Questions Asked</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-white">{responseCount}</div>
-                <div className="text-sm text-gray-400">Responses Given</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-white">
-                  {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
-                </div>
-                <div className="text-sm text-gray-400">Session Duration</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-white">
-                  {messages.filter(m => m.role === 'assistant' && m.agent === 'coach').length}
-                </div>
-                <div className="text-sm text-gray-400">Coach Tips</div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-        </div>
+    </div>
   );
 
   // Handle modal close and trigger TTS
@@ -542,15 +493,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         onClose={toggleTranscript}
         onPlayMessage={playTextToSpeech}
         onSendTextFromTranscript={onSendMessage}
-      />
-
-      {/* Off-Screen Coach Feedback */}
-      <OffScreenCoachFeedback
         coachFeedbackStates={coachFeedbackStates}
-        messages={messages}
-        isOpen={coachFeedbackVisible}
-        onToggle={toggleCoachFeedback}
-        onClose={closeCoachFeedback}
       />
 
       {/* Interview Instructions Modal */}
