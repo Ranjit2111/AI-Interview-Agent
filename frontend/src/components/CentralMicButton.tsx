@@ -152,14 +152,14 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
 
       {/* Voice Activity Waveform - User */}
       {isListening && (
-        <div className="voice-activity-wave mt-6 text-blue-400">
-          <div className="wave-bar animate-voice-wave animation-delay-0" />
-          <div className="wave-bar animate-voice-wave animation-delay-100" />
-          <div className="wave-bar animate-voice-wave animation-delay-200" />
-          <div className="wave-bar animate-voice-wave animation-delay-300" />
-          <div className="wave-bar animate-voice-wave animation-delay-400" />
-          <div className="wave-bar animate-voice-wave animation-delay-500" />
-          <div className="wave-bar animate-voice-wave animation-delay-600" />
+        <div className="mt-6 flex items-center space-x-2 text-blue-400">
+          <div className="voice-activity-wave">
+            <div className="wave-bar animate-voice-wave" />
+            <div className="wave-bar animate-voice-wave animation-delay-100" />
+            <div className="wave-bar animate-voice-wave animation-delay-200" />
+            <div className="wave-bar animate-voice-wave animation-delay-300" />
+            <div className="wave-bar animate-voice-wave animation-delay-400" />
+          </div>
         </div>
       )}
 
@@ -173,30 +173,14 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
             <div className="wave-bar animate-voice-wave animation-delay-300" />
             <div className="wave-bar animate-voice-wave animation-delay-400" />
           </div>
-          <span className="text-sm font-medium ml-3">AI Speaking...</span>
         </div>
       )}
 
       {/* Status Text */}
       <div className="mt-4 text-center">
-        {buttonState === 'listening' && (
-          <p className="text-sm text-blue-300 font-medium">
-            Listening... Tap to stop
-          </p>
-        )}
-        {buttonState === 'processing' && (
-          <p className="text-sm text-gray-300 font-medium">
-            Processing...
-          </p>
-        )}
         {buttonState === 'idle' && !isDisabled && (
           <p className="text-sm text-gray-400 font-medium">
             Tap to speak
-          </p>
-        )}
-        {buttonState === 'disabled' && (
-          <p className="text-sm text-gray-500 font-medium">
-            Please wait...
           </p>
         )}
       </div>
