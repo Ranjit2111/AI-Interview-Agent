@@ -256,22 +256,22 @@ const Index = () => {
           <div>
             <div className="text-2xl font-bold text-white">98%</div>
             <div className="text-sm text-gray-400">Success Rate</div>
-          </div>
-        </div>
-      </div>
+                    </div>
+                  </div>
+                </div>
       <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-2xl p-4 transform hover:scale-105 transition-all duration-300">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center">
             <TrendingUp className="w-5 h-5 text-white" />
-          </div>
+              </div>
           <div>
             <div className="text-2xl font-bold text-white">50K+</div>
             <div className="text-sm text-gray-400">Interviews</div>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-  );
+    );
 
   // Render auth benefits
   const renderSignupBenefits = () => {
@@ -288,88 +288,88 @@ const Index = () => {
     };
 
     return (
-      <section className="py-20 border-t border-white/10 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-900/10 to-cyan-900/10"></div>
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="mb-8">
-              <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
-                Want to Save Your Progress?
-              </h2>
-              <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-                Create a free account to unlock powerful features and track your interview improvements over time.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-              <div className="bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-xl hover:border-cyan-500/20 hover:shadow-cyan-500/10 transition-all duration-300">
-                <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Save className="h-6 w-6 text-white" />
-                </div>
-                <h3 className="font-bold text-lg text-gray-200 mb-3">Save Your Sessions</h3>
-                <p className="text-gray-400">
-                  Keep track of all your practice sessions and never lose your progress. Resume where you left off.
+        <section className="py-20 border-t border-white/10 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-purple-900/10 to-cyan-900/10"></div>
+          <div className="container mx-auto px-4 relative z-10">
+            <div className="max-w-4xl mx-auto text-center">
+              <div className="mb-8">
+                <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
+                  Want to Save Your Progress?
+                </h2>
+                <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+                  Create a free account to unlock powerful features and track your interview improvements over time.
                 </p>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+              <div className="bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-xl hover:border-cyan-500/20 hover:shadow-cyan-500/10 transition-all duration-300">
+                  <div className="w-12 h-12 bg-gradient-to-r from-cyan-500 to-cyan-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Save className="h-6 w-6 text-white" />
+                  </div>
+                  <h3 className="font-bold text-lg text-gray-200 mb-3">Save Your Sessions</h3>
+                  <p className="text-gray-400">
+                    Keep track of all your practice sessions and never lose your progress. Resume where you left off.
+                  </p>
+                </div>
 
               <div className="bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-xl hover:border-purple-500/20 hover:shadow-purple-500/10 transition-all duration-300">
-                <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <History className="h-6 w-6 text-white" />
+                  <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <History className="h-6 w-6 text-white" />
+                  </div>
+                  <h3 className="font-bold text-lg text-gray-200 mb-3">View History</h3>
+                  <p className="text-gray-400">
+                    Access your complete interview history and see how you've improved over time with detailed analytics.
+                  </p>
                 </div>
-                <h3 className="font-bold text-lg text-gray-200 mb-3">View History</h3>
-                <p className="text-gray-400">
-                  Access your complete interview history and see how you've improved over time with detailed analytics.
-                </p>
-              </div>
 
               <div className="bg-black/40 backdrop-blur-xl border border-white/10 p-6 rounded-xl hover:border-pink-500/20 hover:shadow-pink-500/10 transition-all duration-300">
-                <div className="w-12 h-12 bg-gradient-to-r from-pink-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Award className="h-6 w-6 text-white" />
+                  <div className="w-12 h-12 bg-gradient-to-r from-pink-500 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Award className="h-6 w-6 text-white" />
+                  </div>
+                  <h3 className="font-bold text-lg text-gray-200 mb-3">Performance Tracking</h3>
+                  <p className="text-gray-400">
+                    Get detailed insights into your strengths and areas for improvement with comprehensive feedback reports.
+                  </p>
                 </div>
-                <h3 className="font-bold text-lg text-gray-200 mb-3">Performance Tracking</h3>
-                <p className="text-gray-400">
-                  Get detailed insights into your strengths and areas for improvement with comprehensive feedback reports.
+              </div>
+
+            <div className="bg-gradient-to-r from-cyan-500/10 to-purple-600/10 border border-cyan-500/20 p-8 rounded-2xl backdrop-blur-xl">
+                <h3 className="text-2xl font-bold mb-4 text-white">Ready to Level Up Your Interview Game?</h3>
+                <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
+                  Join thousands of professionals who've improved their interview skills with our AI-powered platform. 
+                  It's <strong>completely free</strong> and takes less than 30 seconds to get started.
+                </p>
+                
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                  <Button 
+                    onClick={handleSignUpClick}
+                    size="lg"
+                  className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white shadow-lg hover:shadow-purple-500/20 text-lg group font-medium"
+                  >
+                    <Users className="mr-2 h-5 w-5" />
+                    Create Free Account
+                  <Sparkles className="ml-2 h-5 w-5 group-hover:animate-pulse" />
+                  </Button>
+                  
+                  <span className="text-gray-400">or</span>
+                  
+                  <Button 
+                    onClick={handleSignInClick}
+                    variant="outline"
+                    size="lg"
+                    className="border-white/10 bg-black/20 hover:bg-white/10 text-gray-300 hover:text-white hover:border-cyan-500/30 text-lg font-medium"
+                  >
+                    Sign In
+                  </Button>
+                </div>
+                
+                <p className="text-sm text-gray-500 mt-4">
+                  No credit card required • Free forever • Start practicing immediately
                 </p>
               </div>
             </div>
-
-            <div className="bg-gradient-to-r from-cyan-500/10 to-purple-600/10 border border-cyan-500/20 p-8 rounded-2xl backdrop-blur-xl">
-              <h3 className="text-2xl font-bold mb-4 text-white">Ready to Level Up Your Interview Game?</h3>
-              <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
-                Join thousands of professionals who've improved their interview skills with our AI-powered platform. 
-                It's <strong>completely free</strong> and takes less than 30 seconds to get started.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <Button 
-                  onClick={handleSignUpClick}
-                  size="lg"
-                  className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white shadow-lg hover:shadow-purple-500/20 text-lg group font-medium"
-                >
-                  <Users className="mr-2 h-5 w-5" />
-                  Create Free Account
-                  <Sparkles className="ml-2 h-5 w-5 group-hover:animate-pulse" />
-                </Button>
-                
-                <span className="text-gray-400">or</span>
-                
-                <Button 
-                  onClick={handleSignInClick}
-                  variant="outline"
-                  size="lg"
-                  className="border-white/10 bg-black/20 hover:bg-white/10 text-gray-300 hover:text-white hover:border-cyan-500/30 text-lg font-medium"
-                >
-                  Sign In
-                </Button>
-              </div>
-              
-              <p className="text-sm text-gray-500 mt-4">
-                No credit card required • Free forever • Start practicing immediately
-              </p>
-            </div>
           </div>
-        </div>
-      </section>
+        </section>
     );
   };
 
@@ -465,9 +465,9 @@ const Index = () => {
                           {[...Array(5)].map((_, i) => (
                             <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                           ))}
-                        </div>
-                      </div>
-                      
+                </div>
+              </div>
+              
                       <h1 className="text-6xl lg:text-7xl font-bold leading-tight">
                         <span className="bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
                           Master Your
@@ -475,7 +475,7 @@ const Index = () => {
                         <br />
                         <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
                           Interview Skills
-                        </span>
+                      </span>
                       </h1>
                       
                       <p className="text-xl text-gray-300 max-w-lg leading-relaxed">
@@ -603,8 +603,8 @@ const Index = () => {
                                   </button>
                                 ))}
                               </div>
-                            </div>
-
+                  </div>
+                  
                             {/* Difficulty Level */}
                             <div className="space-y-3">
                               <label className="text-sm font-medium text-gray-300">Difficulty Level</label>
@@ -638,8 +638,8 @@ const Index = () => {
                                   </button>
                                 ))}
                               </div>
-                            </div>
-
+                    </div>
+                    
                             {/* Duration Slider */}
                             <div className="space-y-3">
                               <label className="text-sm font-medium text-gray-300">
@@ -658,8 +658,8 @@ const Index = () => {
                                 <span>Quick practice</span>
                                 <span>30 min</span>
                               </div>
-                            </div>
-
+                    </div>
+                    
                             {/* Resume Upload */}
                             <div className="space-y-3">
                               <label className="text-sm font-medium text-gray-300">Resume (Optional)</label>

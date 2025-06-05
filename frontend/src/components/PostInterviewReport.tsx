@@ -351,8 +351,8 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         <Triangle className="absolute bottom-1/3 left-1/3 w-5 h-5 text-pink-400/20 animate-pulse" />
         <Hexagon className="absolute bottom-1/4 right-1/6 w-7 h-7 text-blue-400/20 animate-bounce" />
       </div>
-    </div>
-  );
+        </div>
+      );
 
   // Premium loading state for analysis
   const renderAnalysisLoading = () => (
@@ -383,7 +383,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
               <div className="absolute -inset-2 rounded-full border-2 border-blue-400/30 animate-ping" />
               <div className="absolute -inset-4 rounded-full border border-purple-400/20 animate-pulse" />
             </div>
-            <div>
+        <div>
               <h3 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-400 bg-clip-text text-transparent">
                 AI Coach Analyzing
               </h3>
@@ -396,14 +396,14 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
             <div className="inline-flex items-center space-x-3 px-6 py-3 bg-black/40 rounded-2xl border border-blue-500/20">
               <Activity className="w-5 h-5 text-blue-400 animate-spin" />
               <span className="text-blue-300 font-medium">{analysisProgress.currentStep}</span>
-            </div>
+                      </div>
             
             {/* Progress bar */}
             <div className="w-full max-w-md mx-auto">
               <div className="flex justify-between text-sm text-gray-400 mb-2">
                 <span>Progress</span>
                 <span>{Math.round(analysisProgress.progress)}%</span>
-              </div>
+                  </div>
               <div className="w-full bg-gray-800/50 rounded-full h-3 overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full transition-all duration-1000 ease-out relative"
@@ -444,8 +444,8 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
           </div>
         </div>
       </div>
-    </div>
-  );
+        </div>
+      );
 
   // Premium loading state for search
   const renderSearchLoading = () => (
@@ -577,13 +577,13 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                 <span className="bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-400 bg-clip-text text-transparent">
                   Interview Analysis
                 </span>
-              </h1>
+          </h1>
               
               <p className="text-xl md:text-2xl text-gray-300 leading-relaxed max-w-3xl mx-auto">
                 Comprehensive AI-powered insights into your interview performance 
                 with personalized learning recommendations
-              </p>
-            </div>
+          </p>
+        </div>
 
             {/* Dynamic section navigation */}
             <div className="flex justify-center space-x-6">
@@ -750,7 +750,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                           <ArrowRight className="w-4 h-4" />
                         </a>
                       </div>
-                    </div>
+                        </div>
                   ))}
                 </div>
               </div>
@@ -798,9 +798,9 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                           <div className="bg-blue-900/10 border-l-4 border-blue-500/50 rounded-r-xl p-4">
                             <p className="text-gray-200 leading-relaxed">{item.answer}</p>
                           </div>
-                        </div>
+            </div>
                         
-                        <div>
+              <div>
                           <h5 className="text-yellow-300 font-medium mb-2">AI Coach Feedback:</h5>
                           <div className="bg-yellow-900/10 border-l-4 border-yellow-500/50 rounded-r-xl p-4">
                             <p className="text-gray-100 leading-relaxed">{item.feedback}</p>
@@ -833,15 +833,15 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
               Apply what you've learned and practice again to improve further.
             </p>
             
-            <Button
-              onClick={onStartNewInterview}
-              size="lg"
+          <Button
+            onClick={onStartNewInterview}
+            size="lg"
               className="bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 hover:from-cyan-400 hover:via-purple-500 hover:to-pink-400 text-white text-lg font-semibold px-8 py-4 rounded-2xl shadow-2xl hover:shadow-cyan-500/20 transition-all duration-300 group"
-            >
+          >
               <span>Start New Interview</span>
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-            </Button>
-          </div>
+          </Button>
+        </div>
         </section>
       </div>
 
