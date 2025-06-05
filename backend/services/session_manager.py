@@ -6,6 +6,7 @@ Manages session-specific AgentSessionManager instances with database persistence
 import asyncio
 import logging
 from typing import Dict, Optional
+from datetime import datetime, timedelta
 from backend.database.db_manager import DatabaseManager
 from backend.services.llm_service import LLMService
 from backend.utils.event_bus import EventBus
@@ -35,8 +36,44 @@ class ThreadSafeSessionRegistry:
         self.event_bus = event_bus
         self._active_sessions: Dict[str, "AgentSessionManager"] = {}
         self._session_locks: Dict[str, asyncio.Lock] = {}
+        self._session_access_times: Dict[str, datetime] = {}  # Track last access time
         self._registry_lock = asyncio.Lock()
+        self._cleanup_task: Optional[asyncio.Task] = None
         logger.info("ThreadSafeSessionRegistry initialized")
+
+    async def start_cleanup_task(self, cleanup_interval_minutes: int = 30, max_idle_minutes: int = 60) -> None:
+        """
+        Start background task to cleanup inactive sessions.
+        
+        Args:
+            cleanup_interval_minutes: How often to run cleanup (default: 30 minutes)
+            max_idle_minutes: Max idle time before session cleanup (default: 60 minutes)
+        """
+        if self._cleanup_task is None:
+            self._cleanup_task = asyncio.create_task(
+                self._periodic_cleanup(cleanup_interval_minutes, max_idle_minutes)
+            )
+            logger.info(f"Started session cleanup task (interval: {cleanup_interval_minutes}min, max_idle: {max_idle_minutes}min)")
+
+    async def _periodic_cleanup(self, cleanup_interval_minutes: int, max_idle_minutes: int) -> None:
+        """
+        Periodically cleanup inactive sessions.
+        
+        Args:
+            cleanup_interval_minutes: How often to run cleanup
+            max_idle_minutes: Max idle time before session cleanup
+        """
+        while True:
+            try:
+                await asyncio.sleep(cleanup_interval_minutes * 60)  # Convert to seconds
+                cleaned_count = await self.cleanup_inactive_sessions(max_idle_minutes)
+                if cleaned_count > 0:
+                    logger.info(f"Periodic cleanup: released {cleaned_count} inactive sessions")
+            except asyncio.CancelledError:
+                logger.info("Session cleanup task cancelled")
+                break
+            except Exception as e:
+                logger.exception(f"Error in periodic session cleanup: {e}")
 
     async def get_session_manager(self, session_id: str) -> "AgentSessionManager":
         """
@@ -78,6 +115,9 @@ class ThreadSafeSessionRegistry:
                 
                 self._active_sessions[session_id] = manager
                 logger.info(f"Loaded session manager for: {session_id}")
+            
+            # Update access time
+            self._session_access_times[session_id] = datetime.utcnow()
             
             return self._active_sessions[session_id]
 
@@ -169,6 +209,8 @@ class ThreadSafeSessionRegistry:
                     del self._active_sessions[session_id]
                     if session_id in self._session_locks:
                         del self._session_locks[session_id]
+                    if session_id in self._session_access_times:
+                        del self._session_access_times[session_id]
                     logger.info(f"Released session: {session_id}")
                     return True
                 else:
@@ -187,7 +229,7 @@ class ThreadSafeSessionRegistry:
         """
         return len(self._active_sessions)
 
-    async def cleanup_inactive_sessions(self, max_idle_minutes: int = 30) -> int:
+    async def cleanup_inactive_sessions(self, max_idle_minutes: int = 60) -> int:
         """
         Clean up sessions that have been idle for too long.
         
@@ -197,17 +239,66 @@ class ThreadSafeSessionRegistry:
         Returns:
             int: Number of sessions cleaned up
         """
-        # For now, we'll implement a simple cleanup that saves all active sessions
-        # In the future, this could check last activity time
         cleaned_count = 0
+        current_time = datetime.utcnow()
+        max_idle_delta = timedelta(minutes=max_idle_minutes)
         
         async with self._registry_lock:
-            sessions_to_release = list(self._active_sessions.keys())
+            sessions_to_release = []
+            
+            for session_id in list(self._active_sessions.keys()):
+                last_access = self._session_access_times.get(session_id)
+                if last_access and (current_time - last_access) > max_idle_delta:
+                    sessions_to_release.append(session_id)
         
+        # Release sessions outside the lock to avoid deadlock
         for session_id in sessions_to_release:
-            # Save but don't release - just ensure data is persisted
-            await self.save_session(session_id)
-            cleaned_count += 1
+            try:
+                success = await self.release_session(session_id)
+                if success:
+                    cleaned_count += 1
+                    logger.debug(f"Released idle session: {session_id}")
+            except Exception as e:
+                logger.exception(f"Error releasing idle session {session_id}: {e}")
         
-        logger.info(f"Saved {cleaned_count} active sessions during cleanup")
-        return cleaned_count 
+        if cleaned_count > 0:
+            logger.info(f"Cleaned up {cleaned_count} idle sessions (idle > {max_idle_minutes} minutes)")
+        
+        return cleaned_count
+
+    async def get_memory_usage_stats(self) -> Dict[str, int]:
+        """
+        Get memory usage statistics.
+        
+        Returns:
+            Dict with memory usage stats
+        """
+        current_time = datetime.utcnow()
+        
+        # Calculate session age distribution
+        session_ages = []
+        for session_id in self._active_sessions:
+            last_access = self._session_access_times.get(session_id, current_time)
+            age_minutes = (current_time - last_access).total_seconds() / 60
+            session_ages.append(age_minutes)
+        
+        stats = {
+            "active_sessions": len(self._active_sessions),
+            "tracked_locks": len(self._session_locks),
+            "tracked_access_times": len(self._session_access_times),
+            "avg_age_minutes": sum(session_ages) / len(session_ages) if session_ages else 0,
+            "max_age_minutes": max(session_ages) if session_ages else 0
+        }
+        
+        return stats
+
+    async def stop_cleanup_task(self) -> None:
+        """Stop the background cleanup task."""
+        if self._cleanup_task:
+            self._cleanup_task.cancel()
+            try:
+                await self._cleanup_task
+            except asyncio.CancelledError:
+                pass
+            self._cleanup_task = None
+            logger.info("Session cleanup task stopped") 

@@ -14,6 +14,7 @@ from backend.agents.config_models import SessionConfig
 from backend.services.session_manager import ThreadSafeSessionRegistry
 from backend.api.auth_api import get_current_user, get_current_user_optional
 from backend.config import get_logger
+from fastapi.responses import JSONResponse
 
 logger = get_logger(__name__)
 
@@ -182,12 +183,12 @@ def create_agent_api(app):
             else:
                 logger.debug(f"Successfully saved session {session_manager.session_id} after start_interview")
             
-            # Debug: Log the response structure 
-            logger.info(f"🔍 DEBUG - Initial response structure: {initial_response}")
-            logger.info(f"🔍 DEBUG - Response type: {type(initial_response)}")
-            logger.info(f"🔍 DEBUG - Response keys: {list(initial_response.keys()) if isinstance(initial_response, dict) else 'Not a dict'}")
-            logger.info(f"🔍 DEBUG - Content value: {initial_response.get('content', 'NO CONTENT FIELD')}")
-            logger.info(f"🔍 DEBUG - Content type: {type(initial_response.get('content', None))}")
+            # Debug logging to track message processing
+            logger.info(f"DEBUG - Initial response structure: {initial_response}")
+            logger.info(f"DEBUG - Response type: {type(initial_response)}")
+            logger.info(f"DEBUG - Response keys: {list(initial_response.keys()) if isinstance(initial_response, dict) else 'Not a dict'}")
+            logger.info(f"DEBUG - Content value: {initial_response.get('content', 'NO CONTENT FIELD')}")
+            logger.info(f"DEBUG - Content type: {type(initial_response.get('content', None))}")
 
             return initial_response
 
@@ -271,16 +272,38 @@ def create_agent_api(app):
         user_email = current_user["email"] if current_user else "anonymous"
         logger.info(f"Checking final summary status for session {session_manager.session_id} for user: {user_email}")
         try:
-            # Log current session state for debugging
-            logger.info(f"🔍 DEBUG Final Summary Status Check:")
-            logger.info(f"  - Session ID: {session_manager.session_id}")
-            logger.info(f"  - Session Status: {session_manager.session_status}")
-            logger.info(f"  - Final Summary Generating: {session_manager.final_summary_generating}")
-            logger.info(f"  - Has Final Summary: {bool(session_manager.final_summary)}")
-            logger.info(f"  - Final Summary Type: {type(session_manager.final_summary)}")
-            if session_manager.final_summary:
-                logger.info(f"  - Final Summary Keys: {list(session_manager.final_summary.keys()) if isinstance(session_manager.final_summary, dict) else 'Not a dict'}")
+            logger.info(f"DEBUG Final Summary Status Check:")
+            logger.info(f"  - Session manager exists: {session_manager is not None}")
             
+            if session_manager:
+                logger.info(f"  - Has final_summary attr: {hasattr(session_manager, 'final_summary')}")
+                logger.info(f"  - final_summary value: {session_manager.final_summary}")
+                logger.info(f"  - final_summary_generating: {session_manager.final_summary_generating}")
+                logger.info(f"  - Session status: {session_manager.session_status}")
+                
+                # Check if final summary is ready (completed or error)
+                if session_manager.final_summary:
+                    if isinstance(session_manager.final_summary, dict) and "error" in session_manager.final_summary:
+                        # Error occurred during generation
+                        logger.info(f"DEBUG Returning error status: {session_manager.final_summary.get('error')}")
+                        return JSONResponse(content={
+                            "status": "error",
+                            "error": session_manager.final_summary.get("error"),
+                            "session_id": session_manager.session_id
+                        })
+                    else:
+                        # Final summary completed successfully
+                        logger.info(f"DEBUG Returning completed status with {len(str(session_manager.final_summary))} chars of data")
+                        logger.info(f"DEBUG Final summary data preview: {str(session_manager.final_summary)[:200]}...")
+                        return JSONResponse(content={
+                            "status": "completed",
+                            "final_summary": session_manager.final_summary,
+                            "session_id": session_manager.session_id
+                        })
+                else:
+                    # Still generating or not started
+                    logger.info(f"DEBUG Returning generating status")
+
             # CRITICAL FIX: Always save session state during status check to ensure latest changes are persisted
             save_success = await session_registry.save_session(session_manager.session_id)
             if save_success:
@@ -288,26 +311,9 @@ def create_agent_api(app):
             else:
                 logger.error(f"❌ Failed to save session {session_manager.session_id} during status check")
             
-            # Check if session has completed final summary
-            if session_manager.session_status == "completed" and session_manager.final_summary:
-                if isinstance(session_manager.final_summary, dict) and session_manager.final_summary.get("error"):
-                    logger.info(f"🔍 Returning error status: {session_manager.final_summary.get('error')}")
-                    return FinalSummaryStatusResponse(
-                        status="error",
-                        error=session_manager.final_summary.get("error", "Unknown error in final summary")
-                    )
-                else:
-                    logger.info(f"🔍 Returning completed status with {len(str(session_manager.final_summary))} chars of data")
-                    logger.info(f"🔍 Final summary data preview: {str(session_manager.final_summary)[:200]}...")
-                    return FinalSummaryStatusResponse(
-                        status="completed",
-                        results=session_manager.final_summary
-                    )
-            else:
-                logger.info(f"🔍 Returning generating status")
-                return FinalSummaryStatusResponse(
-                    status="generating"
-                )
+            return FinalSummaryStatusResponse(
+                status="generating"
+            )
 
         except Exception as e:
             logger.exception(f"Error checking final summary status for session {session_manager.session_id}: {e}")

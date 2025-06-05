@@ -104,14 +104,4 @@ class SessionSavingMiddleware(BaseHTTPMiddleware):
                 
         except Exception as e:
             # Don't fail the request due to save errors, just log them
-            logger.error(f"Middleware session save error for {session_id} after {endpoint_path}: {e}")
-            
-    @property
-    def app(self):
-        """Get the FastAPI app instance."""
-        return self._app
-    
-    @app.setter  
-    def app(self, value):
-        """Set the FastAPI app instance."""
-        self._app = value 
+            logger.error(f"Middleware session save error for {session_id} after {endpoint_path}: {e}") 

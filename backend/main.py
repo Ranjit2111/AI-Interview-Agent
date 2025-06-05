@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 # Local imports
-from backend.services import initialize_services, get_session_registry
+from backend.services import initialize_services, get_session_registry, get_rate_limiter
 from backend.api.agent_api import create_agent_api
 from backend.api.speech_api import create_speech_api
 from backend.api.file_processing_api import create_file_processing_api
@@ -98,13 +98,76 @@ async def root():
         "message": "AI Interviewer Agent is running"
     }
 
+@app.get("/health")
+async def health_check():
+    """Detailed health check endpoint."""
+    try:
+        session_registry = get_session_registry()
+        active_sessions = await session_registry.get_active_session_count()
+        memory_stats = await session_registry.get_memory_usage_stats()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.utcnow().isoformat(),
+            "active_sessions": active_sessions,
+            "memory_stats": memory_stats,
+            "services": {
+                "database": "connected",
+                "llm_service": "available",
+                "event_bus": "running"
+            }
+        }
+    except Exception as e:
+        logger.exception(f"Health check failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "unhealthy",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
+@app.get("/metrics")
+async def get_metrics():
+    """Get system metrics for monitoring."""
+    try:
+        session_registry = get_session_registry()
+        rate_limiter = get_rate_limiter()
+        
+        active_sessions = await session_registry.get_active_session_count()
+        memory_stats = await session_registry.get_memory_usage_stats()
+        rate_limit_stats = rate_limiter.get_usage_stats()
+        
+        return {
+            "timestamp": datetime.utcnow().isoformat(),
+            "sessions": {
+                "active": active_sessions,
+                **memory_stats
+            },
+            "rate_limits": rate_limit_stats,
+            "system": {
+                "version": "0.1.0",
+                "status": "running"
+            }
+        }
+    except Exception as e:
+        logger.exception(f"Metrics collection failed: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Metrics collection failed",
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        )
+
 @app.on_event("startup")
 async def startup_event():
     """Application startup event handler."""
     logger.info("Application startup...")
 
     try:
-        initialize_services() 
+        await initialize_services()  # Now async to start cleanup task
         session_registry = get_session_registry()
         app.state.agent_manager = session_registry
         
@@ -122,12 +185,32 @@ async def startup_event():
             logger.info(f"Event Bus type: {type(session_registry.event_bus)}")
             
         logger.info("SessionRegistry attached to app state with all dependencies verified.")
+        logger.info("Session cleanup task is running in the background.")
     except Exception as e:
         logger.error(f"Service initialization failed: {e}")
         logger.exception("Full startup error details:")
         raise
 
     logger.info("Application startup completed.")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Application shutdown event handler."""
+    logger.info("Application shutdown...")
+    
+    try:
+        # Stop cleanup task and save all active sessions
+        session_registry = get_session_registry()
+        await session_registry.stop_cleanup_task()
+        
+        # Final cleanup of all active sessions
+        cleaned_count = await session_registry.cleanup_inactive_sessions(max_idle_minutes=0)
+        logger.info(f"Shutdown: saved {cleaned_count} active sessions")
+        
+    except Exception as e:
+        logger.exception(f"Error during shutdown: {e}")
+    
+    logger.info("Application shutdown completed.")
 
 logger.info("Application setup complete. Waiting for Uvicorn server start...")
 

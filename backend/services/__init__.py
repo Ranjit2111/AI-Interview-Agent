@@ -91,8 +91,8 @@ class ServiceRegistry:
             self.logger.info("Singleton DatabaseManager instance created.")
         return self._database_manager
 
-    def get_session_registry(self) -> "ThreadSafeSessionRegistry":
-        """Get the singleton ThreadSafeSessionRegistry instance."""
+    async def get_session_registry(self) -> "ThreadSafeSessionRegistry":
+        """Get the singleton ThreadSafeSessionRegistry instance with cleanup task started."""
         if self._session_registry is None:
             # Import here to avoid circular dependency
             from backend.services.session_manager import ThreadSafeSessionRegistry
@@ -109,10 +109,14 @@ class ServiceRegistry:
                     llm_service=llm_service,
                     event_bus=event_bus
                 )
+                
+                # Start the cleanup task
+                await self._session_registry.start_cleanup_task()
+                
             except Exception as e:
                 self.logger.exception(f"Failed to create ThreadSafeSessionRegistry: {e}")
                 raise
-            self.logger.info("Singleton ThreadSafeSessionRegistry instance created.")
+            self.logger.info("Singleton ThreadSafeSessionRegistry instance created with cleanup task started.")
         return self._session_registry
 
     def get_rate_limiter(self) -> APIRateLimiter:
@@ -127,7 +131,7 @@ class ServiceRegistry:
             self.logger.info("Singleton APIRateLimiter instance created.")
         return self._rate_limiter
 
-    def initialize_all_services(self) -> None:
+    async def initialize_all_services(self) -> None:
         """Initialize all singleton services. Call this on application startup."""
         self.logger.info("Initializing core services...")
         try:
@@ -135,7 +139,7 @@ class ServiceRegistry:
             self.get_event_bus()
             self.get_search_service()
             self.get_database_manager()
-            self.get_session_registry()
+            await self.get_session_registry()  # Now async to start cleanup task
             self.get_rate_limiter()
             self.logger.info("Core services initialized.")
         except Exception as e:
@@ -175,8 +179,8 @@ def get_rate_limiter() -> APIRateLimiter:
     """Get the singleton APIRateLimiter instance."""
     return _service_registry.get_rate_limiter()
 
-def initialize_services() -> None:
-    """Initialize all application services."""
+async def initialize_services() -> None:
+    """Initialize all application services with session cleanup."""
     global _database_manager, _session_registry
     
     # Import here to avoid circular dependency
@@ -204,7 +208,10 @@ def initialize_services() -> None:
             event_bus=event_bus
         )
         
-        logger.info("Services initialized successfully")
+        # Start the cleanup task
+        await _session_registry.start_cleanup_task()
+        
+        logger.info("Services initialized successfully with session cleanup task started")
         
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
