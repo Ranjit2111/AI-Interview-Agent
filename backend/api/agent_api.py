@@ -236,6 +236,7 @@ def create_agent_api(app):
         """
         End the interview session and retrieve final results.
         Requires X-Session-ID header. Authentication is optional.
+        NOTE: This endpoint NEVER returns final summary - frontend must poll /final-summary-status.
         """
         user_email = current_user["email"] if current_user else "anonymous"
         logger.info(f"Ending session {session_manager.session_id} for user: {user_email}")
@@ -250,8 +251,9 @@ def create_agent_api(app):
             else:
                 logger.debug(f"Successfully saved session {session_manager.session_id} after ending interview")
 
+            # ALWAYS return empty coaching_summary to ensure frontend polling and loading states
             return EndResponse(
-                results=final_session_results.get("coaching_summary") or {},
+                results={},  # Always empty - frontend must poll for final summary
                 per_turn_feedback=final_session_results.get("per_turn_feedback", [])
             )
 
@@ -268,6 +270,7 @@ def create_agent_api(app):
         """
         Check the status of final summary generation.
         Requires X-Session-ID header. Authentication is optional.
+        NOTE: This is a read-only operation - no session saving needed.
         """
         user_email = current_user["email"] if current_user else "anonymous"
         logger.info(f"Checking final summary status for session {session_manager.session_id} for user: {user_email}")
@@ -302,12 +305,8 @@ def create_agent_api(app):
                     # Still generating or not started
                     logger.info(f"DEBUG Returning generating status")
 
-            # CRITICAL FIX: Always save session state during status check to ensure latest changes are persisted
-            save_success = await session_registry.save_session(session_manager.session_id)
-            if save_success:
-                logger.debug(f"✅ Successfully saved session {session_manager.session_id} during status check")
-            else:
-                logger.error(f"❌ Failed to save session {session_manager.session_id} during status check")
+            # REMOVED: Session save - this is a read-only status check operation
+            # No need to save session state during status polling
             
             return FinalSummaryStatusResponse(
                 status="generating"

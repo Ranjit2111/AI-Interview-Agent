@@ -236,16 +236,17 @@ class AgentSessionManager:
         """Get feedback from coach agent for a specific Q&A pair."""
         try:
             filtered_history = self._create_filtered_history_for_coach()
-            feedback_context = {
-                "conversation_history": filtered_history,
-                "current_question": question,
-                "user_answer": answer,
-                "job_role": self.session_config.job_role,
-                "interview_style": self.session_config.style
-            }
             
-            feedback_response = coach_agent.provide_per_turn_feedback(feedback_context)
-            return feedback_response.get("feedback", COACH_FEEDBACK_UNAVAILABLE)
+            # Use the existing evaluate_answer method with the correct parameters
+            feedback_response = coach_agent.evaluate_answer(
+                question=question,
+                answer=answer,
+                justification=None,  # We don't have justification in this context
+                conversation_history=filtered_history
+            )
+            
+            # evaluate_answer returns a string directly, not a dict
+            return feedback_response if feedback_response else COACH_FEEDBACK_UNAVAILABLE
         except Exception as e:
             self.logger.exception(f"Error getting coach feedback: {e}")
             return COACH_FEEDBACK_ERROR
@@ -309,6 +310,7 @@ class AgentSessionManager:
         """
         Ends the interview session and returns consolidated results.
         Starts background generation of final summary while returning per-turn feedback immediately.
+        NOTE: Final summary is NEVER included in this response to ensure frontend polling and loading states.
         """
         self.event_bus.publish(Event(
             event_type=EventType.SESSION_END,
@@ -316,10 +318,10 @@ class AgentSessionManager:
             data={}
         ))
 
-        # Return per-turn feedback immediately
+        # Return per-turn feedback immediately, but NEVER include final summary
         final_results = {
             "status": "Interview Ended",
-            "coaching_summary": None,  # Will be filled by background task
+            "coaching_summary": None,  # Always None - frontend must poll for final summary
             "per_turn_feedback": self.per_turn_coaching_feedback_log
         }
 
@@ -330,48 +332,55 @@ class AgentSessionManager:
             asyncio.create_task(self._generate_final_summary_background())
             self.logger.info(f"Started background final summary generation for session {self.session_id}")
 
-        # If final summary is already available, include it
-        if self.final_summary:
-            final_results["coaching_summary"] = self.final_summary
+        # REMOVED: Never include final summary even if already available
+        # This ensures frontend always sees loading states and polls for completion
 
         return final_results
 
     async def _generate_final_summary_background(self) -> None:
         """Generate final coaching summary in background async task."""
+        start_time = datetime.utcnow()
         try:
-            self.logger.info(f"Background final summary generation started for session {self.session_id}")
+            self.logger.info(f"🚀 Background final summary generation STARTED for session {self.session_id} at {start_time.isoformat()}")
+            
             coaching_summary = self._generate_final_coaching_summary()
+            
+            generation_time = (datetime.utcnow() - start_time).total_seconds()
             
             if coaching_summary:
                 self.final_summary = coaching_summary
                 self.session_status = "completed"
-                self.logger.info(f"Background final summary completed for session {self.session_id}: {len(str(coaching_summary))} chars")
+                
+                self.logger.info(f"✅ Background final summary COMPLETED for session {self.session_id}: {len(str(coaching_summary))} chars in {generation_time:.2f}s")
                 self.logger.info(f"DEBUG Background Task - Final summary result preview:")
                 self.logger.info(f"  - Keys: {list(coaching_summary.keys()) if isinstance(coaching_summary, dict) else 'Not a dict'}")
                 self.logger.info(f"  - Has recommended_resources: {bool(coaching_summary.get('recommended_resources')) if isinstance(coaching_summary, dict) else False}")
                 self.logger.info(f"  - Resources count: {len(coaching_summary.get('recommended_resources', [])) if isinstance(coaching_summary, dict) else 0}")
                 self.logger.info(f"  - Session status set to: {self.session_status}")
-                self.logger.info(f"  - Final summary generating flag: {self.final_summary_generating}")
+                self.logger.info(f"  - Generation time: {generation_time:.2f} seconds")
             else:
                 error_msg = "Final coaching summary generation returned None"
                 self.final_summary = {"error": error_msg}
                 self.session_status = "completed"  # Still mark as completed but with error
-                self.logger.error(f"Background final summary failed for session {self.session_id}: {error_msg}")
+                self.logger.error(f"❌ Background final summary FAILED for session {self.session_id} after {generation_time:.2f}s: {error_msg}")
                 
         except Exception as e:
+            generation_time = (datetime.utcnow() - start_time).total_seconds()
             error_msg = f"Final coaching summary generation failed: {e}"
             self.final_summary = {"error": error_msg}
             self.session_status = "completed"  # Still mark as completed but with error
-            self.logger.exception(f"Background final summary error for session {self.session_id}: {e}")
+            self.logger.exception(f"💥 Background final summary ERROR for session {self.session_id} after {generation_time:.2f}s: {e}")
         
         finally:
+            final_time = (datetime.utcnow() - start_time).total_seconds()
             self.final_summary_generating = False
-            self.logger.info(f"DEBUG Background Task - Final state after generation:")
+            
+            self.logger.info(f"🏁 Background Task FINALIZED for session {self.session_id} after {final_time:.2f}s:")
             self.logger.info(f"  - Session ID: {self.session_id}")
             self.logger.info(f"  - Session status: {self.session_status}")
             self.logger.info(f"  - Final summary generating: {self.final_summary_generating}")
             self.logger.info(f"  - Has final summary: {bool(self.final_summary)}")
-            self.logger.info(f"  - Background task completed")
+            self.logger.info(f"  - Total processing time: {final_time:.2f} seconds")
 
     def _generate_final_coaching_summary(self) -> Optional[Dict[str, Any]]:
         """Generate final coaching summary using agentic coach agent."""
