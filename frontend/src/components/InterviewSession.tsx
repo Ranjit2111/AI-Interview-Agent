@@ -9,7 +9,7 @@ import {
   X, ChevronLeft, ChevronRight, Mic, MicOff, Brain, Activity, 
   MessageCircle, Timer, Sparkles, Zap, Eye, Volume2, VolumeX,
   BarChart3, Target, ArrowRight, Circle, Square,
-  Triangle, Hexagon, Play, Pause, RotateCcw, FastForward
+  Triangle, Hexagon, Play, Pause, RotateCcw, FastForward, Loader2
 } from 'lucide-react';
 
 interface InterviewSessionProps {
@@ -40,6 +40,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   const [sessionStartTime] = useState(Date.now());
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; vx: number; vy: number; size: number; color: string; life: number }>>([]);
+  const [showCoachNotification, setShowCoachNotification] = useState(false);
+  const [lastFeedbackCount, setLastFeedbackCount] = useState(0);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const defaultVoiceSetRef = useRef(false);
@@ -141,6 +143,22 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       defaultVoiceSetRef.current = true;
     }
   }, []);
+
+  // Track coach feedback and show notifications
+  useEffect(() => {
+    const feedbackEntries = Object.values(coachFeedbackStates);
+    const completedFeedback = feedbackEntries.filter(state => state.feedback && !state.isAnalyzing).length;
+    
+    if (completedFeedback > lastFeedbackCount) {
+      setShowCoachNotification(true);
+      setLastFeedbackCount(completedFeedback);
+      
+      // Hide notification after 2 seconds
+      setTimeout(() => {
+        setShowCoachNotification(false);
+      }, 2000);
+    }
+  }, [coachFeedbackStates, lastFeedbackCount]);
 
   // Enhanced microphone toggle
   const handleMicrophoneToggle = async () => {
@@ -332,59 +350,70 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             >
               <MessageCircle className="w-5 h-5 text-gray-300 group-hover:text-purple-300 group-hover:scale-110 transition-all" />
             </Button>
+
+            {/* Coach Feedback Button */}
+            <div className="relative">
+              <Button
+                variant="outline"
+                className={`w-14 h-14 rounded-xl transition-all duration-300 group relative ${
+                  Object.values(coachFeedbackStates).some(state => state.isAnalyzing)
+                    ? 'bg-yellow-900/30 border-yellow-500/40 hover:bg-yellow-900/50'
+                    : 'bg-black/40 border-white/20 hover:border-yellow-500/40 hover:bg-yellow-500/10'
+                }`}
+              >
+                <div className="relative">
+                  <Brain className={`w-5 h-5 transition-all ${
+                    Object.values(coachFeedbackStates).some(state => state.isAnalyzing)
+                      ? 'text-yellow-300'
+                      : 'text-gray-300 group-hover:text-yellow-300 group-hover:scale-110'
+                  }`} />
+                  
+                  {/* Loading spinner overlay when analyzing */}
+                  {Object.values(coachFeedbackStates).some(state => state.isAnalyzing) && (
+                    <Loader2 className="absolute inset-0 w-5 h-5 text-yellow-400 animate-spin" />
+                  )}
+                </div>
+              </Button>
+
+              {/* Notification popup */}
+              {showCoachNotification && (
+                <div 
+                  className="absolute -top-12 left-1/2 transform -translate-x-1/2 z-50 animate-in fade-in-0 zoom-in-95 duration-500"
+                  style={{
+                    animation: 'fadeInOut 2s ease-in-out forwards'
+                  }}
+                >
+                  <div className="bg-gradient-to-r from-yellow-900/90 to-orange-900/90 backdrop-blur-md border border-yellow-500/50 rounded-lg px-3 py-2 shadow-lg">
+                    <p className="text-yellow-200 text-xs font-medium whitespace-nowrap">
+                      Coach feedback ready!
+                    </p>
+                    {/* Arrow pointer */}
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-yellow-500/50"></div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Center: Voice activity visualization */}
           <div className="flex-1 flex justify-center">
             <div className="flex items-center space-x-2">
               {turnState === 'ai' && (
-                <div className="flex items-center space-x-1">
-                  <Volume2 className="w-5 h-5 text-orange-400" />
-                  <div className="flex space-x-1">
-                    {[...Array(5)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-1 h-8 bg-gradient-to-t from-orange-600 to-orange-400 rounded-full animate-pulse"
-                        style={{ animationDelay: `${i * 0.1}s` }}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-sm text-orange-300 font-medium ml-2">AI Speaking</span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-orange-300 font-medium">AI Speaking</span>
                 </div>
               )}
               
               {isListening && (
-                <div className="flex items-center space-x-1">
-                  <Mic className="w-5 h-5 text-cyan-400" />
-                  <div className="flex space-x-1">
-                    {[...Array(7)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-1 bg-gradient-to-t from-cyan-600 to-cyan-400 rounded-full transition-all duration-150"
-                        style={{ 
-                          height: `${20 + (voiceActivityLevel || 0) * 20 + Math.sin(Date.now() / 200 + i) * 10}px`,
-                          animationDelay: `${i * 0.1}s` 
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-sm text-cyan-300 font-medium ml-2">Listening</span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-blue-300 font-medium">Listening...</span>
                 </div>
               )}
               
               {isProcessing && (
                 <div className="flex items-center space-x-2">
                   <Brain className="w-5 h-5 text-purple-400 animate-pulse" />
-                  <div className="flex space-x-1">
-                    {[...Array(3)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
-                        style={{ animationDelay: `${i * 0.2}s` }}
-                      />
-                    ))}
-                  </div>
-                  <span className="text-sm text-purple-300 font-medium">Processing</span>
+                  <span className="text-sm text-purple-300 font-medium">Processing...</span>
                 </div>
               )}
 
@@ -501,6 +530,18 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         isOpen={showInstructions}
         onClose={handleInstructionsClose}
       />
+
+      {/* Custom styles for coach notification animation */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(10px) translateX(-50%) scale(0.9); }
+            20% { opacity: 1; transform: translateY(0) translateX(-50%) scale(1); }
+            80% { opacity: 1; transform: translateY(0) translateX(-50%) scale(1); }
+            100% { opacity: 0; transform: translateY(-5px) translateX(-50%) scale(0.95); }
+          }
+        `
+      }} />
     </div>
   );
 };

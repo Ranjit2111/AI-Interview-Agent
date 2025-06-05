@@ -175,9 +175,6 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-lg font-semibold text-white">Interview Transcript</h2>
-              <p className="text-sm text-gray-400 mt-1">
-                {messages.filter(m => m.role === 'user').length} exchanges • {messages.length} total messages
-              </p>
             </div>
             
             <div className="flex items-center space-x-2">
@@ -364,7 +361,7 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type your message... (Enter to send)"
+              placeholder="Type your message..."
               rows={1}
               className="flex-1 p-2 bg-gray-800/60 border border-gray-600/70 rounded-lg text-sm text-white placeholder-gray-400 resize-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
             />
