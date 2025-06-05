@@ -151,9 +151,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   const handleMicrophoneToggle = async () => {
     if (isListening) {
       toggleMicrophone();
-    } else {
+      } else {
       toggleMicrophone();
-    }
+      }
   };
 
   // Calculate session duration
@@ -412,22 +412,22 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
 
           {/* Right: Secondary controls */}
           <div className="flex items-center space-x-4">
-            <Button
+          <Button
               onClick={() => setShowAdvancedControls(!showAdvancedControls)}
-              variant="outline"
+            variant="outline"
               className="w-14 h-14 rounded-xl bg-black/40 border-white/20 hover:border-gray-400 hover:bg-gray-500/10 transition-all duration-300 group"
             >
               <Settings className="w-5 h-5 text-gray-300 group-hover:text-gray-100 group-hover:rotate-90 transition-all duration-300" />
             </Button>
 
             <Button
-              onClick={onEndInterview}
+            onClick={onEndInterview}
               variant="outline"
               className="px-6 h-14 rounded-xl bg-black/40 border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-300 hover:text-red-100 transition-all duration-300 group"
             >
               <X className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-              End Interview
-            </Button>
+            End Interview
+          </Button>
           </div>
         </div>
 
@@ -459,7 +459,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
           </div>
         )}
       </div>
-    </div>
+        </div>
   );
 
   // Handle modal close and trigger TTS
@@ -518,18 +518,18 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
 
       {/* Main Voice-First Interface - Enhanced */}
       <div className="relative z-20 h-full">
-        <VoiceFirstInterviewPanel
-          isListening={isListening}
-          isProcessing={isProcessing || isLoading}
-          isDisabled={isDisabled || audioPlaying}
-          voiceActivity={voiceActivityLevel}
-          turnState={audioPlaying ? 'ai' : turnState}
-          messages={messages}
-          onToggleMicrophone={handleMicrophoneToggle}
-          onToggleTranscript={toggleTranscript}
-          showMessages={true}
-          accumulatedTranscript={accumulatedTranscript}
-        />
+      <VoiceFirstInterviewPanel
+        isListening={isListening}
+        isProcessing={isProcessing || isLoading}
+        isDisabled={isDisabled || audioPlaying}
+        voiceActivity={voiceActivityLevel}
+        turnState={audioPlaying ? 'ai' : turnState}
+        messages={messages}
+        onToggleMicrophone={handleMicrophoneToggle}
+        onToggleTranscript={toggleTranscript}
+        showMessages={true}
+        accumulatedTranscript={accumulatedTranscript}
+      />
       </div>
 
       {/* Advanced control panel */}
