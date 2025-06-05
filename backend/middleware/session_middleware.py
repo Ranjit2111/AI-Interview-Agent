@@ -25,7 +25,6 @@ class SessionSavingMiddleware(BaseHTTPMiddleware):
     SESSION_MODIFYING_PATHS = {
         "/interview/start",
         "/interview/message", 
-        "/interview/end",
         "/interview/reset"
     }
     
