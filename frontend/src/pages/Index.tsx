@@ -645,7 +645,7 @@ const Index = () => {
             </div>
 
             {/* Difficulty Level with Visual Bars */}
-            <div className="bg-gradient-to-br from-black/80 via-gray-900/20 to-black/80 backdrop-blur-3xl border border-gray-500/20 rounded-3xl p-8 shadow-2xl transition-all duration-500">
+            <div className="bg-gradient-to-br from-black/80 via-gray-900/20 to-black/80 backdrop-blur-3xl border border-gray-500/20 rounded-3xl p-8 shadow-2xl hover:shadow-orange-500/10 transition-all duration-500">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 rounded-xl bg-gradient-to-br from-gray-500 to-gray-600 shadow-lg">
                   <BarChart3 className="w-6 h-6 text-white" />
@@ -661,10 +661,10 @@ const Index = () => {
                   <button
                     key={level.value}
                     onClick={() => setDifficulty(level.value as any)}
-                    className={`w-full p-6 rounded-xl border text-left transition-all duration-500 flex items-center justify-between ${
+                    className={`w-full p-6 rounded-xl border text-left transition-all duration-500 flex items-center justify-between hover:shadow-lg ${
                       difficulty === level.value
-                        ? `border-${level.color}-500 bg-${level.color}-500/20 text-white scale-105 shadow-lg`
-                        : 'border-white/10 bg-black/40 text-gray-400 hover:text-white hover:border-white/20'
+                        ? `border-${level.color}-500 bg-${level.color}-500/20 text-white scale-105 shadow-lg shadow-${level.color}-500/20`
+                        : `border-white/10 bg-black/40 text-gray-400 hover:text-white hover:border-white/20 hover:shadow-${level.color}-500/10`
                     }`}
                   >
                     <div>
