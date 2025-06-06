@@ -400,7 +400,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             <div className="flex items-center space-x-2">
               {turnState === 'ai' && (
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm text-orange-300 font-medium">AI Speaking</span>
+                  <span className="text-sm text-orange-300 font-medium">AI Speaking...</span>
                 </div>
               )}
               

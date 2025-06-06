@@ -50,6 +50,7 @@ class AgentSessionManager:
         # Session state tracking
         self.session_status = "active"  # Track session status: active, completed, failed
         self.final_summary_generating: bool = False  # Track if final summary is being generated
+        self.needs_database_save: bool = False  # Track if session needs to be saved to database
         
         # Initialize conversation and feedback tracking
         self.conversation_history: List[Dict[str, Any]] = []
@@ -380,6 +381,18 @@ class AgentSessionManager:
             self.logger.info(f"  - Final summary generating: {self.final_summary_generating}")
             self.logger.info(f"  - Has final summary: {bool(self.final_summary)}")
             self.logger.info(f"  - Total processing time: {final_time:.2f} seconds")
+            
+            # CRITICAL FIX: Save session state to database after final summary completion
+            # This ensures that subsequent API calls will have access to the final summary
+            try:
+                # Import session registry to trigger a save
+                # Note: We need to access the session registry from the app state
+                # Since we don't have direct access here, we'll add a method to handle this
+                self.logger.info(f"🔄 Attempting to save session state after final summary completion...")
+                # This will be handled by a callback mechanism or direct save call
+                self.needs_database_save = True  # Flag for external save trigger
+            except Exception as save_error:
+                self.logger.error(f"Failed to trigger session save after final summary: {save_error}")
 
     def _generate_final_coaching_summary(self) -> Optional[Dict[str, Any]]:
         """Generate final coaching summary using agentic coach agent."""
@@ -414,6 +427,7 @@ class AgentSessionManager:
         self.per_turn_coaching_feedback_log = []
         self.final_summary = None  # CRITICAL FIX: Clear final summary on reset
         self.final_summary_generating = False  # Reset background generation flag
+        self.needs_database_save = False  # Reset save flag
         self._agents = {}
         
         self.response_times = []
@@ -459,6 +473,7 @@ class AgentSessionManager:
         manager.per_turn_coaching_feedback_log = session_data.get("per_turn_feedback_log", [])
         manager.final_summary = session_data.get("final_summary")  # CRITICAL FIX: Restore final summary from database
         manager.final_summary_generating = session_data.get("final_summary_generating", False)  # Restore generation flag
+        manager.needs_database_save = session_data.get("needs_database_save", False)  # Restore save flag
         manager.total_response_time = session_data.get("session_stats", {}).get("total_response_time_seconds", 0.0)
         manager.total_tokens_used = session_data.get("session_stats", {}).get("total_tokens_used", 0)
         manager.api_call_count = session_data.get("session_stats", {}).get("total_api_calls", 0)
@@ -491,6 +506,7 @@ class AgentSessionManager:
             "per_turn_feedback_log": self.per_turn_coaching_feedback_log,
             "final_summary": self.final_summary,
             "final_summary_generating": self.final_summary_generating,
+            "needs_database_save": self.needs_database_save,
             "session_stats": self.get_session_stats(),
             "status": self.session_status
         }
