@@ -1,7 +1,10 @@
 // API service for all backend interactions
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').trim();
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+if (!API_BASE_URL) throw new Error("VITE_API_BASE_URL not defined");
 // WebSocket URL for streaming APIs
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
+const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL;
+if (!WS_BASE_URL) throw new Error("VITE_WS_BASE_URL not defined");
+
 
 // Authentication interfaces
 export interface LoginRequest {
