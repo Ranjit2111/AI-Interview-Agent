@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 async def test_websocket_connection():
     """Test the WebSocket connection to ensure it works without asyncio errors"""
     
-    uri = "ws://localhost:8000/api/speech-to-text/stream"
+    uri = "wss://localhost:8000/api/speech-to-text/stream"
     
     try:
         logger.info(f"Connecting to {uri}")
