@@ -1,0 +1,50 @@
+# Azure App Service Environment Variables Configuration Template
+# Copy these to your Azure App Service Configuration -> Application Settings
+
+# ==============================================
+# REQUIRED ENVIRONMENT VARIABLES FOR AZURE
+# ==============================================
+
+# Python Configuration
+PYTHONPATH=/app
+PORT=8000
+WEBSITES_PORT=8000
+
+# Database Configuration (Supabase)
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_ANON_KEY=your_supabase_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+
+# API Keys
+DEEPGRAM_API_KEY=your_deepgram_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Optional: Google API Key (if used)
+GOOGLE_API_KEY=your_google_api_key_here
+
+# Logging Level
+LOG_LEVEL=INFO
+
+# ==============================================
+# AZURE SPECIFIC SETTINGS
+# ==============================================
+
+# Enable WebSocket support in Azure Portal:
+# Go to Configuration -> General Settings -> Web sockets: On
+
+# Make sure your App Service Plan supports WebSockets:
+# Basic B1 or higher recommended
+
+# ==============================================
+# CORS Configuration
+# ==============================================
+# The FastAPI app allows all origins by default
+# You may want to restrict this in production by updating main.py
+
+# ==============================================
+# DEPLOYMENT NOTES
+# ==============================================
+# 1. Set these in Azure Portal -> App Service -> Configuration -> Application Settings
+# 2. Restart the App Service after adding environment variables
+# 3. Test health endpoint: https://your-app-name.azurewebsites.net/health
+# 4. Test WebSocket endpoint: wss://your-app-name.azurewebsites.net/api/speech-to-text/stream 
