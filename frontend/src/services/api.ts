@@ -1,7 +1,12 @@
 // API service for all backend interactions
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').trim();
 // WebSocket URL for streaming APIs
 const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'ws://localhost:8000';
+
+// Debug logging
+console.log('🔧 Environment Debug Info:');
+console.log('  VITE_API_BASE_URL raw:', JSON.stringify(import.meta.env.VITE_API_BASE_URL));
+console.log('  API_BASE_URL final:', JSON.stringify(API_BASE_URL));
 
 // Authentication interfaces
 export interface LoginRequest {
