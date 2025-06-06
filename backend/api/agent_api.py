@@ -283,34 +283,34 @@ def create_agent_api(app):
                 logger.info(f"  - final_summary value: {session_manager.final_summary}")
                 logger.info(f"  - final_summary_generating: {session_manager.final_summary_generating}")
                 logger.info(f"  - Session status: {session_manager.session_status}")
-                
+            
                 # Check if final summary is ready (completed or error)
                 if session_manager.final_summary:
                     if isinstance(session_manager.final_summary, dict) and "error" in session_manager.final_summary:
                         # Error occurred during generation
                         logger.info(f"DEBUG Returning error status: {session_manager.final_summary.get('error')}")
-                        return FinalSummaryStatusResponse(
-                            status="error",
+                    return FinalSummaryStatusResponse(
+                        status="error",
                             error=session_manager.final_summary.get("error")
-                        )
-                    else:
+                    )
+                else:
                         # Final summary completed successfully
                         logger.info(f"DEBUG Returning completed status with {len(str(session_manager.final_summary))} chars of data")
                         logger.info(f"DEBUG Final summary data preview: {str(session_manager.final_summary)[:200]}...")
-                        return FinalSummaryStatusResponse(
-                            status="completed",
-                            results=session_manager.final_summary
-                        )
-                else:
+                    return FinalSummaryStatusResponse(
+                        status="completed",
+                        results=session_manager.final_summary
+                    )
+            else:
                     # Still generating or not started
                     logger.info(f"DEBUG Returning generating status")
 
             # REMOVED: Session save - this is a read-only status check operation
             # No need to save session state during status polling
             
-            return FinalSummaryStatusResponse(
-                status="generating"
-            )
+                return FinalSummaryStatusResponse(
+                    status="generating"
+                )
 
         except Exception as e:
             logger.exception(f"Error checking final summary status for session {session_manager.session_id}: {e}")

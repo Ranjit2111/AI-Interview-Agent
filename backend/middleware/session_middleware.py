@@ -103,4 +103,4 @@ class SessionSavingMiddleware(BaseHTTPMiddleware):
                 
         except Exception as e:
             # Don't fail the request due to save errors, just log them
-            logger.error(f"Middleware session save error for {session_id} after {endpoint_path}: {e}") 
+            logger.error(f"Middleware session save error for {session_id} after {endpoint_path}: {e}")
