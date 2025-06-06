@@ -19,6 +19,11 @@ SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
 DEEPGRAM_API_KEY=your_deepgram_api_key_here
 OPENAI_API_KEY=your_openai_api_key_here
 
+# AWS Configuration (for TTS service)
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_aws_access_key_here
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
+
 # Optional: Google API Key (if used)
 GOOGLE_API_KEY=your_google_api_key_here
 

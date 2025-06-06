@@ -103,37 +103,89 @@ class AgenticCoachAgent(BaseAgent):
     def generate_final_summary_with_resources(self, conversation_history: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Generates a final coaching summary with intelligent resource discovery.
+        Enhanced with detailed error logging for debugging.
         
         Returns:
             A dictionary containing the final summary with recommended resources.
         """
         try:
-            chain = LLMChain(
-                llm=self.llm,
-                prompt=PromptTemplate.from_template(FINAL_SUMMARY_TEMPLATE),
-                output_key="summary_json"
-            )
+            self.logger.info("🚀 Starting final summary generation with resources")
             
-            inputs = {
-                "resume_content": safe_get_or_default(self.resume_content, DEFAULT_VALUE_NOT_PROVIDED),
-                "job_description": safe_get_or_default(self.job_description, DEFAULT_VALUE_NOT_PROVIDED),
-                "conversation_history": format_conversation_history(conversation_history)
-            }
+            # Step 1: Validate input
+            if not conversation_history:
+                self.logger.error("❌ No conversation history provided for final summary")
+                return self._create_default_summary()
             
-            response = invoke_chain_with_error_handling(
-                chain, inputs, self.logger, "FinalSummaryChain", output_key="summary_json"
-            )
+            self.logger.info(f"📝 Processing conversation with {len(conversation_history)} messages")
             
-            if isinstance(response, dict):
-                summary = response
-            elif isinstance(response, str):
-                summary = parse_json_with_fallback(response, self._create_default_summary(), self.logger)
-            else:
+            # Step 2: Prepare LLM chain
+            try:
+                chain = LLMChain(
+                    llm=self.llm,
+                    prompt=PromptTemplate.from_template(FINAL_SUMMARY_TEMPLATE),
+                    output_key="summary_json"
+                )
+                self.logger.info("✅ LLM chain created successfully")
+            except Exception as e:
+                self.logger.exception(f"❌ Failed to create LLM chain: {e}")
+                return self._create_default_summary()
+            
+            # Step 3: Prepare inputs
+            try:
+                inputs = {
+                    "resume_content": safe_get_or_default(self.resume_content, DEFAULT_VALUE_NOT_PROVIDED),
+                    "job_description": safe_get_or_default(self.job_description, DEFAULT_VALUE_NOT_PROVIDED),
+                    "conversation_history": format_conversation_history(conversation_history)
+                }
+                
+                self.logger.info(f"📊 Input prepared - Resume: {len(inputs['resume_content'])} chars, "
+                               f"Job desc: {len(inputs['job_description'])} chars, "
+                               f"History: {len(inputs['conversation_history'])} chars")
+                
+            except Exception as e:
+                self.logger.exception(f"❌ Failed to prepare LLM inputs: {e}")
+                return self._create_default_summary()
+            
+            # Step 4: Invoke LLM chain
+            try:
+                self.logger.info("🤖 Invoking LLM chain for final summary...")
+                response = invoke_chain_with_error_handling(
+                    chain, inputs, self.logger, "FinalSummaryChain", output_key="summary_json"
+                )
+                
+                if response is None:
+                    self.logger.error("❌ LLM chain returned None response")
+                    return self._create_default_summary()
+                
+                self.logger.info(f"✅ LLM chain response received: {type(response)}")
+                
+            except Exception as e:
+                self.logger.exception(f"❌ LLM chain invocation failed: {e}")
+                return self._create_default_summary()
+            
+            # Step 5: Process LLM response
+            try:
+                if isinstance(response, dict):
+                    summary = response
+                    self.logger.info("✅ Response is already a dictionary")
+                elif isinstance(response, str):
+                    self.logger.info("📄 Response is string, parsing JSON...")
+                    summary = parse_json_with_fallback(response, self._create_default_summary(), self.logger)
+                    if summary == self._create_default_summary():
+                        self.logger.error("❌ JSON parsing failed, using default summary")
+                else:
+                    self.logger.warning(f"⚠️ Unexpected response type: {type(response)}, using default")
+                    summary = self._create_default_summary()
+                    
+            except Exception as e:
+                self.logger.exception(f"❌ Failed to process LLM response: {e}")
                 summary = self._create_default_summary()
             
-            # Generate resources using search tool if search topics are available
+            # Step 6: Generate resources using search tool
             if "resource_search_topics" in summary and summary["resource_search_topics"]:
                 try:
+                    self.logger.info(f"🔍 Generating resources for {len(summary['resource_search_topics'])} topics: {summary['resource_search_topics']}")
+                    
                     generated_resources = self._generate_resources_with_reasoning(
                         summary["resource_search_topics"], 
                         summary
@@ -141,23 +193,42 @@ class AgenticCoachAgent(BaseAgent):
                     
                     if generated_resources:
                         summary["recommended_resources"] = generated_resources
+                        self.logger.info(f"✅ Generated {len(generated_resources)} resources successfully")
+                    else:
+                        self.logger.warning("⚠️ Resource generation returned empty results")
                     
                 except Exception as e:
-                    self.logger.error(f"Error generating resources: {e}")
+                    self.logger.exception(f"❌ Error generating resources (will use fallback): {e}")
+            else:
+                self.logger.info("ℹ️ No resource search topics found in summary")
             
-            # Ensure we have some resources
+            # Step 7: Ensure fallback resources
             if "recommended_resources" not in summary or not summary["recommended_resources"]:
+                self.logger.info("📚 Adding fallback resources")
                 summary["recommended_resources"] = self._get_hardcoded_fallback_resources()
             
-            return summary
+            # Step 8: Final validation
+            try:
+                resource_count = len(summary.get("recommended_resources", []))
+                summary_keys = list(summary.keys()) if isinstance(summary, dict) else []
+                
+                self.logger.info(f"✅ Final summary completed: {len(summary_keys)} sections, {resource_count} resources")
+                self.logger.info(f"📋 Summary sections: {summary_keys}")
+                
+                return summary
+                
+            except Exception as e:
+                self.logger.exception(f"❌ Final validation failed: {e}")
+                return self._create_default_summary()
             
         except Exception as e:
-            self.logger.error(f"Error in final summary: {e}")
+            self.logger.exception(f"❌ Unexpected error in final summary generation: {e}")
             return self._create_default_summary()
     
     def _generate_resources_with_reasoning(self, search_topics: List[str], summary: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Generate resources with reasoning for each recommendation.
+        Enhanced with detailed error logging.
         
         Args:
             search_topics: List of topics to search for
@@ -168,48 +239,90 @@ class AgenticCoachAgent(BaseAgent):
         """
         generated_resources = []
         
-        # Extract key improvement areas for reasoning context
-        weaknesses = summary.get("weaknesses", "")
-        improvement_areas = summary.get("improvement_focus_areas", "")
+        if not search_topics:
+            self.logger.warning("⚠️ No search topics provided for resource generation")
+            return generated_resources
         
-        # Determine number of resources dynamically based on topics (3-6 resources)
-        max_resources_per_topic = max(1, min(2, 6 // len(search_topics)))
-        max_total_resources = min(6, len(search_topics) * 2)
-        
-        for i, topic in enumerate(search_topics[:3]):  # Limit to 3 topics max
-            try:
-                # Determine proficiency level based on performance
-                proficiency_level = self._determine_proficiency_level(weaknesses, topic)
-                
-                # Search for resources
-                search_results = self.search_tool._run(
-                    skill=topic, 
-                    proficiency_level=proficiency_level, 
-                    num_results=max_resources_per_topic
-                )
-                
-                # Extract resources and add reasoning
-                topic_resources = self._extract_resources_from_search_text(search_results)
-                
-                for resource in topic_resources:
+        try:
+            # Extract key improvement areas for reasoning context
+            weaknesses = summary.get("weaknesses", "")
+            improvement_areas = summary.get("improvement_focus_areas", "")
+            
+            self.logger.info(f"🎯 Extracting context - Weaknesses: {len(weaknesses)} chars, Improvements: {len(improvement_areas)} chars")
+            
+            # Determine number of resources dynamically based on topics (3-6 resources)
+            max_resources_per_topic = max(1, min(2, 6 // len(search_topics)))
+            max_total_resources = min(6, len(search_topics) * 2)
+            
+            self.logger.info(f"📊 Resource limits: {max_resources_per_topic} per topic, {max_total_resources} total")
+            
+            for i, topic in enumerate(search_topics[:3]):  # Limit to 3 topics max
+                try:
+                    self.logger.info(f"🔍 Processing topic {i+1}/{min(3, len(search_topics))}: '{topic}'")
+                    
+                    # Determine proficiency level based on performance
+                    proficiency_level = self._determine_proficiency_level(weaknesses, topic)
+                    self.logger.info(f"📈 Determined proficiency level for '{topic}': {proficiency_level}")
+                    
+                    # Search for resources
+                    try:
+                        self.logger.info(f"🌐 Searching for resources: skill='{topic}', level='{proficiency_level}', count={max_resources_per_topic}")
+                        search_results = self.search_tool._run(
+                            skill=topic, 
+                            proficiency_level=proficiency_level, 
+                            num_results=max_resources_per_topic
+                        )
+                        
+                        if search_results:
+                            self.logger.info(f"✅ Search completed for '{topic}': {len(search_results)} chars of results")
+                        else:
+                            self.logger.warning(f"⚠️ Empty search results for topic '{topic}'")
+                            continue
+                            
+                    except Exception as search_error:
+                        self.logger.exception(f"❌ Search failed for topic '{topic}': {search_error}")
+                        continue
+                    
+                    # Extract resources and add reasoning
+                    try:
+                        topic_resources = self._extract_resources_from_search_text(search_results)
+                        self.logger.info(f"📚 Extracted {len(topic_resources)} resources for topic '{topic}'")
+                        
+                        for j, resource in enumerate(topic_resources):
+                            if len(generated_resources) >= max_total_resources:
+                                self.logger.info(f"🛑 Reached maximum resource limit ({max_total_resources})")
+                                break
+                                
+                            try:
+                                # Add reasoning based on the topic and user's performance
+                                resource["reasoning"] = self._generate_resource_reasoning(
+                                    resource, topic, weaknesses, improvement_areas
+                                )
+                                
+                                generated_resources.append(resource)
+                                self.logger.debug(f"✅ Added resource {j+1} for topic '{topic}': {resource.get('title', 'Unknown')}")
+                                
+                            except Exception as reasoning_error:
+                                self.logger.error(f"❌ Failed to add reasoning for resource {j+1} in topic '{topic}': {reasoning_error}")
+                                continue
+                        
+                    except Exception as extraction_error:
+                        self.logger.exception(f"❌ Resource extraction failed for topic '{topic}': {extraction_error}")
+                        continue
+                    
                     if len(generated_resources) >= max_total_resources:
                         break
                         
-                    # Add reasoning based on the topic and user's performance
-                    resource["reasoning"] = self._generate_resource_reasoning(
-                        resource, topic, weaknesses, improvement_areas
-                    )
-                    
-                    generated_resources.append(resource)
-                
-                if len(generated_resources) >= max_total_resources:
-                    break
-                    
-            except Exception as e:
-                self.logger.error(f"Error searching for topic '{topic}': {e}")
-                continue
-        
-        return generated_resources
+                except Exception as topic_error:
+                    self.logger.exception(f"❌ Error processing topic '{topic}': {topic_error}")
+                    continue
+            
+            self.logger.info(f"🎉 Resource generation completed: {len(generated_resources)} total resources")
+            return generated_resources
+            
+        except Exception as e:
+            self.logger.exception(f"❌ Unexpected error in resource generation: {e}")
+            return []
     
     def _determine_proficiency_level(self, weaknesses: str, topic: str) -> str:
         """
