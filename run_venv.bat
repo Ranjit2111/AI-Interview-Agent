@@ -38,14 +38,18 @@ call npm install
 cd ..
 
 echo.
-echo Starting frontend server...
-start cmd /k "cd frontend && npm run dev"
+echo Starting frontend server with environment variables...
+start cmd /k "cd frontend && set VITE_API_BASE_URL=http://localhost:8000 && set VITE_WS_BASE_URL=ws://localhost:8000 && npm run dev"
 
 echo.
 echo Services are starting in separate windows.
 echo.
 echo - Backend: http://localhost:8000
 echo - Frontend: http://localhost:8080
+echo.
+echo Environment Variables Set:
+echo - VITE_API_BASE_URL=http://localhost:8000
+echo - VITE_WS_BASE_URL=ws://localhost:8000
 echo.
 echo If you encounter errors, check the console windows for details.
 
