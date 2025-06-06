@@ -253,8 +253,9 @@ export interface FinalSummaryStatusResponse {
 }
 
 export interface ResumeUploadServerResponse {
+  filename: string;
+  resume_text: string;
   message: string;
-  // Add other properties as needed based on what the server returns
 }
 
 export interface HistoryResponse {

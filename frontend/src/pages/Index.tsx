@@ -15,7 +15,7 @@ import {
   Save, History, Award, Users, BriefcaseBusiness, Building2, FileText, UploadCloud, 
   Settings, ArrowRight, Play, Star, TrendingUp, Target, CheckCircle, ArrowUpRight, 
   BookOpen, Headphones, Brain, Search, ChevronRight, Clock, Volume2, MessageSquare,
-  Zap as Lightning 
+  Zap as Lightning, Mic, Shield, Database
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthModal from '@/components/AuthModal';
@@ -44,8 +44,12 @@ const Index = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [activeFloatingElement, setActiveFloatingElement] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
-  const [currentCapabilityCard, setCurrentCapabilityCard] = useState(0);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  
+  // Feature Constellation states
+  const [activeFeature, setActiveFeature] = useState<string | null>(null);
+  const [hoveredFeature, setHoveredFeature] = useState<string | null>(null);
+  const [constellationMode, setConstellationMode] = useState<'overview' | 'spotlight'>('overview');
   
   // Configuration state
   const [jobRole, setJobRole] = useState('');
@@ -59,7 +63,8 @@ const Index = () => {
   
   const heroRef = useRef<HTMLDivElement>(null);
   const configSectionRef = useRef<HTMLDivElement>(null);
-  const capabilitiesRef = useRef<HTMLDivElement>(null);
+  const featuresSectionRef = useRef<HTMLDivElement>(null);
+  const constellationRef = useRef<HTMLDivElement>(null);
 
   // Enhanced mouse tracking for 3D effects
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -99,60 +104,95 @@ const Index = () => {
   }, []);
 
   // Scroll handlers
-  const scrollToCapabilities = () => {
-    capabilitiesRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToFeatures = () => {
+    featuresSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const scrollToConfig = () => {
     configSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Capability cards data
-  const capabilityCards = [
+  // Feature Constellation Data - Interactive floating elements
+  const featureConstellation = [
     {
       id: 'interview-agent',
       title: 'AI Interview Agent',
-      subtitle: 'Intelligent Conversation Partner',
-      description: 'Our advanced AI interviewer adapts to your responses in real-time, asking follow-up questions and providing a natural interview experience.',
+      subtitle: 'Your Personal Interviewer',
+      description: 'Experience natural conversations with an AI that adapts to your responses and asks thoughtful follow-up questions.',
       features: [
-        'Voice-enabled conversation with natural speech processing',
-        'Dynamic question generation based on your role and experience',
-        'Real-time adaptation to your answers and speaking style',
-        'Multiple interview styles: Technical, Behavioral, Case Study'
+        'Natural voice conversations',
+        'Adapts to your experience level', 
+        'Multiple interview styles available'
       ],
       icon: Bot,
+      position: { x: 75, y: 30 }, // Percentage positions for responsive layout
+      color: '#06b6d4',
       gradient: 'from-cyan-500 to-blue-600',
-      accentColor: 'cyan'
+      glowColor: 'rgba(6, 182, 212, 0.4)',
     },
     {
-      id: 'coach-agent',
-      title: 'Background Coach Analysis',
-      subtitle: 'Real-time Performance Monitoring',
-      description: 'While you interview, our coach agent silently analyzes your responses, identifying strengths and areas for improvement.',
+      id: 'coach-agent', 
+      title: 'Real-time Coach',
+      subtitle: 'Silent Performance Analysis',
+      description: 'Get instant feedback on your communication patterns, confidence levels, and areas for improvement.',
       features: [
-        'Continuous analysis of communication patterns',
-        'Real-time detection of filler words and hesitations',
-        'Assessment of technical accuracy and depth',
-        'Evaluation of storytelling and structure quality'
+        'Analyzes your speaking patterns',
+        'Detects confidence and clarity',
+        'Provides actionable feedback'
       ],
       icon: Brain,
+      position: { x: 20, y: 25 },
+      color: '#8b5cf6',
       gradient: 'from-purple-500 to-pink-600',
-      accentColor: 'purple'
+      glowColor: 'rgba(139, 92, 246, 0.4)',
     },
     {
-      id: 'recommendations',
-      title: 'Smart Resource Engine',
-      subtitle: 'Personalized Learning Paths',
-      description: 'After your interview, get curated learning resources based on identified skill gaps, powered by intelligent search algorithms.',
+      id: 'learning-engine',
+      title: 'Smart Learning Engine', 
+      subtitle: 'Personalized Growth Path',
+      description: 'Receive curated learning resources and practice recommendations based on your performance.',
       features: [
-        'Automated skill gap analysis from your performance',
-        'Curated learning resources via Serper Dev search',
-        'Personalized improvement recommendations',
-        'Track progress across multiple interview sessions'
+        'Identifies skill gaps automatically',
+        'Curated learning resources',
+        'Track your progress over time'
       ],
       icon: Search,
+      position: { x: 75, y: 75 },
+      color: '#10b981',
       gradient: 'from-emerald-500 to-teal-600',
-      accentColor: 'emerald'
+      glowColor: 'rgba(16, 185, 129, 0.4)',
+    },
+    {
+      id: 'speech-processing',
+      title: 'Speech Processing',
+      subtitle: 'Advanced Voice Technology', 
+      description: 'Powered by cutting-edge AI for crystal-clear voice recognition and natural speech synthesis.',
+      features: [
+        'Industry-leading voice recognition',
+        'Natural-sounding AI responses',
+        'Real-time audio processing'
+      ],
+      icon: Mic,
+      position: { x: 25, y: 70 },
+      color: '#f97316',
+      gradient: 'from-orange-500 to-red-600',
+      glowColor: 'rgba(249, 115, 22, 0.4)',
+    },
+    {
+      id: 'data-security',
+      title: 'Enterprise Security',
+      subtitle: 'Your Data Protected',
+      description: 'Bank-level encryption and secure cloud storage ensure your interview data remains private and protected.',
+      features: [
+        'End-to-end encryption',
+        'Secure cloud storage', 
+        'GDPR compliant data handling'
+      ],
+      icon: Shield,
+      position: { x: 50, y: 85 },
+      color: '#22c55e',
+      gradient: 'from-green-500 to-emerald-600',
+      glowColor: 'rgba(34, 197, 94, 0.4)',
     }
   ];
 
@@ -357,7 +397,7 @@ const Index = () => {
             </Button>
             
             <Button
-              onClick={scrollToCapabilities}
+              onClick={scrollToFeatures}
               variant="outline"
               className="border-2 border-white/20 bg-black/20 hover:bg-white/10 text-white px-8 py-4 rounded-2xl text-lg font-semibold backdrop-blur-sm hover:border-cyan-500/50 transition-all duration-300"
             >
@@ -396,82 +436,9 @@ const Index = () => {
     </div>
   );
 
-  // Horizontal Scrolling Capability Cards
-  const renderCapabilityCards = () => (
-    <div ref={capabilitiesRef} className="py-24 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-black via-gray-900/50 to-black"></div>
-      
-      <div className="container mx-auto px-4 relative z-10">
-        <div className="text-center mb-16">
-          <h2 className="text-5xl font-bold mb-6">
-            <span className="bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
-              How It Works
-            </span>
-          </h2>
-          <p className="text-xl text-gray-400 max-w-3xl mx-auto">
-            Discover the three powerful AI agents working together to deliver your personalized interview experience
-          </p>
-        </div>
-
-        {/* Horizontal Scrolling Cards Container */}
-        <div className="relative">
-          <div className="flex gap-8 overflow-x-auto pb-8 snap-x snap-mandatory scrollbar-hide">
-            {capabilityCards.map((card, index) => {
-              const IconComponent = card.icon;
-              return (
-                <div
-                  key={card.id}
-                  className="flex-none w-96 snap-center"
-                >
-                  <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-3xl p-8 h-full hover:border-purple-500/40 transition-all duration-500 group hover:scale-105">
-                    <div className="space-y-6">
-                      {/* Icon */}
-                      <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${card.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
-                        <IconComponent className="w-8 h-8 text-white" />
-                      </div>
-
-                      {/* Header */}
-                      <div>
-                        <h3 className="text-2xl font-bold text-white mb-2">{card.title}</h3>
-                        <p className={`text-${card.accentColor}-400 font-medium mb-4`}>{card.subtitle}</p>
-                        <p className="text-gray-300 leading-relaxed">{card.description}</p>
-                      </div>
-
-                      {/* Features */}
-                      <div className="space-y-3">
-                        {card.features.map((feature, idx) => (
-                          <div key={idx} className="flex items-start gap-3">
-                            <div className={`w-2 h-2 rounded-full bg-${card.accentColor}-400 mt-2 flex-shrink-0`}></div>
-                            <span className="text-gray-400 text-sm leading-relaxed">{feature}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          
-          {/* Scroll Indicator */}
-          <div className="flex justify-center mt-8 gap-2">
-            {capabilityCards.map((_, index) => (
-              <div
-                key={index}
-                className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                  index === currentCapabilityCard ? 'bg-purple-500 w-8' : 'bg-gray-600'
-                }`}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
   // Configuration Form Section
   const renderConfigurationForm = () => (
-    <div ref={configSectionRef} className="py-24 relative overflow-hidden">
+    <div ref={configSectionRef} className="py-16 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-black via-purple-900/10 to-black"></div>
       
       <div className="container mx-auto px-4 relative z-10">
@@ -694,6 +661,274 @@ const Index = () => {
     </div>
   );
 
+  // Revolutionary Interactive Feature Constellation
+  const renderFeatureConstellation = () => {
+    const activeFeatureData = featureConstellation.find(f => f.id === activeFeature);
+    
+    return (
+      <div ref={featuresSectionRef} className="relative min-h-screen py-24 overflow-hidden">
+        {/* Advanced Multi-layer Background */}
+        <div className="absolute inset-0">
+          {/* Primary gradient base */}
+          <div className="absolute inset-0 bg-gradient-to-br from-black via-gray-950 to-black"></div>
+          
+          {/* Dynamic mesh gradient overlay */}
+          <div 
+            className="absolute inset-0 opacity-30"
+            style={{
+              background: `
+                radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(6, 182, 212, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at ${100 - mousePosition.x}% ${100 - mousePosition.y}%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+                conic-gradient(from 0deg at 50% 50%, rgba(16, 185, 129, 0.1), rgba(249, 115, 22, 0.1), rgba(34, 197, 94, 0.1), rgba(6, 182, 212, 0.1))
+              `
+            }}
+          />
+          
+          {/* Floating particle orbs */}
+          {[...Array(12)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-2 h-2 rounded-full opacity-20 animate-pulse"
+              style={{
+                background: `radial-gradient(circle, ${featureConstellation[i % featureConstellation.length].color}, transparent)`,
+                left: `${15 + (i * 7) % 80}%`,
+                top: `${10 + (i * 11) % 80}%`,
+                animationDelay: `${i * 0.5}s`,
+                animationDuration: `${3 + (i % 3)}s`
+              }}
+            />
+          ))}
+        </div>
+
+        <div className="container mx-auto px-4 relative z-10">
+          {/* Section Header */}
+          <div className="text-center mb-16">
+            <h2 className="text-6xl lg:text-7xl font-bold mb-6">
+              <span className="bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
+                How It Works
+              </span>
+            </h2>
+            <p className="text-2xl text-gray-400 max-w-4xl mx-auto leading-relaxed">
+              Discover our comprehensive AI system through an interactive experience
+            </p>
+          </div>
+
+          {/* Interactive Constellation Container */}
+          <div 
+            ref={constellationRef}
+            className="relative w-full h-[600px] mx-auto"
+            onMouseMove={handleMouseMove}
+          >
+            {/* Central AI Hub Core */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
+              <div className="relative">
+                {/* Pulsing core orb */}
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-400 shadow-2xl animate-pulse">
+                  <div className="absolute inset-2 rounded-full bg-gradient-to-br from-cyan-300 via-purple-400 to-pink-300 animate-spin-slow"></div>
+                  <div className="absolute inset-4 rounded-full bg-gradient-to-br from-white/20 to-transparent backdrop-blur-sm"></div>
+                </div>
+                
+                {/* Core glow effect */}
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-400/20 via-purple-500/20 to-pink-400/20 blur-xl scale-150 animate-pulse"></div>
+                
+                {/* Central label */}
+                <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+                  <span className="text-sm font-semibold text-white/80 px-3 py-1 rounded-full bg-black/30 backdrop-blur-sm">
+                    AI Core
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Feature Orbs with Advanced Interactions */}
+            {featureConstellation.map((feature, index) => {
+              const IconComponent = feature.icon;
+              const isHovered = hoveredFeature === feature.id;
+              const isActive = activeFeature === feature.id;
+              
+              return (
+                <div
+                  key={feature.id}
+                  className="absolute cursor-pointer group"
+                  style={{
+                    left: `${feature.position.x}%`,
+                    top: `${feature.position.y}%`,
+                    transform: 'translate(-50%, -50%)',
+                    zIndex: isActive ? 30 : isHovered ? 25 : 15,
+                  }}
+                  onMouseEnter={() => setHoveredFeature(feature.id)}
+                  onMouseLeave={() => setHoveredFeature(null)}
+                  onClick={() => {
+                    if (activeFeature === feature.id) {
+                      setActiveFeature(null);
+                      setConstellationMode('overview');
+                    } else {
+                      setActiveFeature(feature.id);
+                      setConstellationMode('spotlight');
+                    }
+                  }}
+                >
+                  {/* Feature orb */}
+                  <div 
+                    className={`relative transition-all duration-500 ease-out ${
+                      isHovered || isActive ? 'scale-125' : 'scale-100'
+                    }`}
+                  >
+                    <div 
+                      className={`w-16 h-16 rounded-full shadow-2xl transition-all duration-500 flex items-center justify-center ${
+                        isActive ? 'scale-110' : ''
+                      }`}
+                      style={{
+                        background: `linear-gradient(135deg, ${feature.color}, ${feature.color}dd)`,
+                        boxShadow: `
+                          0 20px 40px -10px ${feature.color}40,
+                          0 0 30px ${feature.color}30,
+                          inset 0 2px 4px rgba(255, 255, 255, 0.2)
+                        `
+                      }}
+                    >
+                      <IconComponent className="w-8 h-8 text-white" />
+                    </div>
+                    
+                    {/* Floating animation */}
+                    <div 
+                      className="absolute inset-0 rounded-full opacity-40 animate-ping"
+                      style={{ 
+                        background: `radial-gradient(circle, ${feature.glowColor}, transparent)`,
+                        animationDuration: `${2 + index * 0.3}s`
+                      }}
+                    />
+                    
+                    {/* Feature label */}
+                    <div className={`absolute -bottom-10 left-1/2 transform -translate-x-1/2 whitespace-nowrap transition-all duration-300 ${
+                      isHovered || isActive ? 'opacity-100 translate-y-0' : 'opacity-70 translate-y-1'
+                    }`}>
+                      <span className="text-xs font-semibold text-white px-2 py-1 rounded-full bg-black/40 backdrop-blur-sm">
+                        {feature.title}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Connection line to center */}
+                  {(isHovered || isActive) && (
+                    <svg 
+                      className="absolute top-1/2 left-1/2 pointer-events-none"
+                      style={{
+                        width: '800px',
+                        height: '600px',
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                    >
+                      <line
+                        x1="400"
+                        y1="300"
+                        x2={400 + (feature.position.x - 50) * 4}
+                        y2={300 + (feature.position.y - 50) * 4}
+                        stroke={feature.color}
+                        strokeWidth="2"
+                        strokeOpacity="0.6"
+                        strokeDasharray="5,5"
+                        className="animate-pulse"
+                      />
+                    </svg>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Feature Spotlight Panel */}
+            {activeFeatureData && constellationMode === 'spotlight' && (
+              <div className="absolute inset-0 flex items-center justify-center z-40">
+                <div 
+                  className="w-full max-w-4xl mx-4 p-8 rounded-3xl backdrop-blur-3xl border border-white/20 shadow-2xl transform transition-all duration-500 ease-out"
+                  style={{
+                    background: `linear-gradient(135deg, ${activeFeatureData.glowColor}, rgba(0, 0, 0, 0.8))`,
+                    boxShadow: `0 25px 50px -12px ${activeFeatureData.color}40`
+                  }}
+                >
+                  <div className="flex items-start gap-8">
+                    {/* Feature Icon */}
+                    <div 
+                      className="flex-shrink-0 w-24 h-24 rounded-2xl flex items-center justify-center shadow-lg"
+                      style={{ background: `linear-gradient(135deg, ${activeFeatureData.color}, ${activeFeatureData.color}dd)` }}
+                    >
+                      <activeFeatureData.icon className="w-12 h-12 text-white" />
+                    </div>
+                    
+                    {/* Feature Content */}
+                    <div className="flex-1">
+                      <h3 className="text-4xl font-bold text-white mb-2">{activeFeatureData.title}</h3>
+                      <p className="text-xl font-semibold mb-4" style={{ color: activeFeatureData.color }}>
+                        {activeFeatureData.subtitle}
+                      </p>
+                      <p className="text-gray-300 text-lg leading-relaxed mb-6">
+                        {activeFeatureData.description}
+                      </p>
+                      
+                      {/* Features list */}
+                      <div className="space-y-3">
+                        {activeFeatureData.features.map((feature, idx) => (
+                          <div key={idx} className="flex items-center gap-3">
+                            <div 
+                              className="w-2 h-2 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: activeFeatureData.color }}
+                            />
+                            <span className="text-gray-300">{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Close button */}
+                    <button
+                      onClick={() => {
+                        setActiveFeature(null);
+                        setConstellationMode('overview');
+                      }}
+                      className="text-white/60 hover:text-white transition-colors duration-200 p-2"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Interactive Instructions */}
+          <div className="text-center mt-16">
+            <p className="text-gray-400 text-lg mb-4">
+              {constellationMode === 'overview' 
+                ? 'Hover over the floating elements to explore • Click to learn more'
+                : 'Click anywhere outside to return to overview'
+              }
+            </p>
+            <div className="flex justify-center items-center gap-4">
+              {featureConstellation.map((feature, index) => (
+                <div
+                  key={feature.id}
+                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                    activeFeature === feature.id
+                      ? 'scale-125 shadow-lg'
+                      : hoveredFeature === feature.id
+                      ? 'scale-110'
+                      : 'scale-100'
+                  }`}
+                  style={{ 
+                    backgroundColor: activeFeature === feature.id ? feature.color : feature.color + '60',
+                    boxShadow: activeFeature === feature.id ? `0 0 20px ${feature.color}60` : 'none'
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // Render footer
   const renderFooter = () => {
     if (state !== 'configuring') return null;
@@ -763,7 +998,7 @@ const Index = () => {
         {state === 'configuring' && (
           <>
             {renderHeroSection()}
-            {renderCapabilityCards()}
+            {renderFeatureConstellation()}
             {renderConfigurationForm()}
             {renderFooter()}
           </>
@@ -804,12 +1039,48 @@ const Index = () => {
         initialMode={authModalMode}
       />
 
-      {/* Custom styles for enhanced animations */}
+      {/* Enhanced Custom Styles for Advanced Animations */}
       <style dangerouslySetInnerHTML={{
         __html: `
           @keyframes scale-x {
             from { transform: scaleX(0); }
             to { transform: scaleX(1); }
+          }
+          
+          @keyframes spin-slow {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+          
+          @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+          }
+          
+          @keyframes pulse-glow {
+            0%, 100% { opacity: 0.4; transform: scale(1); }
+            50% { opacity: 0.8; transform: scale(1.1); }
+          }
+          
+          @keyframes constellation-orbit {
+            0% { transform: rotate(0deg) translateX(50px) rotate(0deg); }
+            100% { transform: rotate(360deg) translateX(50px) rotate(-360deg); }
+          }
+          
+          .animate-spin-slow {
+            animation: spin-slow 8s linear infinite;
+          }
+          
+          .animate-float {
+            animation: float 3s ease-in-out infinite;
+          }
+          
+          .animate-pulse-glow {
+            animation: pulse-glow 2s ease-in-out infinite;
+          }
+          
+          .animate-constellation-orbit {
+            animation: constellation-orbit 20s linear infinite;
           }
           
           .scrollbar-hide {
@@ -839,6 +1110,41 @@ const Index = () => {
             cursor: pointer;
             border: none;
             box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+          }
+          
+          /* Advanced glassmorphism effects */
+          .glass-panel {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.1);
+          }
+          
+          /* Particle effects */
+          .particle {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: float 6s ease-in-out infinite;
+          }
+          
+          /* Interactive hover effects */
+          .interactive-orb {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          }
+          
+          .interactive-orb:hover {
+            transform: scale(1.1) translateY(-5px);
+            filter: brightness(1.2) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3));
+          }
+          
+          /* Advanced gradient backgrounds */
+          .gradient-mesh {
+            background: 
+              radial-gradient(circle at 20% 50%, rgba(6, 182, 212, 0.3) 0%, transparent 50%),
+              radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.3) 0%, transparent 50%),
+              radial-gradient(circle at 40% 80%, rgba(16, 185, 129, 0.3) 0%, transparent 50%),
+              linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.9));
           }
         `
       }} />
