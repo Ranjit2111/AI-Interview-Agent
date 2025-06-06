@@ -68,8 +68,5 @@ Thumbs.db
 # Audio/Video temp files
 backend/temp/
 
-# Tailwind CSS
-*.css 
-
 browser-tools-screenshots/
 .cursor

@@ -1,0 +1,672 @@
+/* Add custom font imports */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 240 10% 3.9%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Apple Intelligence Variables */
+    --apple-blue: #007AFF;
+    --apple-orange: #FF9500;
+    --apple-purple: #AF52DE;
+    --apple-dark: #1C1C1E;
+    --apple-light-gray: #F2F2F7;
+    --apple-gray: #48484A;
+    --apple-yellow: #FFD60A;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border selection:bg-purple-500/25 selection:text-white;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-black text-foreground font-sans antialiased overflow-x-hidden;
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(34, 211, 238, 0.03), transparent 30%),
+      radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.03), transparent 30%);
+    font-family: 'Inter', sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  code, pre {
+    @apply font-mono;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  
+  /* Enhance the input and textarea styling */
+  input,
+  textarea {
+    @apply focus-visible:ring-interview-secondary bg-gray-900/70 border-gray-700 transition-all duration-200;
+  }
+
+  input:focus,
+  textarea:focus {
+    @apply shadow-[0_0_10px_rgba(168,85,247,0.25)] border-purple-500/50;
+  }
+  
+  button {
+    @apply transition-all duration-300;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+  
+  ::-webkit-scrollbar-track {
+    @apply bg-gray-900/30 rounded-full;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-700 rounded-full hover:bg-purple-500/50 transition-colors;
+  }
+}
+
+@layer components {
+  /* Glass card effect */
+  .glass-card {
+    @apply backdrop-blur-lg bg-black/40 border border-white/10 shadow-lg;
+  }
+
+  .glass-effect {
+    @apply backdrop-blur-md bg-black/30 shadow-lg border border-white/10;
+  }
+  
+  /* Glow effect for buttons and interactive elements */
+  .glow-on-hover {
+    @apply transition-all duration-300;
+  }
+  
+  .glow-on-hover:hover {
+    @apply shadow-lg shadow-interview-secondary/30;
+  }
+  
+  /* Animated gradient text */
+  .animated-gradient-text {
+    @apply bg-gradient-to-r from-interview-primary via-interview-secondary to-interview-accent bg-200% text-transparent bg-clip-text animate-gradient-shift;
+  }
+
+  /* Chat bubble styles */
+  .message-bubble {
+    @apply rounded-lg p-4 max-w-[85%] mb-4 backdrop-blur-sm border border-white/10 shadow-md transition-all duration-300;
+  }
+  
+  .message-bubble.user {
+    @apply bg-interview-user/20 ml-auto border-interview-user/30 hover:shadow-md hover:border-gray-600/40;
+  }
+  
+  .message-bubble.ai {
+    @apply bg-interview-ai/10 border-interview-ai/30 hover:shadow-md hover:border-blue-500/30;
+  }
+
+  /* Animated blob */
+  .animated-blob {
+    @apply absolute bg-gradient-to-br from-cyan-500/20 to-purple-600/20 animate-blob filter blur-3xl opacity-30 z-0;
+  }
+
+  /* Hero gradient overlay */
+  .hero-gradient {
+    @apply absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-black z-0;
+  }
+
+  /* Animated underline */
+  .animated-underline {
+    @apply relative inline-block;
+  }
+
+  .animated-underline::after {
+    content: '';
+    @apply absolute w-full scale-x-0 h-0.5 bg-purple-500 bottom-0 left-0 origin-bottom-right transition-transform duration-300;
+  }
+
+  .animated-underline:hover::after {
+    @apply scale-x-100 origin-bottom-left;
+  }
+
+  /* Underline animation for links in footer */
+  .underline-animation {
+    @apply relative;
+  }
+
+  .underline-animation::after {
+    content: '';
+    @apply absolute w-full scale-x-0 h-0.5 bg-cyan-500/50 bottom-0 left-0 origin-bottom-right transition-transform duration-300;
+  }
+
+  .underline-animation:hover::after {
+    @apply scale-x-100 origin-bottom-left;
+  }
+
+  /* Apple Intelligence Glow Effects */
+  .apple-glow-user {
+    position: relative;
+    box-shadow: 
+      0 0 20px rgba(0, 122, 255, 0.3),
+      0 0 40px rgba(0, 122, 255, 0.2),
+      0 0 80px rgba(0, 122, 255, 0.1);
+  }
+
+  .apple-glow-user::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    background: radial-gradient(circle at center, rgba(0, 122, 255, 0.3) 0%, transparent 70%);
+    border-radius: inherit;
+    z-index: -1;
+    animation: apple-glow-user 2s ease-in-out infinite;
+  }
+
+  .apple-glow-ai {
+    position: relative;
+    box-shadow: 
+      0 0 20px rgba(255, 149, 0, 0.3),
+      0 0 40px rgba(175, 82, 222, 0.2),
+      0 0 80px rgba(255, 149, 0, 0.1);
+  }
+
+  .apple-glow-ai::before {
+    content: '';
+    position: absolute;
+    inset: -3px;
+    background: linear-gradient(45deg, rgba(255, 149, 0, 0.3), rgba(175, 82, 222, 0.3));
+    border-radius: inherit;
+    z-index: -1;
+    animation: apple-glow-ai 2s ease-in-out infinite;
+  }
+
+  .apple-glow-pulse {
+    animation: mic-pulse 2s ease-in-out infinite;
+  }
+
+  .apple-glow-ripple {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .apple-glow-ripple::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0, 122, 255, 0.4) 0%, transparent 70%);
+    transform: translate(-50%, -50%);
+    animation: apple-ripple 1.5s ease-out;
+  }
+
+  .apple-glow-ripple:active::after {
+    animation: apple-ripple 0.6s ease-out;
+  }
+
+  /* Voice Activity Wave */
+  .voice-activity-wave {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    height: 24px;
+  }
+
+  .voice-activity-wave .wave-bar {
+    width: 3px;
+    background: linear-gradient(to top, var(--apple-blue), rgba(0, 122, 255, 0.5));
+    border-radius: 2px;
+    animation: voice-wave 1.2s ease-in-out infinite;
+  }
+
+  .voice-activity-wave .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+  .voice-activity-wave .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+  .voice-activity-wave .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+  .voice-activity-wave .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+
+  /* Breathing Animation */
+  .glow-breathing {
+    animation: breathing 3s ease-in-out infinite;
+  }
+
+  /* Immersive Container Styling */
+  .immersive-interview-panel {
+    @apply w-full min-h-screen bg-gradient-to-b from-black via-gray-950 to-black;
+    @apply border border-white/5 shadow-immersive;
+    @apply backdrop-blur-xl;
+    background-image: 
+      radial-gradient(circle at 20% 20%, rgba(0, 122, 255, 0.02) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(255, 149, 0, 0.02) 0%, transparent 50%),
+      radial-gradient(circle at 50% 50%, rgba(175, 82, 222, 0.01) 0%, transparent 50%);
+  }
+
+  .glass-dark-panel {
+    @apply bg-black/60 backdrop-blur-xl border border-white/10;
+    @apply shadow-glass;
+    background: linear-gradient(135deg, 
+      rgba(0, 0, 0, 0.7) 0%, 
+      rgba(255, 255, 255, 0.02) 50%, 
+      rgba(0, 0, 0, 0.8) 100%);
+  }
+
+  .ambient-lighting {
+    position: relative;
+  }
+
+  .ambient-lighting::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(45deg, 
+      transparent 40%, 
+      rgba(0, 122, 255, 0.03) 50%, 
+      transparent 60%);
+    border-radius: inherit;
+    animation: ambient-glow 4s ease-in-out infinite;
+  }
+
+  /* Minimal Text Overlay */
+  .minimal-text-overlay {
+    @apply absolute top-8 left-1/2 transform -translate-x-1/2;
+    @apply text-center max-w-4xl mx-auto px-8;
+    @apply transition-all duration-500 ease-out;
+    @apply z-10;
+  }
+
+  .minimal-text-overlay.fade-out {
+    @apply opacity-0 translate-y-4;
+  }
+
+  /* Voice-First Layout */
+  .voice-first-layout {
+    @apply flex flex-col items-center justify-center min-h-screen relative;
+    @apply p-8 space-y-8;
+  }
+
+  /* Turn-Based State Indicators */
+  .user-turn-active {
+    @apply apple-glow-user;
+  }
+
+  .ai-turn-active {
+    @apply apple-glow-ai;
+  }
+
+  .turn-transition {
+    @apply transition-all duration-500 ease-in-out;
+    @apply opacity-50 scale-95;
+  }
+
+  .mic-disabled-state {
+    @apply opacity-40 cursor-not-allowed;
+    @apply grayscale;
+    filter: grayscale(1);
+  }
+
+  .mic-disabled-state:hover {
+    @apply grayscale;
+    filter: grayscale(1);
+  }
+
+  /* Floating Message Containers */
+  .floating-message-user {
+    @apply backdrop-blur-md bg-gradient-to-r from-blue-900/20 to-blue-800/30;
+    @apply border border-blue-500/30 shadow-lg shadow-blue-500/10;
+    @apply rounded-2xl p-4 max-w-md;
+    @apply animate-fade-in;
+  }
+
+  .floating-message-ai {
+    @apply backdrop-blur-md bg-gradient-to-r from-orange-900/20 to-purple-900/20;
+    @apply border border-orange-500/30 shadow-lg shadow-orange-500/10;
+    @apply rounded-2xl p-4 max-w-md;
+    @apply animate-fade-in;
+  }
+
+  /* Off-Screen Coach Feedback */
+  .coach-slide-panel {
+    @apply fixed right-0 top-0 h-full w-96 max-w-[90vw];
+    @apply bg-gradient-to-b from-yellow-900/20 to-yellow-800/30;
+    @apply backdrop-blur-xl border-l border-yellow-500/30;
+    @apply shadow-2xl shadow-yellow-500/10;
+    @apply transform translate-x-full transition-transform duration-300 ease-out;
+    @apply z-50;
+  }
+
+  .coach-slide-panel.open {
+    @apply translate-x-0;
+  }
+
+  .coach-indicator {
+    @apply fixed top-1/2 right-4 transform -translate-y-1/2;
+    @apply w-3 h-3 bg-yellow-400 rounded-full;
+    @apply animate-pulse shadow-lg shadow-yellow-400/50;
+    @apply z-40;
+  }
+
+  /* Transcript Drawer */
+  .transcript-drawer {
+    @apply fixed bottom-0 left-0 right-0 h-3/4 max-h-[80vh];
+    @apply bg-gradient-to-t from-black via-gray-950 to-gray-900;
+    @apply backdrop-blur-xl border-t border-white/10;
+    @apply shadow-2xl shadow-black/50;
+    @apply transform translate-y-full transition-transform duration-300 ease-out;
+    @apply z-50;
+  }
+
+  .transcript-drawer.open {
+    @apply translate-y-0;
+  }
+
+  /* Advanced Visual Effects */
+  .particle-effect {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    background: radial-gradient(circle, rgba(0, 122, 255, 0.8) 0%, transparent 70%);
+    border-radius: 50%;
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .particle-effect:nth-child(odd) {
+    animation-delay: -2s;
+    background: radial-gradient(circle, rgba(255, 149, 0, 0.6) 0%, transparent 70%);
+  }
+
+  /* Central Mic Button Styles */
+  .central-mic-button {
+    @apply relative w-24 h-24 rounded-full;
+    @apply bg-gradient-to-br from-gray-800 to-gray-900;
+    @apply border-2 border-white/20;
+    @apply shadow-2xl shadow-black/50;
+    @apply flex items-center justify-center;
+    @apply transition-all duration-300 ease-out;
+    @apply hover:scale-105 active:scale-95;
+    @apply cursor-pointer;
+  }
+
+  .central-mic-button:hover {
+    @apply border-white/30;
+    box-shadow: 
+      0 0 30px rgba(255, 255, 255, 0.1),
+      0 20px 40px rgba(0, 0, 0, 0.6);
+  }
+
+  .central-mic-button.listening {
+    @apply apple-glow-user;
+    @apply animate-mic-pulse;
+  }
+
+  .central-mic-button.processing {
+    @apply animate-breathing;
+    opacity: 0.8;
+  }
+
+  .central-mic-button.disabled {
+    @apply mic-disabled-state;
+  }
+
+  /* Audio Waveform */
+  .audio-waveform {
+    @apply flex items-center justify-center space-x-1;
+    @apply absolute -bottom-8 left-1/2 transform -translate-x-1/2;
+  }
+
+  .audio-waveform .bar {
+    @apply w-1 bg-current rounded-full;
+    @apply animate-voice-wave;
+    height: 4px;
+  }
+
+  .audio-waveform .bar:nth-child(1) { animation-delay: 0.0s; }
+  .audio-waveform .bar:nth-child(2) { animation-delay: 0.1s; }
+  .audio-waveform .bar:nth-child(3) { animation-delay: 0.2s; }
+  .audio-waveform .bar:nth-child(4) { animation-delay: 0.3s; }
+  .audio-waveform .bar:nth-child(5) { animation-delay: 0.4s; }
+}
+
+/* Animation for the recording indicator */
+.recording-indicator {
+  @apply relative inline-flex h-3 w-3;
+}
+
+.recording-indicator::before {
+  content: '';
+  @apply absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75 animate-pulse-ring;
+}
+
+.recording-indicator::after {
+  content: '';
+  @apply relative inline-flex rounded-full h-3 w-3 bg-red-500;
+}
+
+/* Waveform animation for audio processing */
+.waveform {
+  @apply flex items-center justify-center space-x-1 h-4;
+}
+
+.waveform-bar {
+  @apply w-1 bg-interview-secondary;
+  animation: waveform-animation 1.2s ease-in-out infinite;
+}
+
+.waveform-bar:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.waveform-bar:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+.waveform-bar:nth-child(4) {
+  animation-delay: 0.3s;
+}
+
+@keyframes waveform-animation {
+  0%, 100% {
+    height: 4px;
+  }
+  50% {
+    height: 16px;
+  }
+}
+
+/* Button ripple effect */
+.btn-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-ripple::after {
+  content: "";
+  background: rgba(255, 255, 255, 0.2);
+  display: block;
+  position: absolute;
+  border-radius: 50%;
+  width: 100px;
+  height: 100px;
+  margin-top: -50px;
+  margin-left: -50px;
+  top: 50%;
+  left: 50%;
+  opacity: 0;
+  transition: all 0.8s;
+  transform: scale(0);
+}
+
+.btn-ripple:active::after {
+  transform: scale(4);
+  opacity: 0;
+  transition: 0s;
+}
+
+/* Neuomorphic effect */
+.neo-effect {
+  @apply bg-gray-900 shadow-[5px_5px_10px_rgba(0,0,0,0.3),-5px_-5px_10px_rgba(255,255,255,0.05)] rounded-xl;
+}
+
+/* Halo glow effect */
+.halo-glow {
+  position: relative;
+}
+
+.halo-glow::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  background: linear-gradient(45deg, #22d3ee, #a855f7, #22d3ee);
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+
+.halo-glow:hover::before {
+  opacity: 1;
+}
+
+/* Perspective card effect */
+.perspective-card {
+  transform-style: preserve-3d;
+  perspective: 1000px;
+}
+
+.perspective-card:hover > * {
+  transform: translateZ(20px);
+  transition: transform 0.3s ease-out;
+}
+
+/* Animation delay utilities */
+.animation-delay-100 {
+  animation-delay: 0.1s;
+}
+
+.animation-delay-200 {
+  animation-delay: 0.2s;
+}
+
+.animation-delay-300 {
+  animation-delay: 0.3s;
+}
+
+.animation-delay-400 {
+  animation-delay: 0.4s;
+}
+
+.animation-delay-500 {
+  animation-delay: 0.5s;
+}
+
+.animation-delay-1000 {
+  animation-delay: 1s;
+}
+
+.animation-delay-2000 {
+  animation-delay: 2s;
+}
+
+.animation-delay-4000 {
+  animation-delay: 4s;
+}
+
+/* Auth page styles */
+.auth-container {
+  @apply min-h-screen flex items-center justify-center bg-gradient-to-br from-black via-gray-950 to-purple-950/20 px-4;
+}
+
+.auth-form-wrapper {
+  @apply w-full max-w-md space-y-6 glass-card p-8 rounded-xl shadow-2xl;
+}
+
+.auth-form-wrapper h1 {
+  @apply text-3xl font-bold text-center text-white mb-8;
+}
+
+.form-group {
+  @apply space-y-2;
+}
+
+.form-group label {
+  @apply block text-sm font-medium text-gray-300;
+}
+
+.form-group input {
+  @apply w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-900/70 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200;
+}
+
+.form-group input:disabled {
+  @apply opacity-50 cursor-not-allowed;
+}
+
+.form-group small {
+  @apply text-xs text-gray-400;
+}
+
+.auth-form-wrapper button[type="submit"] {
+  @apply w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold py-2 px-4 rounded-md hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200;
+}
+
+.error-message {
+  @apply bg-red-900/50 border border-red-500/50 text-red-200 px-4 py-3 rounded-md text-sm;
+}
+
+.auth-links {
+  @apply text-center text-sm text-gray-400;
+}
+
+.auth-links a {
+  @apply text-purple-400 hover:text-purple-300 transition-colors duration-200;
+}
+
+.loading {
+  @apply flex items-center justify-center min-h-screen text-white;
+}
