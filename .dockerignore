@@ -89,7 +89,6 @@ tests/
 
 # Project specific
 run_venv.bat
-run_venv_no_stagewise.bat
 *.txt
 !backend/requirements.txt
 vercel.json
