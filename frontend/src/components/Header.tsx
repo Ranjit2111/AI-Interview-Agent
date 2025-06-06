@@ -52,26 +52,6 @@ const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
             <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent font-display tracking-tight hover:from-cyan-200 hover:via-purple-300 hover:to-pink-200 transition-all duration-200">AI Interviewer</h1>
           </div>
           
-          {/* Visual elements for top right area */}
-          <div className="flex items-center gap-6">
-            <div className="hidden md:flex items-center gap-4">
-              <div className="glass-effect rounded-xl px-4 py-3 flex items-center gap-2 hover:border-purple-500/30 transition-all duration-300 group">
-                <Bot className="text-cyan-400 h-5 w-5 group-hover:text-cyan-300 transition-colors" />
-                <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">AI Assistant</span>
-              </div>
-              
-              <div className="glass-effect rounded-xl px-4 py-3 flex items-center gap-2 hover:border-cyan-500/30 transition-all duration-300 group">
-                <Zap className="text-purple-400 h-5 w-5 group-hover:text-purple-300 transition-colors" />
-                <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Real-time Feedback</span>
-              </div>
-              
-              <div className="glass-effect rounded-xl px-4 py-3 flex items-center gap-2 hover:border-pink-500/30 transition-all duration-300 group">
-                <BarChart3 className="text-pink-400 h-5 w-5 group-hover:text-pink-300 transition-colors" />
-                <span className="text-sm font-medium text-gray-300 group-hover:text-white transition-colors">Skill Analytics</span>
-              </div>
-            </div>
-          </div>
-          
           <div className="flex items-center gap-4">
             {/* User info and logout */}
             {user ? (
