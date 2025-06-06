@@ -283,30 +283,52 @@ def create_agent_api(app):
                 logger.info(f"  - final_summary value: {session_manager.final_summary}")
                 logger.info(f"  - final_summary_generating: {session_manager.final_summary_generating}")
                 logger.info(f"  - Session status: {session_manager.session_status}")
+                logger.info(f"  - needs_database_save: {getattr(session_manager, 'needs_database_save', False)}")
+                
+                # CRITICAL FIX: Check if session needs to be saved after final summary completion
+                if hasattr(session_manager, 'needs_database_save') and session_manager.needs_database_save:
+                    logger.info(f"🔄 Session flagged for database save, saving now...")
+                    try:
+                        save_success = await session_registry.save_session(session_manager.session_id)
+                        if save_success:
+                            session_manager.needs_database_save = False  # Clear the flag
+                            logger.info(f"✅ Successfully saved session {session_manager.session_id} after final summary completion")
+                        else:
+                            logger.error(f"❌ Failed to save session {session_manager.session_id} after final summary completion")
+                    except Exception as save_error:
+                        logger.exception(f"Error saving session after final summary: {save_error}")
             
                 # Check if final summary is ready (completed or error)
                 if session_manager.final_summary:
+                    # FIXED: Check if it's an error dict specifically
                     if isinstance(session_manager.final_summary, dict) and "error" in session_manager.final_summary:
                         # Error occurred during generation
-                        logger.info(f"DEBUG Returning error status: {session_manager.final_summary.get('error')}")
-                    return FinalSummaryStatusResponse(
-                        status="error",
-                            error=session_manager.final_summary.get("error")
-                    )
-                else:
+                        error_message = session_manager.final_summary.get("error", "Unknown error")
+                        logger.info(f"DEBUG Returning error status: {error_message}")
+                        return FinalSummaryStatusResponse(
+                            status="error",
+                            error=error_message
+                        )
+                    else:
                         # Final summary completed successfully
                         logger.info(f"DEBUG Returning completed status with {len(str(session_manager.final_summary))} chars of data")
                         logger.info(f"DEBUG Final summary data preview: {str(session_manager.final_summary)[:200]}...")
                         return FinalSummaryStatusResponse(
-                        status="completed",
-                        results=session_manager.final_summary
-                    )
-            else:
+                            status="completed",
+                            results=session_manager.final_summary
+                        )
+                else:
                     # Still generating or not started
                     logger.info(f"DEBUG Returning generating status")
                     return FinalSummaryStatusResponse(
                         status="generating"
                     )
+            else:
+                logger.error("DEBUG Session manager is None")
+                return FinalSummaryStatusResponse(
+                    status="error",
+                    error="Session manager not found"
+                )
 
         except Exception as e:
             logger.exception(f"Error checking final summary status for session {session_manager.session_id}: {e}")
