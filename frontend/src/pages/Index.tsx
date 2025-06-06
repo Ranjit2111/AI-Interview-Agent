@@ -646,49 +646,91 @@ const Index = () => {
 
             {/* Difficulty Level with Visual Bars */}
             <div className="bg-gradient-to-br from-black/80 via-gray-900/20 to-black/80 backdrop-blur-3xl border border-gray-500/20 rounded-3xl p-8 shadow-2xl hover:shadow-orange-500/10 transition-all duration-500">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-gray-500 to-gray-600 shadow-lg">
-                  <BarChart3 className="w-6 h-6 text-white" />
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-gray-500 to-gray-600 shadow-lg">
+                    <BarChart3 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">Difficulty Level</h3>
+                    <p className="text-gray-400">Adjust challenge complexity</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-white">Difficulty Level</h3>
-                  <p className="text-gray-400">Adjust challenge complexity</p>
+
+                <div className="space-y-4">
+                  {difficultyLevels.map((level) => {
+                    // Function to get the correct color classes
+                    const getColorClasses = (color) => {
+                      switch(color) {
+                        case 'green':
+                          return {
+                            border: 'border-green-500',
+                            bg: 'bg-green-500/20',
+                            shadow: 'shadow-green-500/20',
+                            hoverShadow: 'hover:shadow-green-500/10',
+                            barBg: 'bg-green-500'
+                          };
+                        case 'orange':
+                          return {
+                            border: 'border-orange-500',
+                            bg: 'bg-orange-500/20',
+                            shadow: 'shadow-orange-500/20',
+                            hoverShadow: 'hover:shadow-orange-500/10',
+                            barBg: 'bg-orange-500'
+                          };
+                        case 'red':
+                          return {
+                            border: 'border-red-500',
+                            bg: 'bg-red-500/20',
+                            shadow: 'shadow-red-500/20',
+                            hoverShadow: 'hover:shadow-red-500/10',
+                            barBg: 'bg-red-500'
+                          };
+                        default:
+                          return {
+                            border: 'border-gray-500',
+                            bg: 'bg-gray-500/20',
+                            shadow: 'shadow-gray-500/20',
+                            hoverShadow: 'hover:shadow-gray-500/10',
+                            barBg: 'bg-gray-500'
+                          };
+                      }
+                    };
+
+                    const colorClasses = getColorClasses(level.color);
+
+                    return (
+                      <button
+                        key={level.value}
+                        onClick={() => setDifficulty(level.value as any)}
+                        className={`w-full p-6 rounded-xl border text-left transition-all duration-500 flex items-center justify-between hover:shadow-lg ${
+                          difficulty === level.value
+                            ? `${colorClasses.border} ${colorClasses.bg} text-white scale-105 shadow-lg ${colorClasses.shadow}`
+                            : `border-white/10 bg-black/40 text-gray-400 hover:text-white hover:border-white/20 ${colorClasses.hoverShadow}`
+                        }`}
+                      >
+                        <div>
+                          <div className="text-lg font-bold">{level.label}</div>
+                          <div className="text-sm opacity-80 mt-1">{level.description}</div>
+                        </div>
+                        
+                        {/* Visual difficulty bars */}
+                        <div className="flex space-x-2">
+                          {[...Array(3)].map((_, i) => (
+                            <div
+                              key={i}
+                              className={`w-3 h-8 rounded-full transition-all duration-300 ${
+                                i < level.bars 
+                                  ? `${colorClasses.barBg} shadow-lg` 
+                                  : 'bg-gray-700'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-              
-              <div className="space-y-4">
-                {difficultyLevels.map((level) => (
-                  <button
-                    key={level.value}
-                    onClick={() => setDifficulty(level.value as any)}
-                    className={`w-full p-6 rounded-xl border text-left transition-all duration-500 flex items-center justify-between hover:shadow-lg ${
-                      difficulty === level.value
-                        ? `border-${level.color}-500 bg-${level.color}-500/20 text-white scale-105 shadow-lg shadow-${level.color}-500/20`
-                        : `border-white/10 bg-black/40 text-gray-400 hover:text-white hover:border-white/20 hover:shadow-${level.color}-500/10`
-                    }`}
-                  >
-                    <div>
-                      <div className="text-lg font-bold">{level.label}</div>
-                      <div className="text-sm opacity-80 mt-1">{level.description}</div>
-                    </div>
-                    
-                    {/* Visual difficulty bars */}
-                    <div className="flex space-x-2">
-                      {[...Array(3)].map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-3 h-8 rounded-full transition-all duration-300 ${
-                            i < level.bars 
-                              ? `bg-${level.color}-500 shadow-lg` 
-                              : 'bg-gray-700'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* Resume Upload - Full Width Premium Panel */}
