@@ -439,7 +439,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
           </div>
         </div>
       </div>
-    </div>
+        </div>
   );
 
   // Handle modal close and trigger TTS

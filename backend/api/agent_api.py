@@ -297,20 +297,16 @@ def create_agent_api(app):
                         # Final summary completed successfully
                         logger.info(f"DEBUG Returning completed status with {len(str(session_manager.final_summary))} chars of data")
                         logger.info(f"DEBUG Final summary data preview: {str(session_manager.final_summary)[:200]}...")
-                    return FinalSummaryStatusResponse(
+                        return FinalSummaryStatusResponse(
                         status="completed",
                         results=session_manager.final_summary
                     )
             else:
                     # Still generating or not started
                     logger.info(f"DEBUG Returning generating status")
-
-            # REMOVED: Session save - this is a read-only status check operation
-            # No need to save session state during status polling
-            
-                return FinalSummaryStatusResponse(
-                    status="generating"
-                )
+                    return FinalSummaryStatusResponse(
+                        status="generating"
+                    )
 
         except Exception as e:
             logger.exception(f"Error checking final summary status for session {session_manager.session_id}: {e}")

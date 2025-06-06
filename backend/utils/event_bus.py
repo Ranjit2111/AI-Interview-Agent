@@ -110,18 +110,18 @@ class EventBus:
         """
         with self._lock:
             # Add to history
-        self.event_history.append(event)
-        
+            self.event_history.append(event)
+            
             # Trim history if needed
-        if len(self.event_history) > self.max_history_size:
-            self.event_history = self.event_history[-self.max_history_size:]
-        
-        event_type = event.event_type
+            if len(self.event_history) > self.max_history_size:
+                self.event_history = self.event_history[-self.max_history_size:]
+            
+            event_type = event.event_type
             
             # Get copy of callbacks to avoid holding lock during callback execution
             callbacks = []
-        
-        if event_type in self.subscribers:
+            
+            if event_type in self.subscribers:
                 callbacks.extend(self.subscribers[event_type])
             
             if "*" in self.subscribers:
@@ -129,10 +129,10 @@ class EventBus:
         
         # Execute callbacks outside of lock to prevent deadlocks
         for callback in callbacks:
-                try:
-                    callback(event)
-                except Exception as e:
-                    self.logger.exception(f"Error in subscriber callback for event type {event_type}: {e}")
+            try:
+                callback(event)
+            except Exception as e:
+                self.logger.exception(f"Error in subscriber callback for event type {event_type}: {e}")
     
     def subscribe(self, event_type: str, callback: Callable[[Event], None]) -> None:
         """
@@ -143,10 +143,10 @@ class EventBus:
             callback: The function to call when an event is received
         """
         with self._lock:
-        if event_type not in self.subscribers:
-            self.subscribers[event_type] = []
-        
-        self.subscribers[event_type].append(callback)
+            if event_type not in self.subscribers:
+                self.subscribers[event_type] = []
+            
+            self.subscribers[event_type].append(callback)
     
     def unsubscribe(self, event_type: str, callback: Callable[[Event], None]) -> None:
         """
@@ -157,8 +157,8 @@ class EventBus:
             callback: The callback function to remove
         """
         with self._lock:
-        if event_type in self.subscribers and callback in self.subscribers[event_type]:
-            self.subscribers[event_type].remove(callback)
+            if event_type in self.subscribers and callback in self.subscribers[event_type]:
+                self.subscribers[event_type].remove(callback)
     
     def get_event_types(self) -> Set[str]:
         """
@@ -168,7 +168,7 @@ class EventBus:
             Set of event types
         """
         with self._lock:
-        return set(self.subscribers.keys())
+            return set(self.subscribers.keys())
     
     def get_history(self, event_type: str = None, limit: int = 100) -> List[Event]:
         """
@@ -182,8 +182,8 @@ class EventBus:
             List of events
         """
         with self._lock:
-        if event_type:
-            filtered = [e for e in self.event_history if e.event_type == event_type]
-            return filtered[-limit:]
-        else:
-            return self.event_history[-limit:] 
+            if event_type:
+                filtered = [e for e in self.event_history if e.event_type == event_type]
+                return filtered[-limit:]
+            else:
+                return self.event_history[-limit:]
