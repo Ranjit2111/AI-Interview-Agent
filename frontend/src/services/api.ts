@@ -1,7 +1,5 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || "http://localhost:8000";
-const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL?.trim() || "ws://localhost:8000";
-
-
+const API_BASE_URL = "https://aiinterviewer-api-cub2grfabahyd0ce.centralindia-01.azurewebsites.net";
+const WS_BASE_URL = "wss://aiinterviewer-api-cub2grfabahyd0ce.centralindia-01.azurewebsites.net";
 
 // Authentication interfaces
 export interface LoginRequest {
