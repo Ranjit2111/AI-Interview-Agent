@@ -256,7 +256,7 @@ class ThreadSafeSessionRegistry:
             try:
                 success = await self.release_session(session_id)
                 if success:
-            cleaned_count += 1
+                    cleaned_count += 1
                     logger.debug(f"Released idle session: {session_id}")
             except Exception as e:
                 logger.exception(f"Error releasing idle session {session_id}: {e}")

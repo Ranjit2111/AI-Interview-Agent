@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { 
   Sparkles, Zap, BarChart3, Bot, Github, Linkedin, Twitter, Mail, 
   Save, History, Award, Users, BriefcaseBusiness, Building2, FileText, UploadCloud, 
-  Settings, ArrowRight, Play, Star, TrendingUp, Target, CheckCircle, ArrowUpRight, 
+  Settings, ArrowRight, Star, TrendingUp, Target, CheckCircle, ArrowUpRight, 
   BookOpen, Headphones, Brain, Search, ChevronRight, Clock, Volume2, MessageSquare,
   Zap as Lightning, Mic, Shield, Database
 } from 'lucide-react';
@@ -216,7 +216,7 @@ const Index = () => {
   // Difficulty levels with visual indicators
   const difficultyLevels = [
     { value: 'easy', label: 'Beginner', description: 'Basic questions, gentle pace', bars: 1, color: 'green' },
-    { value: 'medium', label: 'Intermediate', description: 'Standard interview complexity', bars: 2, color: 'yellow' },
+    { value: 'medium', label: 'Intermediate', description: 'Standard interview complexity', bars: 2, color: 'orange' },
     { value: 'hard', label: 'Advanced', description: 'Complex scenarios and follow-ups', bars: 3, color: 'red' }
   ];
 
@@ -614,22 +614,22 @@ const Index = () => {
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {interviewStyles.map((styleOption) => (
                   <button
                     key={styleOption.value}
                     onClick={() => setStyle(styleOption.value as any)}
-                    className={`relative p-6 rounded-xl border text-left transition-all duration-500 overflow-hidden group/style ${
+                    className={`relative p-7 rounded-xl border text-left transition-all duration-500 overflow-hidden group/style ${
                       style === styleOption.value
-                        ? `border-${styleOption.color}-500 bg-${styleOption.color}-500/20 text-white scale-105 shadow-lg`
-                        : 'border-white/10 bg-black/40 text-gray-400 hover:text-white hover:scale-105 hover:border-white/20'
+                        ? `border-${styleOption.color}-500 bg-${styleOption.color}-500/20 text-white shadow-lg`
+                        : 'border-white/10 bg-black/40 text-gray-400 hover:text-white hover:border-white/20'
                     }`}
                   >
                     {/* Advanced hover glow */}
                     <div className={`absolute inset-0 bg-gradient-to-br from-${styleOption.color}-500/10 to-${styleOption.color}-600/10 opacity-0 group-hover/style:opacity-100 transition-opacity duration-500 rounded-xl`}></div>
                     
                     <div className="relative">
-                      <div className="text-lg font-bold mb-2">{styleOption.label}</div>
+                      <div className="text-lg font-bold mb-3">{styleOption.label}</div>
                       <div className="text-sm opacity-80">{styleOption.description}</div>
                       
                       {/* Selection indicator */}
@@ -645,9 +645,9 @@ const Index = () => {
             </div>
 
             {/* Difficulty Level with Visual Bars */}
-            <div className="bg-gradient-to-br from-black/80 via-green-900/20 to-black/80 backdrop-blur-3xl border border-green-500/20 rounded-3xl p-8 shadow-2xl hover:shadow-green-500/10 transition-all duration-500">
+            <div className="bg-gradient-to-br from-black/80 via-gray-900/20 to-black/80 backdrop-blur-3xl border border-gray-500/20 rounded-3xl p-8 shadow-2xl transition-all duration-500">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-gray-500 to-gray-600 shadow-lg">
                   <BarChart3 className="w-6 h-6 text-white" />
                 </div>
                 <div>
@@ -661,16 +661,13 @@ const Index = () => {
                   <button
                     key={level.value}
                     onClick={() => setDifficulty(level.value as any)}
-                    className={`w-full p-6 rounded-xl border text-left transition-all duration-500 flex items-center justify-between overflow-hidden group/diff ${
+                    className={`w-full p-6 rounded-xl border text-left transition-all duration-500 flex items-center justify-between ${
                       difficulty === level.value
                         ? `border-${level.color}-500 bg-${level.color}-500/20 text-white scale-105 shadow-lg`
-                        : 'border-white/10 bg-black/40 text-gray-400 hover:text-white hover:scale-105 hover:border-white/20'
+                        : 'border-white/10 bg-black/40 text-gray-400 hover:text-white hover:border-white/20'
                     }`}
                   >
-                    {/* Hover glow effect */}
-                    <div className={`absolute inset-0 bg-gradient-to-r from-${level.color}-500/10 to-${level.color}-600/10 opacity-0 group-hover/diff:opacity-100 transition-opacity duration-500 rounded-xl`}></div>
-                    
-                    <div className="relative">
+                    <div>
                       <div className="text-lg font-bold">{level.label}</div>
                       <div className="text-sm opacity-80 mt-1">{level.description}</div>
                     </div>
@@ -682,7 +679,7 @@ const Index = () => {
                           key={i}
                           className={`w-3 h-8 rounded-full transition-all duration-300 ${
                             i < level.bars 
-                              ? `bg-${level.color}-500 shadow-lg transform scale-110` 
+                              ? `bg-${level.color}-500 shadow-lg` 
                               : 'bg-gray-700'
                           }`}
                         />
@@ -781,7 +778,6 @@ const Index = () => {
                   </>
                 ) : (
                   <>
-                    <Play className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
                     <span>Launch Interview Session</span>
                     <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-300" />
                   </>
@@ -793,10 +789,6 @@ const Index = () => {
                 <div className="animate-shimmer absolute inset-0 -top-px bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 transform translate-x-[-100%]"></div>
               </div>
             </Button>
-
-            <p className="text-gray-500 text-sm mt-6 max-w-md mx-auto">
-              ✨ No account required • 🔒 Secure & private • ⚡ Instant AI feedback
-            </p>
           </div>
         </div>
       </div>
@@ -950,32 +942,6 @@ const Index = () => {
                       </span>
                     </div>
                   </div>
-
-                  {/* Connection line to center */}
-                  {(isHovered || isActive) && (
-                    <svg 
-                      className="absolute pointer-events-none"
-                      style={{
-                        width: '800px',
-                        height: '600px',
-                        left: '50%',
-                        top: '50%',
-                        transform: 'translate(-50%, -50%)',
-                      }}
-                    >
-                      <line
-                        x1={400 + (feature.position.x - 50) * 6}
-                        y1={300 + (feature.position.y - 50) * 4.8}
-                        x2="400"
-                        y2="300"
-                        stroke={feature.color}
-                        strokeWidth="2"
-                        strokeOpacity="0.6"
-                        strokeDasharray="5,5"
-                        className="animate-pulse"
-                      />
-                    </svg>
-                  )}
                 </div>
               );
             })}
@@ -1078,12 +1044,12 @@ const Index = () => {
     if (state !== 'configuring') return null;
     
     return (
-      <footer className="py-12 border-t border-white/10 relative overflow-hidden">
+      <footer className="py-8 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-black/0 to-purple-900/5 z-0"></div>
         <div className="container mx-auto px-4 relative z-10">
           <div className="max-w-5xl mx-auto">
             <div className="flex flex-col items-center justify-center">
-              <div className="flex items-center mb-6">
+              <div className="flex items-center mb-4">
                 <div className="relative">
                   <div className="absolute -inset-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-600 opacity-70 blur-sm"></div>
                   <div className="relative p-1 rounded-full bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-500">
@@ -1095,11 +1061,11 @@ const Index = () => {
                 <h3 className="ml-2 text-xl font-bold bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">AI Interviewer</h3>
               </div>
               
-              <p className="text-gray-400 text-center mb-6 max-w-md">
+              <p className="text-gray-400 text-center mb-4 max-w-md">
                 Enhance your interview skills with our AI-powered simulator. Practice, get feedback, and improve.
               </p>
               
-              <div className="flex justify-center space-x-4 mb-8">
+              <div className="flex justify-center space-x-4 mb-6">
                 <a href="https://github.com/your-username/ai-interviewer" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-cyan-500/30 hover:shadow-cyan-500/20 transition-all duration-300">
                   <Github className="h-5 w-5 text-gray-300 hover:text-cyan-400" />
                 </a>
@@ -1116,11 +1082,6 @@ const Index = () => {
               
               <div className="text-center text-sm text-gray-500">
                 <p>© 2023 AI Interviewer. All rights reserved.</p>
-                <p className="mt-1">
-                  <a href="#" className="text-gray-400 hover:text-gray-300 transition-colors">Privacy Policy</a>
-                  <span className="mx-2">·</span>
-                  <a href="#" className="text-gray-400 hover:text-gray-300 transition-colors">Terms of Service</a>
-                </p>
               </div>
             </div>
           </div>

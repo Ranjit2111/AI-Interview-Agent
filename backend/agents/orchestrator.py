@@ -204,7 +204,6 @@ class AgentSessionManager:
             source='AgentSessionManager',
             data={"response": response_data}
         ))
-    
     def _generate_coaching_feedback(self, user_message_data: Dict[str, Any]) -> None:
         """
         Collects live feedback from the agentic coach agent if available.
@@ -215,7 +214,7 @@ class AgentSessionManager:
             answer = user_message_data.get("content", "")
 
             if question and answer:
-        coach_agent = self._get_agent("coach")
+                coach_agent = self._get_agent("coach")
                 if coach_agent:
                     feedback = self._get_coach_feedback(coach_agent, question, answer)
                     self._log_coach_feedback(question, answer, feedback)
@@ -223,34 +222,34 @@ class AgentSessionManager:
                     self._log_coach_feedback_unavailable(question, answer)
         except Exception as e:
             self.logger.exception(f"Error generating coaching feedback: {e}")
-    
+
     def _find_last_interviewer_question(self) -> Optional[str]:
         """Find the most recent question from the interviewer."""
         for message in reversed(self.conversation_history):
-            if (message.get("role") == "assistant" and 
-                message.get("agent") == "interviewer"):
+            if (message.get("role") == "assistant" and
+                    message.get("agent") == "interviewer"):
                 return message.get("content", "")
         return None
-    
+
     def _get_coach_feedback(self, coach_agent: AgenticCoachAgent, question: str, answer: str) -> str:
         """Get feedback from coach agent for a specific Q&A pair."""
         try:
-        filtered_history = self._create_filtered_history_for_coach()
-        
+            filtered_history = self._create_filtered_history_for_coach()
+            
             # Use the existing evaluate_answer method with the correct parameters
             feedback_response = coach_agent.evaluate_answer(
-            question=question,
-            answer=answer,
+                question=question,
+                answer=answer,
                 justification=None,  # We don't have justification in this context
-            conversation_history=filtered_history
-        )
+                conversation_history=filtered_history
+            )
             
             # evaluate_answer returns a string directly, not a dict
             return feedback_response if feedback_response else COACH_FEEDBACK_UNAVAILABLE
         except Exception as e:
             self.logger.exception(f"Error getting coach feedback: {e}")
             return COACH_FEEDBACK_ERROR
-    
+
     def _create_filtered_history_for_coach(self) -> List[Dict[str, Any]]:
         """Create a filtered conversation history for coach agent context."""
         filtered_history = []
@@ -263,7 +262,7 @@ class AgentSessionManager:
                 }
                 if message.get("role") == "assistant":
                     filtered_message["agent"] = message.get("agent", "unknown")
-                filtered_history.append(filtered_message)
+                    filtered_history.append(filtered_message)
         return filtered_history
     
     def _log_coach_feedback(self, question: str, answer: str, feedback: str) -> None:
