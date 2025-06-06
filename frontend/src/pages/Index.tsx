@@ -10,7 +10,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronDown, Sparkles, Zap, BarChart3, Bot, Github, Linkedin, Twitter, Mail, Save, History, Award, Users, BriefcaseBusiness, Building2, FileText, UploadCloud, Settings, ArrowRight, Play, Star, TrendingUp, Target, CheckCircle, ArrowUpRight, BookOpen } from 'lucide-react';
+import { 
+  ChevronDown, Sparkles, Zap, BarChart3, Bot, Github, Linkedin, Twitter, Mail, 
+  Save, History, Award, Users, BriefcaseBusiness, Building2, FileText, UploadCloud, 
+  Settings, ArrowRight, Play, Star, TrendingUp, Target, CheckCircle, ArrowUpRight, 
+  BookOpen, Headphones, Brain, Search, ChevronRight, Clock, Volume2, MessageSquare,
+  Zap as Lightning 
+} from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthModal from '@/components/AuthModal';
 import { InterviewStartRequest, api } from '@/services/api';
@@ -38,7 +44,7 @@ const Index = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [activeFloatingElement, setActiveFloatingElement] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
+  const [currentCapabilityCard, setCurrentCapabilityCard] = useState(0);
   const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   
   // Configuration state
@@ -53,6 +59,7 @@ const Index = () => {
   
   const heroRef = useRef<HTMLDivElement>(null);
   const configSectionRef = useRef<HTMLDivElement>(null);
+  const capabilitiesRef = useRef<HTMLDivElement>(null);
 
   // Enhanced mouse tracking for 3D effects
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -91,10 +98,63 @@ const Index = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Smooth scroll to configuration
+  // Scroll handlers
+  const scrollToCapabilities = () => {
+    capabilitiesRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const scrollToConfig = () => {
     configSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Capability cards data
+  const capabilityCards = [
+    {
+      id: 'interview-agent',
+      title: 'AI Interview Agent',
+      subtitle: 'Intelligent Conversation Partner',
+      description: 'Our advanced AI interviewer adapts to your responses in real-time, asking follow-up questions and providing a natural interview experience.',
+      features: [
+        'Voice-enabled conversation with natural speech processing',
+        'Dynamic question generation based on your role and experience',
+        'Real-time adaptation to your answers and speaking style',
+        'Multiple interview styles: Technical, Behavioral, Case Study'
+      ],
+      icon: Bot,
+      gradient: 'from-cyan-500 to-blue-600',
+      accentColor: 'cyan'
+    },
+    {
+      id: 'coach-agent',
+      title: 'Background Coach Analysis',
+      subtitle: 'Real-time Performance Monitoring',
+      description: 'While you interview, our coach agent silently analyzes your responses, identifying strengths and areas for improvement.',
+      features: [
+        'Continuous analysis of communication patterns',
+        'Real-time detection of filler words and hesitations',
+        'Assessment of technical accuracy and depth',
+        'Evaluation of storytelling and structure quality'
+      ],
+      icon: Brain,
+      gradient: 'from-purple-500 to-pink-600',
+      accentColor: 'purple'
+    },
+    {
+      id: 'recommendations',
+      title: 'Smart Resource Engine',
+      subtitle: 'Personalized Learning Paths',
+      description: 'After your interview, get curated learning resources based on identified skill gaps, powered by intelligent search algorithms.',
+      features: [
+        'Automated skill gap analysis from your performance',
+        'Curated learning resources via Serper Dev search',
+        'Personalized improvement recommendations',
+        'Track progress across multiple interview sessions'
+      ],
+      icon: Search,
+      gradient: 'from-emerald-500 to-teal-600',
+      accentColor: 'emerald'
+    }
+  ];
 
   // Popular job roles for quick selection
   const popularRoles = [
@@ -245,6 +305,395 @@ const Index = () => {
     </div>
   );
 
+  // Revolutionary Hero Section
+  const renderHeroSection = () => (
+    <div 
+      className="relative min-h-screen flex items-center justify-center overflow-hidden"
+      ref={heroRef}
+      onMouseMove={handleMouseMove}
+    >
+      {renderAdvancedBackground()}
+      
+      {/* Centered Hero Content */}
+      <div className="container mx-auto px-4 relative z-20">
+        <div className="max-w-5xl mx-auto text-center">
+          
+          {/* Badge */}
+          <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500/20 to-purple-600/20 border border-purple-500/30 backdrop-blur-sm mb-8 transition-all duration-1000 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-8'}`}>
+            <Sparkles className="w-4 h-4 text-cyan-300" />
+            <span className="text-sm font-semibold text-cyan-300 tracking-wider">Introducing AI Interview System</span>
+          </div>
+
+          {/* Main Headline with Modern Typography */}
+          <div className={`space-y-6 mb-12 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-12'}`}>
+            <h1 className="text-5xl lg:text-7xl font-bold leading-tight">
+              <span className="bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
+                Modern AI for the
+              </span>
+              <br />
+              <span className="relative">
+                <span className="bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                  next generation
+                </span>
+                {/* Stylish underline */}
+                <div className="absolute bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 transform scale-x-0 animate-[scale-x_1s_ease-out_0.8s_forwards] origin-left"></div>
+              </span>
+            </h1>
+            
+            <p className="text-xl lg:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed font-light">
+              Practice with AI-powered agents that provide real-time coaching 
+              and personalized learning recommendations.
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className={`flex flex-col sm:flex-row gap-6 justify-center items-center mb-16 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'}`}>
+            <Button
+              onClick={scrollToConfig}
+              className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 group border-0"
+            >
+              Get Started
+              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+            </Button>
+            
+            <Button
+              onClick={scrollToCapabilities}
+              variant="outline"
+              className="border-2 border-white/20 bg-black/20 hover:bg-white/10 text-white px-8 py-4 rounded-2xl text-lg font-semibold backdrop-blur-sm hover:border-cyan-500/50 transition-all duration-300"
+            >
+              Know More
+            </Button>
+          </div>
+
+          {/* Real Statistics */}
+          <div className={`grid grid-cols-3 gap-8 max-w-2xl mx-auto transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-12'}`}>
+            <div className="text-center group cursor-default">
+              <div className="flex items-center justify-center mb-2">
+                <Clock className="w-6 h-6 text-cyan-400 mr-2" />
+              </div>
+              <div className="text-3xl font-bold text-cyan-400 group-hover:scale-110 transition-transform">24/7</div>
+              <div className="text-sm text-gray-400 tracking-wide">Available</div>
+            </div>
+            
+            <div className="text-center group cursor-default">
+              <div className="flex items-center justify-center mb-2">
+                <Volume2 className="w-6 h-6 text-purple-400 mr-2" />
+              </div>
+              <div className="text-3xl font-bold text-purple-400 group-hover:scale-110 transition-transform">Voice</div>
+              <div className="text-sm text-gray-400 tracking-wide">Enabled</div>
+            </div>
+            
+            <div className="text-center group cursor-default">
+              <div className="flex items-center justify-center mb-2">
+                <Lightning className="w-6 h-6 text-pink-400 mr-2" />
+              </div>
+              <div className="text-3xl font-bold text-pink-400 group-hover:scale-110 transition-transform">Instant</div>
+              <div className="text-sm text-gray-400 tracking-wide">Feedback</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Horizontal Scrolling Capability Cards
+  const renderCapabilityCards = () => (
+    <div ref={capabilitiesRef} className="py-24 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-black via-gray-900/50 to-black"></div>
+      
+      <div className="container mx-auto px-4 relative z-10">
+        <div className="text-center mb-16">
+          <h2 className="text-5xl font-bold mb-6">
+            <span className="bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
+              How It Works
+            </span>
+          </h2>
+          <p className="text-xl text-gray-400 max-w-3xl mx-auto">
+            Discover the three powerful AI agents working together to deliver your personalized interview experience
+          </p>
+        </div>
+
+        {/* Horizontal Scrolling Cards Container */}
+        <div className="relative">
+          <div className="flex gap-8 overflow-x-auto pb-8 snap-x snap-mandatory scrollbar-hide">
+            {capabilityCards.map((card, index) => {
+              const IconComponent = card.icon;
+              return (
+                <div
+                  key={card.id}
+                  className="flex-none w-96 snap-center"
+                >
+                  <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-3xl p-8 h-full hover:border-purple-500/40 transition-all duration-500 group hover:scale-105">
+                    <div className="space-y-6">
+                      {/* Icon */}
+                      <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${card.gradient} flex items-center justify-center group-hover:scale-110 transition-transform duration-300`}>
+                        <IconComponent className="w-8 h-8 text-white" />
+                      </div>
+
+                      {/* Header */}
+                      <div>
+                        <h3 className="text-2xl font-bold text-white mb-2">{card.title}</h3>
+                        <p className={`text-${card.accentColor}-400 font-medium mb-4`}>{card.subtitle}</p>
+                        <p className="text-gray-300 leading-relaxed">{card.description}</p>
+                      </div>
+
+                      {/* Features */}
+                      <div className="space-y-3">
+                        {card.features.map((feature, idx) => (
+                          <div key={idx} className="flex items-start gap-3">
+                            <div className={`w-2 h-2 rounded-full bg-${card.accentColor}-400 mt-2 flex-shrink-0`}></div>
+                            <span className="text-gray-400 text-sm leading-relaxed">{feature}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* Scroll Indicator */}
+          <div className="flex justify-center mt-8 gap-2">
+            {capabilityCards.map((_, index) => (
+              <div
+                key={index}
+                className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                  index === currentCapabilityCard ? 'bg-purple-500 w-8' : 'bg-gray-600'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Configuration Form Section
+  const renderConfigurationForm = () => (
+    <div ref={configSectionRef} className="py-24 relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-black via-purple-900/10 to-black"></div>
+      
+      <div className="container mx-auto px-4 relative z-10">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl font-bold mb-4">
+              <span className="bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">
+                Start Your Practice Session
+              </span>
+            </h2>
+            <p className="text-gray-400 text-lg">Configure your personalized interview experience</p>
+          </div>
+
+          <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-3xl p-8 shadow-2xl">
+            <div className="space-y-8">
+              {/* Job Role Selection */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                  <Target className="w-4 h-4 text-cyan-400" />
+                  <span>Job Role</span>
+                  <span className="text-red-400">*</span>
+                </div>
+                
+                {/* Popular roles grid */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                  {popularRoles.map((role) => (
+                    <button
+                      key={role.title}
+                      onClick={() => setJobRole(role.title)}
+                      className={`p-4 rounded-xl border transition-all duration-300 text-left group ${
+                        jobRole === role.title 
+                          ? `border-gradient bg-gradient-to-r ${role.gradient} border-transparent text-white shadow-lg` 
+                          : 'border-white/10 bg-black/30 hover:border-white/20 text-gray-300'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <span className="text-xl">{role.icon}</span>
+                        <span className="text-sm font-medium group-hover:text-white transition-colors">
+                          {role.title}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                
+                {/* Custom role input */}
+                <Input
+                  placeholder="Or enter a custom role..."
+                  value={jobRole}
+                  onChange={(e) => setJobRole(e.target.value)}
+                  className="bg-black/50 border-white/10 text-white placeholder-gray-500 rounded-xl focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-300"
+                />
+              </div>
+
+              {/* Company (Optional) */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                  <Building2 className="w-4 h-4 text-purple-400" />
+                  <span>Company Name</span>
+                  <span className="text-xs text-gray-500">(Optional)</span>
+                </div>
+                <Input
+                  placeholder="e.g., Google, Microsoft, StartupCo..."
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className="bg-black/50 border-white/10 text-white placeholder-gray-500 rounded-xl focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300"
+                />
+              </div>
+
+              {/* Advanced Settings Toggle */}
+              <button
+                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                className="flex items-center justify-between w-full p-4 rounded-xl border border-white/10 bg-black/30 hover:bg-black/50 transition-all duration-300"
+              >
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
+                  <Settings className="w-4 h-4" />
+                  <span>Advanced Options</span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${showAdvancedOptions ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Advanced Options Panel */}
+              {showAdvancedOptions && (
+                <div className="space-y-6 p-6 rounded-xl bg-black/30 border border-white/5">
+                  {/* Interview Style */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-300">Interview Style</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {interviewStyles.map((styleOption) => (
+                        <button
+                          key={styleOption.value}
+                          onClick={() => setStyle(styleOption.value as any)}
+                          className={`p-4 rounded-lg border text-left transition-all duration-300 ${
+                            style === styleOption.value
+                              ? `border-${styleOption.color}-500 bg-${styleOption.color}-500/10 text-white`
+                              : 'border-white/10 bg-black/30 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          <div className="text-sm font-medium">{styleOption.label}</div>
+                          <div className="text-xs opacity-70 mt-1">{styleOption.description}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+        
+                  {/* Difficulty Level */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-300">Difficulty Level</label>
+                    <div className="space-y-3">
+                      {difficultyLevels.map((level) => (
+                        <button
+                          key={level.value}
+                          onClick={() => setDifficulty(level.value as any)}
+                          className={`w-full p-4 rounded-lg border text-left transition-all duration-300 flex items-center justify-between ${
+                            difficulty === level.value
+                              ? `border-${level.color}-500 bg-${level.color}-500/10 text-white`
+                              : 'border-white/10 bg-black/30 text-gray-400 hover:text-white'
+                          }`}
+                        >
+                          <div>
+                            <div className="text-sm font-medium">{level.label}</div>
+                            <div className="text-xs opacity-70 mt-1">{level.description}</div>
+                          </div>
+                          <div className="flex space-x-1">
+                            {[...Array(3)].map((_, i) => (
+                              <div
+                                key={i}
+                                className={`w-2 h-5 rounded-full ${
+                                  i < level.bars 
+                                    ? `bg-${level.color}-500` 
+                                    : 'bg-gray-600'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+          
+                  {/* Duration Slider */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-300">
+                      Interview Duration: {interviewDuration} minutes
+                    </label>
+                    <input
+                      type="range"
+                      min="5"
+                      max="30"
+                      value={interviewDuration}
+                      onChange={(e) => setInterviewDuration(parseInt(e.target.value))}
+                      className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>5 min</span>
+                      <span>Quick practice</span>
+                      <span>30 min</span>
+                    </div>
+                  </div>
+          
+                  {/* Resume Upload */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-gray-300">Resume (Optional)</label>
+                    <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-purple-500/50 transition-all duration-300">
+                      <UploadCloud className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                      <p className="text-sm text-gray-400 mb-3">
+                        Drag & drop your resume or click to browse
+                      </p>
+                      <input
+                        type="file"
+                        accept=".txt,.pdf,.docx"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id="resume-upload"
+                      />
+                      <label
+                        htmlFor="resume-upload"
+                        className="text-xs text-purple-400 hover:text-purple-300 cursor-pointer font-medium"
+                      >
+                        Supports TXT, PDF, DOCX
+                      </label>
+                    </div>
+                    {resumeContent && (
+                      <div className="text-xs text-green-400 flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" />
+                        Resume content loaded successfully
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Launch Button */}
+              <Button
+                onClick={handleStartInterview}
+                disabled={!jobRole.trim() || isLoading}
+                className="w-full py-4 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Preparing Interview...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center space-x-2">
+                    <Play className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    <span>Start Interview Practice</span>
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                )}
+              </Button>
+
+              <p className="text-xs text-gray-500 text-center">
+                No account required • Free forever • Instant feedback
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   // Render footer
   const renderFooter = () => {
     if (state !== 'configuring') return null;
@@ -313,294 +762,9 @@ const Index = () => {
       <main className="flex-1 flex flex-col">
         {state === 'configuring' && (
           <>
-            {/* Revolutionary Hero Section */}
-            <div 
-              className="relative min-h-screen flex items-center justify-center overflow-hidden"
-              ref={heroRef}
-              onMouseMove={handleMouseMove}
-            >
-              {renderAdvancedBackground()}
-              
-              {/* Premium content grid */}
-              <div className="container mx-auto px-4 relative z-20">
-                <div className="grid lg:grid-cols-2 gap-16 items-center max-w-7xl mx-auto">
-                  
-                  {/* Left: Enhanced Hero Content */}
-                  <div className={`space-y-8 transition-all duration-1000 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-12'}`}>
-                    <div className="space-y-6">
-                      <div className="flex items-center gap-3">
-                        <div className="px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500/20 to-purple-600/20 border border-purple-500/30 backdrop-blur-sm">
-                          <span className="text-sm font-semibold text-cyan-300 tracking-wider">AI-POWERED PRACTICE</span>
-                        </div>
-                        <div className="flex space-x-1">
-                          {[...Array(5)].map((_, i) => (
-                            <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                          ))}
-                        </div>
-                      </div>
-              
-                      <h1 className="text-6xl lg:text-7xl font-bold leading-tight">
-                        <span className="bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
-                          Master Your
-                        </span>
-                        <br />
-                        <span className="bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                          Interview Skills
-                        </span>
-                      </h1>
-                      
-                      <p className="text-xl text-gray-300 max-w-lg leading-relaxed">
-                        Experience the future of interview preparation with our advanced AI simulator. 
-                        Get real-time feedback, personalized coaching, and track your improvement.
-                      </p>
-                    </div>
-                    
-                    {/* Enhanced feature highlights */}
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-4 hover:border-cyan-500/30 transition-all duration-300 group">
-                        <Bot className="w-8 h-8 text-cyan-400 mb-2 group-hover:scale-110 transition-transform" />
-                        <div className="text-sm font-semibold text-white">AI Interviewer</div>
-                        <div className="text-xs text-gray-400">Smart adaptation</div>
-                      </div>
-                      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-4 hover:border-purple-500/30 transition-all duration-300 group">
-                        <Sparkles className="w-8 h-8 text-purple-400 mb-2 group-hover:scale-110 transition-transform" />
-                        <div className="text-sm font-semibold text-white">Real-time Feedback</div>
-                        <div className="text-xs text-gray-400">Dynamic responses</div>
-                      </div>
-                      <div className="bg-black/40 backdrop-blur-xl border border-white/10 rounded-xl p-4 hover:border-pink-500/30 transition-all duration-300 group">
-                        <BookOpen className="w-8 h-8 text-pink-400 mb-2 group-hover:scale-110 transition-transform" />
-                        <div className="text-sm font-semibold text-white">Resource Recommendation</div>
-                        <div className="text-xs text-gray-400">Skill-gap analysis</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Right: Advanced Configuration Panel */}
-                  <div className={`transition-all duration-1000 delay-300 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-12'}`}>
-                    <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-3xl p-8 shadow-2xl hover:shadow-purple-500/10 transition-all duration-500">
-                      <div className="space-y-6">
-                        <div className="text-center space-y-2">
-                          <h2 className="text-2xl font-bold bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">
-                            Start Your Practice Session
-                          </h2>
-                          <p className="text-gray-400 text-sm">Configure your personalized interview experience</p>
-                        </div>
-
-                        {/* Step 1: Job Role Selection */}
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <Target className="w-4 h-4 text-cyan-400" />
-                            <span>Job Role</span>
-                            <span className="text-red-400">*</span>
-                          </div>
-                          
-                          {/* Popular roles grid */}
-                          <div className="grid grid-cols-2 gap-3 mb-4">
-                            {popularRoles.map((role) => (
-                              <button
-                                key={role.title}
-                                onClick={() => setJobRole(role.title)}
-                                className={`p-3 rounded-xl border transition-all duration-300 text-left group ${
-                                  jobRole === role.title 
-                                    ? `border-gradient bg-gradient-to-r ${role.gradient} border-transparent text-white shadow-lg` 
-                                    : 'border-white/10 bg-black/30 hover:border-white/20 text-gray-300'
-                                }`}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-lg">{role.icon}</span>
-                                  <span className="text-sm font-medium group-hover:text-white transition-colors">
-                                    {role.title}
-                                  </span>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                          
-                          {/* Custom role input */}
-                          <Input
-                            placeholder="Or enter a custom role..."
-                            value={jobRole}
-                            onChange={(e) => setJobRole(e.target.value)}
-                            className="bg-black/50 border-white/10 text-white placeholder-gray-500 rounded-xl focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-300"
-                          />
-                        </div>
-
-                        {/* Step 2: Company (Optional) */}
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <Building2 className="w-4 h-4 text-purple-400" />
-                            <span>Company Name</span>
-                            <span className="text-xs text-gray-500">(Optional)</span>
-                          </div>
-                          <Input
-                            placeholder="e.g., Google, Microsoft, StartupCo..."
-                            value={company}
-                            onChange={(e) => setCompany(e.target.value)}
-                            className="bg-black/50 border-white/10 text-white placeholder-gray-500 rounded-xl focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300"
-                          />
-                        </div>
-
-                        {/* Advanced Settings Toggle */}
-                        <button
-                          onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                          className="flex items-center justify-between w-full p-3 rounded-xl border border-white/10 bg-black/30 hover:bg-black/50 transition-all duration-300"
-                        >
-                          <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                            <Settings className="w-4 h-4" />
-                            <span>Advanced Options</span>
-                          </div>
-                          <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${showAdvancedOptions ? 'rotate-180' : ''}`} />
-                        </button>
-
-                        {/* Advanced Options Panel */}
-                        {showAdvancedOptions && (
-                          <div className="space-y-4 p-4 rounded-xl bg-black/30 border border-white/5">
-                            {/* Interview Style */}
-                            <div className="space-y-3">
-                              <label className="text-sm font-medium text-gray-300">Interview Style</label>
-                              <div className="grid grid-cols-2 gap-2">
-                                {interviewStyles.map((styleOption) => (
-                                  <button
-                                    key={styleOption.value}
-                                    onClick={() => setStyle(styleOption.value as any)}
-                                    className={`p-3 rounded-lg border text-left transition-all duration-300 ${
-                                      style === styleOption.value
-                                        ? `border-${styleOption.color}-500 bg-${styleOption.color}-500/10 text-white`
-                                        : 'border-white/10 bg-black/30 text-gray-400 hover:text-white'
-                                    }`}
-                                  >
-                                    <div className="text-sm font-medium">{styleOption.label}</div>
-                                    <div className="text-xs opacity-70">{styleOption.description}</div>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                  
-                            {/* Difficulty Level */}
-                            <div className="space-y-3">
-                              <label className="text-sm font-medium text-gray-300">Difficulty Level</label>
-                              <div className="space-y-2">
-                                {difficultyLevels.map((level) => (
-                                  <button
-                                    key={level.value}
-                                    onClick={() => setDifficulty(level.value as any)}
-                                    className={`w-full p-3 rounded-lg border text-left transition-all duration-300 flex items-center justify-between ${
-                                      difficulty === level.value
-                                        ? `border-${level.color}-500 bg-${level.color}-500/10 text-white`
-                                        : 'border-white/10 bg-black/30 text-gray-400 hover:text-white'
-                                    }`}
-                                  >
-                                    <div>
-                                      <div className="text-sm font-medium">{level.label}</div>
-                                      <div className="text-xs opacity-70">{level.description}</div>
-                                    </div>
-                                    <div className="flex space-x-1">
-                                      {[...Array(3)].map((_, i) => (
-                                        <div
-                                          key={i}
-                                          className={`w-2 h-4 rounded-full ${
-                                            i < level.bars 
-                                              ? `bg-${level.color}-500` 
-                                              : 'bg-gray-600'
-                                          }`}
-                                        />
-                                      ))}
-                                    </div>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                    
-                            {/* Duration Slider */}
-                            <div className="space-y-3">
-                              <label className="text-sm font-medium text-gray-300">
-                                Interview Duration: {interviewDuration} minutes
-                              </label>
-                              <input
-                                type="range"
-                                min="5"
-                                max="30"
-                                value={interviewDuration}
-                                onChange={(e) => setInterviewDuration(parseInt(e.target.value))}
-                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                              />
-                              <div className="flex justify-between text-xs text-gray-500">
-                                <span>5 min</span>
-                                <span>Quick practice</span>
-                                <span>30 min</span>
-                              </div>
-                            </div>
-                    
-                            {/* Resume Upload */}
-                            <div className="space-y-3">
-                              <label className="text-sm font-medium text-gray-300">Resume (Optional)</label>
-                              <div className="border-2 border-dashed border-white/20 rounded-xl p-6 text-center hover:border-purple-500/50 transition-all duration-300">
-                                <UploadCloud className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                                <p className="text-sm text-gray-400 mb-2">
-                                  Drag & drop your resume or click to browse
-                                </p>
-                                <input
-                                  type="file"
-                                  accept=".txt,.pdf,.docx"
-                                  onChange={handleFileUpload}
-                                  className="hidden"
-                                  id="resume-upload"
-                                />
-                                <label
-                                  htmlFor="resume-upload"
-                                  className="text-xs text-purple-400 hover:text-purple-300 cursor-pointer"
-                                >
-                                  Supports TXT, PDF, DOCX
-                                </label>
-                              </div>
-                              {resumeContent && (
-                                <div className="text-xs text-green-400 flex items-center gap-1">
-                                  <CheckCircle className="w-3 h-3" />
-                                  Resume content loaded successfully
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Launch Button */}
-                        <Button
-                          onClick={handleStartInterview}
-                          disabled={!jobRole.trim() || isLoading}
-                          className="w-full py-4 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isLoading ? (
-                            <div className="flex items-center space-x-2">
-                              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              <span>Preparing Interview...</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-center space-x-2">
-                              <Play className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                              <span>Start Interview Practice</span>
-                              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                            </div>
-                          )}
-                        </Button>
-
-                        <p className="text-xs text-gray-500 text-center">
-                          No account required • Free forever • Instant feedback
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                </div>
-              </div>
-              
-              {/* Scroll indicator */}
-              <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-                <div className="w-6 h-10 border-2 border-white/30 rounded-full flex justify-center">
-                  <div className="w-1 h-3 bg-white/60 rounded-full mt-2 animate-pulse"></div>
-                </div>
-              </div>
-            </div>
-            
+            {renderHeroSection()}
+            {renderCapabilityCards()}
+            {renderConfigurationForm()}
             {renderFooter()}
           </>
         )}
@@ -639,6 +803,45 @@ const Index = () => {
         onClose={() => setIsAuthModalOpen(false)}
         initialMode={authModalMode}
       />
+
+      {/* Custom styles for enhanced animations */}
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          @keyframes scale-x {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
+          }
+          
+          .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+          }
+          
+          .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+          }
+          
+          .slider::-webkit-slider-thumb {
+            appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #06b6d4, #8b5cf6);
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+          }
+          
+          .slider::-moz-range-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #06b6d4, #8b5cf6);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+          }
+        `
+      }} />
     </div>
   );
 };
