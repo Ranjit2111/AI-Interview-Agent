@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:no-stagewise": "set VITE_DISABLE_STAGEWISE=true && vite",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
@@ -65,7 +64,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
-    "@stagewise/toolbar": "^0.2.1",
     "@tailwindcss/typography": "^0.5.15",
     "@types/node": "^22.5.5",
     "@types/react": "^18.3.3",
