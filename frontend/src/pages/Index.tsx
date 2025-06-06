@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
-  ChevronDown, Sparkles, Zap, BarChart3, Bot, Github, Linkedin, Twitter, Mail, 
+  Sparkles, Zap, BarChart3, Bot, Github, Linkedin, Twitter, Mail, 
   Save, History, Award, Users, BriefcaseBusiness, Building2, FileText, UploadCloud, 
   Settings, ArrowRight, Play, Star, TrendingUp, Target, CheckCircle, ArrowUpRight, 
   BookOpen, Headphones, Brain, Search, ChevronRight, Clock, Volume2, MessageSquare,
@@ -44,7 +44,6 @@ const Index = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [activeFloatingElement, setActiveFloatingElement] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
   
   // Feature Constellation states
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
@@ -436,225 +435,368 @@ const Index = () => {
     </div>
   );
 
-  // Configuration Form Section
+  // Configuration Form Section - Completely Redesigned
   const renderConfigurationForm = () => (
-    <div ref={configSectionRef} className="py-16 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-black via-purple-900/10 to-black"></div>
+    <div ref={configSectionRef} className="py-24 relative overflow-hidden">
+      {/* Advanced Multi-layer Background */}
+      <div className="absolute inset-0">
+        <div className="absolute inset-0 bg-gradient-to-br from-black via-gray-950 to-black"></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-purple-900/10 via-transparent to-cyan-900/10"></div>
+        
+        {/* Dynamic floating particles */}
+        {[...Array(8)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-1 h-1 bg-cyan-400 rounded-full opacity-30 animate-pulse"
+            style={{
+              left: `${20 + (i * 12) % 60}%`,
+              top: `${15 + (i * 17) % 70}%`,
+              animationDelay: `${i * 0.7}s`,
+              animationDuration: `${2 + (i % 3)}s`
+            }}
+          />
+        ))}
+      </div>
       
       <div className="container mx-auto px-4 relative z-10">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold mb-4">
-              <span className="bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">
-                Start Your Practice Session
+        <div className="max-w-7xl mx-auto">
+          {/* Section Header */}
+          <div className="text-center mb-16">
+            <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500/20 to-purple-600/20 border border-purple-500/30 backdrop-blur-sm mb-6">
+              <Settings className="w-4 h-4 text-cyan-300" />
+              <span className="text-sm font-semibold text-cyan-300 tracking-wider">Interview Configuration</span>
+            </div>
+            <h2 className="text-5xl lg:text-6xl font-bold mb-6">
+              <span className="bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
+                Craft Your Perfect
               </span>
+              <br />
+              <span className="text-white">Interview Experience</span>
             </h2>
-            <p className="text-gray-400 text-lg">Configure your personalized interview experience</p>
+            <p className="text-gray-400 text-xl max-w-3xl mx-auto leading-relaxed">
+              Configure every aspect of your practice session with our intelligent wizard
+            </p>
           </div>
 
-          <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-3xl p-8 shadow-2xl">
-            <div className="space-y-8">
-              {/* Job Role Selection */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                  <Target className="w-4 h-4 text-cyan-400" />
-                  <span>Job Role</span>
-                  <span className="text-red-400">*</span>
+          {/* Revolutionary Bento Grid Configuration */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
+            
+            {/* Job Role Selection - Large Featured Panel */}
+            <div className="lg:col-span-8 bg-gradient-to-br from-black/80 via-gray-900/80 to-black/80 backdrop-blur-3xl border border-white/10 rounded-3xl p-8 shadow-2xl hover:shadow-cyan-500/10 transition-all duration-500 group">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-purple-600 shadow-lg">
+                  <Target className="w-6 h-6 text-white" />
                 </div>
-                
-                {/* Popular roles grid */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-                  {popularRoles.map((role) => (
-                    <button
-                      key={role.title}
-                      onClick={() => setJobRole(role.title)}
-                      className={`p-4 rounded-xl border transition-all duration-300 text-left group ${
-                        jobRole === role.title 
-                          ? `border-gradient bg-gradient-to-r ${role.gradient} border-transparent text-white shadow-lg` 
-                          : 'border-white/10 bg-black/30 hover:border-white/20 text-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <span className="text-xl">{role.icon}</span>
-                        <span className="text-sm font-medium group-hover:text-white transition-colors">
-                          {role.title}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+                <div>
+                  <h3 className="text-2xl font-bold text-white group-hover:text-cyan-300 transition-colors">Target Role</h3>
+                  <p className="text-gray-400">What position are you preparing for?</p>
                 </div>
-                
-                {/* Custom role input */}
-                <Input
-                  placeholder="Or enter a custom role..."
-                  value={jobRole}
-                  onChange={(e) => setJobRole(e.target.value)}
-                  className="bg-black/50 border-white/10 text-white placeholder-gray-500 rounded-xl focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-300"
-                />
+                <span className="ml-auto px-3 py-1 rounded-full bg-red-500/20 text-red-300 text-xs font-medium">Required</span>
               </div>
-
-              {/* Company (Optional) */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                  <Building2 className="w-4 h-4 text-purple-400" />
-                  <span>Company Name</span>
-                  <span className="text-xs text-gray-500">(Optional)</span>
-                </div>
-                <Input
-                  placeholder="e.g., Google, Microsoft, StartupCo..."
-                  value={company}
-                  onChange={(e) => setCompany(e.target.value)}
-                  className="bg-black/50 border-white/10 text-white placeholder-gray-500 rounded-xl focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300"
-                />
-              </div>
-
-              {/* Advanced Settings Toggle */}
-              <button
-                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-                className="flex items-center justify-between w-full p-4 rounded-xl border border-white/10 bg-black/30 hover:bg-black/50 transition-all duration-300"
-              >
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-300">
-                  <Settings className="w-4 h-4" />
-                  <span>Advanced Options</span>
-                </div>
-                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${showAdvancedOptions ? 'rotate-180' : ''}`} />
-              </button>
-
-              {/* Advanced Options Panel */}
-              {showAdvancedOptions && (
-                <div className="space-y-6 p-6 rounded-xl bg-black/30 border border-white/5">
-                  {/* Interview Style */}
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-gray-300">Interview Style</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      {interviewStyles.map((styleOption) => (
-                        <button
-                          key={styleOption.value}
-                          onClick={() => setStyle(styleOption.value as any)}
-                          className={`p-4 rounded-lg border text-left transition-all duration-300 ${
-                            style === styleOption.value
-                              ? `border-${styleOption.color}-500 bg-${styleOption.color}-500/10 text-white`
-                              : 'border-white/10 bg-black/30 text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          <div className="text-sm font-medium">{styleOption.label}</div>
-                          <div className="text-xs opacity-70 mt-1">{styleOption.description}</div>
-                        </button>
-                      ))}
+              
+              {/* Popular roles with advanced hover effects */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+                {popularRoles.map((role, index) => (
+                  <button
+                    key={role.title}
+                    onClick={() => setJobRole(role.title)}
+                    className={`relative p-4 rounded-xl border transition-all duration-500 text-left group/role overflow-hidden ${
+                      jobRole === role.title 
+                        ? `border-cyan-500 bg-gradient-to-r ${role.gradient} text-white shadow-lg scale-105 z-10` 
+                        : 'border-white/10 bg-black/40 hover:border-white/20 text-gray-300 hover:scale-105'
+                    }`}
+                    style={{
+                      animationDelay: `${index * 0.1}s`
+                    }}
+                  >
+                    {/* Hover glow effect */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 opacity-0 group-hover/role:opacity-100 transition-opacity duration-500 rounded-xl"></div>
+                    
+                    <div className="relative flex items-center space-x-3">
+                      <span className="text-2xl transform group-hover/role:scale-110 transition-transform duration-300">{role.icon}</span>
+                      <span className="text-sm font-medium group-hover/role:text-white transition-colors">
+                        {role.title}
+                      </span>
                     </div>
-                  </div>
-        
-                  {/* Difficulty Level */}
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-gray-300">Difficulty Level</label>
-                    <div className="space-y-3">
-                      {difficultyLevels.map((level) => (
-                        <button
-                          key={level.value}
-                          onClick={() => setDifficulty(level.value as any)}
-                          className={`w-full p-4 rounded-lg border text-left transition-all duration-300 flex items-center justify-between ${
-                            difficulty === level.value
-                              ? `border-${level.color}-500 bg-${level.color}-500/10 text-white`
-                              : 'border-white/10 bg-black/30 text-gray-400 hover:text-white'
-                          }`}
-                        >
-                          <div>
-                            <div className="text-sm font-medium">{level.label}</div>
-                            <div className="text-xs opacity-70 mt-1">{level.description}</div>
-                          </div>
-                          <div className="flex space-x-1">
-                            {[...Array(3)].map((_, i) => (
-                              <div
-                                key={i}
-                                className={`w-2 h-5 rounded-full ${
-                                  i < level.bars 
-                                    ? `bg-${level.color}-500` 
-                                    : 'bg-gray-600'
-                                }`}
-                              />
-                            ))}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-          
-                  {/* Duration Slider */}
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-gray-300">
-                      Interview Duration: {interviewDuration} minutes
-                    </label>
-                    <input
-                      type="range"
-                      min="5"
-                      max="30"
-                      value={interviewDuration}
-                      onChange={(e) => setInterviewDuration(parseInt(e.target.value))}
-                      className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>5 min</span>
-                      <span>Quick practice</span>
-                      <span>30 min</span>
-                    </div>
-                  </div>
-          
-                  {/* Resume Upload */}
-                  <div className="space-y-3">
-                    <label className="text-sm font-medium text-gray-300">Resume (Optional)</label>
-                    <div className="border-2 border-dashed border-white/20 rounded-xl p-8 text-center hover:border-purple-500/50 transition-all duration-300">
-                      <UploadCloud className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                      <p className="text-sm text-gray-400 mb-3">
-                        Drag & drop your resume or click to browse
-                      </p>
-                      <input
-                        type="file"
-                        accept=".txt,.pdf,.docx"
-                        onChange={handleFileUpload}
-                        className="hidden"
-                        id="resume-upload"
-                      />
-                      <label
-                        htmlFor="resume-upload"
-                        className="text-xs text-purple-400 hover:text-purple-300 cursor-pointer font-medium"
-                      >
-                        Supports TXT, PDF, DOCX
-                      </label>
-                    </div>
-                    {resumeContent && (
-                      <div className="text-xs text-green-400 flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4" />
-                        Resume content loaded successfully
+                    
+                    {/* Selection indicator */}
+                    {jobRole === role.title && (
+                      <div className="absolute top-2 right-2">
+                        <CheckCircle className="w-5 h-5 text-white animate-pulse" />
                       </div>
                     )}
-                  </div>
-                </div>
-              )}
-
-              {/* Launch Button */}
-              <Button
-                onClick={handleStartInterview}
-                disabled={!jobRole.trim() || isLoading}
-                className="w-full py-4 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white font-semibold rounded-xl shadow-lg hover:shadow-purple-500/25 transition-all duration-300 group disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? (
-                  <div className="flex items-center space-x-2">
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Preparing Interview...</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center space-x-2">
-                    <Play className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                    <span>Start Interview Practice</span>
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                  </button>
+                ))}
+              </div>
+              
+              {/* Custom role input with premium styling */}
+              <div className="relative">
+                <Input
+                  placeholder="Or describe your custom role (e.g., Senior Full-Stack Developer at Tech Startup)..."
+                  value={jobRole}
+                  onChange={(e) => setJobRole(e.target.value)}
+                  className="bg-black/60 border-white/20 text-white placeholder-gray-400 rounded-xl px-4 py-4 text-lg focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-300 hover:border-white/30"
+                />
+                {jobRole && !popularRoles.find(r => r.title === jobRole) && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
                   </div>
                 )}
-              </Button>
-
-              <p className="text-xs text-gray-500 text-center">
-                No account required • Free forever • Instant feedback
-              </p>
+              </div>
             </div>
+
+            {/* Company & Duration - Right Side Panels */}
+            <div className="lg:col-span-4 space-y-6">
+              
+              {/* Company Selection */}
+              <div className="bg-gradient-to-br from-purple-900/30 via-black/80 to-purple-900/30 backdrop-blur-3xl border border-purple-500/20 rounded-2xl p-6 shadow-xl hover:shadow-purple-500/10 transition-all duration-500">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 shadow-md">
+                    <Building2 className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Company</h3>
+                    <p className="text-xs text-gray-400">Optional context</p>
+                  </div>
+                </div>
+                <Input
+                  placeholder="Google, Microsoft, StartupCo..."
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className="bg-black/60 border-purple-500/20 text-white placeholder-gray-500 rounded-xl focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300"
+                />
+              </div>
+
+              {/* Duration with Visual Feedback */}
+              <div className="bg-gradient-to-br from-orange-900/30 via-black/80 to-orange-900/30 backdrop-blur-3xl border border-orange-500/20 rounded-2xl p-6 shadow-xl hover:shadow-orange-500/10 transition-all duration-500">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 shadow-md">
+                    <Clock className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Duration</h3>
+                    <p className="text-xs text-gray-400">{interviewDuration} minutes</p>
+                  </div>
+                </div>
+                
+                {/* Premium slider with visual feedback */}
+                <div className="space-y-3">
+                  <input
+                    type="range"
+                    min="5"
+                    max="30"
+                    value={interviewDuration}
+                    onChange={(e) => setInterviewDuration(parseInt(e.target.value))}
+                    className="w-full h-3 bg-gray-800 rounded-lg appearance-none cursor-pointer slider-premium"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span className={interviewDuration <= 10 ? 'text-green-400' : 'text-gray-500'}>5 min • Quick</span>
+                    <span className={interviewDuration > 10 && interviewDuration <= 20 ? 'text-yellow-400' : 'text-gray-500'}>15 min • Standard</span>
+                    <span className={interviewDuration > 20 ? 'text-red-400' : 'text-gray-500'}>30 min • Deep</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Interview Style & Difficulty - Full Width Advanced Panels */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">
+            
+            {/* Interview Style Selection */}
+            <div className="bg-gradient-to-br from-black/80 via-blue-900/20 to-black/80 backdrop-blur-3xl border border-blue-500/20 rounded-3xl p-8 shadow-2xl hover:shadow-blue-500/10 transition-all duration-500">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 shadow-lg">
+                  <MessageSquare className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-white">Interview Style</h3>
+                  <p className="text-gray-400">Choose your preferred interaction mode</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {interviewStyles.map((styleOption) => (
+                  <button
+                    key={styleOption.value}
+                    onClick={() => setStyle(styleOption.value as any)}
+                    className={`relative p-6 rounded-xl border text-left transition-all duration-500 overflow-hidden group/style ${
+                      style === styleOption.value
+                        ? `border-${styleOption.color}-500 bg-${styleOption.color}-500/20 text-white scale-105 shadow-lg`
+                        : 'border-white/10 bg-black/40 text-gray-400 hover:text-white hover:scale-105 hover:border-white/20'
+                    }`}
+                  >
+                    {/* Advanced hover glow */}
+                    <div className={`absolute inset-0 bg-gradient-to-br from-${styleOption.color}-500/10 to-${styleOption.color}-600/10 opacity-0 group-hover/style:opacity-100 transition-opacity duration-500 rounded-xl`}></div>
+                    
+                    <div className="relative">
+                      <div className="text-lg font-bold mb-2">{styleOption.label}</div>
+                      <div className="text-sm opacity-80">{styleOption.description}</div>
+                      
+                      {/* Selection indicator */}
+                      {style === styleOption.value && (
+                        <div className="absolute top-0 right-0">
+                          <div className={`w-3 h-3 rounded-full bg-${styleOption.color}-500 animate-pulse`}></div>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Difficulty Level with Visual Bars */}
+            <div className="bg-gradient-to-br from-black/80 via-green-900/20 to-black/80 backdrop-blur-3xl border border-green-500/20 rounded-3xl p-8 shadow-2xl hover:shadow-green-500/10 transition-all duration-500">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg">
+                  <BarChart3 className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-white">Difficulty Level</h3>
+                  <p className="text-gray-400">Adjust challenge complexity</p>
+                </div>
+              </div>
+              
+              <div className="space-y-4">
+                {difficultyLevels.map((level) => (
+                  <button
+                    key={level.value}
+                    onClick={() => setDifficulty(level.value as any)}
+                    className={`w-full p-6 rounded-xl border text-left transition-all duration-500 flex items-center justify-between overflow-hidden group/diff ${
+                      difficulty === level.value
+                        ? `border-${level.color}-500 bg-${level.color}-500/20 text-white scale-105 shadow-lg`
+                        : 'border-white/10 bg-black/40 text-gray-400 hover:text-white hover:scale-105 hover:border-white/20'
+                    }`}
+                  >
+                    {/* Hover glow effect */}
+                    <div className={`absolute inset-0 bg-gradient-to-r from-${level.color}-500/10 to-${level.color}-600/10 opacity-0 group-hover/diff:opacity-100 transition-opacity duration-500 rounded-xl`}></div>
+                    
+                    <div className="relative">
+                      <div className="text-lg font-bold">{level.label}</div>
+                      <div className="text-sm opacity-80 mt-1">{level.description}</div>
+                    </div>
+                    
+                    {/* Visual difficulty bars */}
+                    <div className="flex space-x-2">
+                      {[...Array(3)].map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-3 h-8 rounded-full transition-all duration-300 ${
+                            i < level.bars 
+                              ? `bg-${level.color}-500 shadow-lg transform scale-110` 
+                              : 'bg-gray-700'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Resume Upload - Full Width Premium Panel */}
+          <div className="bg-gradient-to-br from-black/80 via-purple-900/20 to-black/80 backdrop-blur-3xl border border-purple-500/20 rounded-3xl p-8 shadow-2xl hover:shadow-purple-500/10 transition-all duration-500 mb-12">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg">
+                <FileText className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-white">Resume Analysis</h3>
+                <p className="text-gray-400">Upload your resume for personalized questions (Optional)</p>
+              </div>
+            </div>
+            
+            <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-500 ${
+              resumeContent 
+                ? 'border-green-500/50 bg-green-500/10' 
+                : 'border-purple-500/30 hover:border-purple-500/60 bg-purple-500/5 hover:bg-purple-500/10'
+            }`}>
+              {resumeContent ? (
+                <div className="space-y-4">
+                  <CheckCircle className="w-12 h-12 text-green-400 mx-auto animate-pulse" />
+                  <p className="text-green-300 font-medium">Resume content loaded successfully!</p>
+                  <p className="text-gray-400 text-sm">AI will use this to create personalized interview questions</p>
+                  <button
+                    onClick={() => setResumeContent('')}
+                    className="text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors"
+                  >
+                    Upload different resume
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <UploadCloud className="w-12 h-12 text-purple-400 mx-auto group-hover:scale-110 transition-transform duration-300" />
+                  <div>
+                    <p className="text-white font-medium mb-2">
+                      Drag & drop your resume or click to browse
+                    </p>
+                    <p className="text-gray-400 text-sm">
+                      Supports PDF, DOCX, and TXT formats
+                    </p>
+                  </div>
+                  <input
+                    type="file"
+                    accept=".txt,.pdf,.docx"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="resume-upload"
+                    disabled={isUploading}
+                  />
+                  <label
+                    htmlFor="resume-upload"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white font-medium rounded-xl cursor-pointer transition-all duration-300 shadow-lg hover:shadow-purple-500/25"
+                  >
+                    {isUploading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-4 h-4" />
+                        Choose File
+                      </>
+                    )}
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Launch Button - Premium Call to Action */}
+          <div className="text-center">
+            <Button
+              onClick={handleStartInterview}
+              disabled={!jobRole.trim() || isLoading}
+              className="group relative px-12 py-6 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 hover:from-cyan-400 hover:via-purple-500 hover:to-pink-400 text-white font-bold text-xl rounded-2xl shadow-2xl hover:shadow-purple-500/30 transition-all duration-500 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none border-0 overflow-hidden"
+            >
+              {/* Animated background overlay */}
+              <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-purple-700 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              
+              <div className="relative flex items-center justify-center space-x-3">
+                {isLoading ? (
+                  <>
+                    <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Initializing AI Agents...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
+                    <span>Launch Interview Session</span>
+                    <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-300" />
+                  </>
+                )}
+              </div>
+
+              {/* Shimmer effect */}
+              <div className="absolute inset-0 -top-px overflow-hidden rounded-2xl">
+                <div className="animate-shimmer absolute inset-0 -top-px bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 transform translate-x-[-100%]"></div>
+              </div>
+            </Button>
+
+            <p className="text-gray-500 text-sm mt-6 max-w-md mx-auto">
+              ✨ No account required • 🔒 Secure & private • ⚡ Instant AI feedback
+            </p>
           </div>
         </div>
       </div>
@@ -812,18 +954,20 @@ const Index = () => {
                   {/* Connection line to center */}
                   {(isHovered || isActive) && (
                     <svg 
-                      className="absolute top-1/2 left-1/2 pointer-events-none"
+                      className="absolute pointer-events-none"
                       style={{
                         width: '800px',
                         height: '600px',
+                        left: '50%',
+                        top: '50%',
                         transform: 'translate(-50%, -50%)',
                       }}
                     >
                       <line
-                        x1="400"
-                        y1="300"
-                        x2={400 + (feature.position.x - 50) * 4}
-                        y2={300 + (feature.position.y - 50) * 4}
+                        x1={400 + (feature.position.x - 50) * 6}
+                        y1={300 + (feature.position.y - 50) * 4.8}
+                        x2="400"
+                        y2="300"
                         stroke={feature.color}
                         strokeWidth="2"
                         strokeOpacity="0.6"
@@ -1112,39 +1256,48 @@ const Index = () => {
             box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
           }
           
-          /* Advanced glassmorphism effects */
-          .glass-panel {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.1);
-          }
-          
-          /* Particle effects */
-          .particle {
-            position: absolute;
+          /* Premium slider for duration */
+          .slider-premium::-webkit-slider-thumb {
+            appearance: none;
+            height: 24px;
+            width: 24px;
             border-radius: 50%;
-            pointer-events: none;
-            animation: float 6s ease-in-out infinite;
+            background: linear-gradient(45deg, #f97316, #ef4444);
+            cursor: pointer;
+            box-shadow: 0 6px 16px rgba(249, 115, 22, 0.5);
+            border: 2px solid white;
+            transition: all 0.3s ease;
           }
           
-          /* Interactive hover effects */
-          .interactive-orb {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          .slider-premium::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 8px 20px rgba(249, 115, 22, 0.7);
           }
           
-          .interactive-orb:hover {
-            transform: scale(1.1) translateY(-5px);
-            filter: brightness(1.2) drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3));
+          .slider-premium::-moz-range-thumb {
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #f97316, #ef4444);
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 6px 16px rgba(249, 115, 22, 0.5);
+            transition: all 0.3s ease;
           }
           
-          /* Advanced gradient backgrounds */
-          .gradient-mesh {
-            background: 
-              radial-gradient(circle at 20% 50%, rgba(6, 182, 212, 0.3) 0%, transparent 50%),
-              radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.3) 0%, transparent 50%),
-              radial-gradient(circle at 40% 80%, rgba(16, 185, 129, 0.3) 0%, transparent 50%),
-              linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.9));
+          .slider-premium::-moz-range-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 8px 20px rgba(249, 115, 22, 0.7);
+          }
+          
+          /* Shimmer animation for launch button */
+          @keyframes shimmer {
+            0% { transform: translateX(-100%) skewX(-12deg); }
+            100% { transform: translateX(200%) skewX(-12deg); }
+          }
+          
+          .animate-shimmer {
+            animation: shimmer 2s ease-in-out infinite;
           }
         `
       }} />
