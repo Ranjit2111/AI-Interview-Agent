@@ -490,9 +490,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
           ) : (
             <ChevronRight className="w-6 h-6 group-hover:scale-110 transition-transform" />
           )}
-          {!transcriptVisible && (
-            <MessageCircle className="w-5 h-5 opacity-70 group-hover:opacity-100 transition-opacity" />
-          )}
+          {!transcriptVisible}
         </div>
       </button>
 

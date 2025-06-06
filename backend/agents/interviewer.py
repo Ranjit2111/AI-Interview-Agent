@@ -49,7 +49,7 @@ class InterviewerAgent(BaseAgent):
         llm_service: LLMService, 
         event_bus: Optional[EventBus] = None,
         logger: Optional[logging.Logger] = None,
-        interview_style: InterviewStyle = InterviewStyle.FORMAL,
+        interview_style: InterviewStyle = InterviewStyle.CASUAL,
         job_role: str = "",
         job_description: str = "",
         resume_content: str = "",

@@ -155,10 +155,10 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
         <div className="mt-6 flex items-center space-x-2 text-blue-400">
           <div className="voice-activity-wave">
             <div className="wave-bar animate-voice-wave" />
-          <div className="wave-bar animate-voice-wave animation-delay-100" />
-          <div className="wave-bar animate-voice-wave animation-delay-200" />
-          <div className="wave-bar animate-voice-wave animation-delay-300" />
-          <div className="wave-bar animate-voice-wave animation-delay-400" />
+            <div className="wave-bar animate-voice-wave animation-delay-100" />
+            <div className="wave-bar animate-voice-wave animation-delay-200" />
+            <div className="wave-bar animate-voice-wave animation-delay-300" />
+            <div className="wave-bar animate-voice-wave animation-delay-400" />
           </div>
         </div>
       )}
@@ -166,7 +166,7 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
       {/* AI Speaking Indicator */}
       {turnState === 'ai' && (
         <div className="mt-6 flex items-center space-x-2 text-orange-400">
-          <div className="voice-activity-wave">
+          <div className="ai-voice-activity-wave">
             <div className="wave-bar animate-voice-wave" />
             <div className="wave-bar animate-voice-wave animation-delay-100" />
             <div className="wave-bar animate-voice-wave animation-delay-200" />
