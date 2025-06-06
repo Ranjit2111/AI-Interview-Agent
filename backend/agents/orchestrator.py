@@ -338,70 +338,149 @@ class AgentSessionManager:
         return final_results
 
     async def _generate_final_summary_background(self) -> None:
-        """Generate final coaching summary in background async task."""
+        """Generate final coaching summary in background async task with enhanced error handling."""
         start_time = datetime.utcnow()
+        session_id = self.session_id
+        
+        # Create a logger with session context
+        log_context = {"session_id": session_id}
+        
         try:
-            self.logger.info(f"🚀 Background final summary generation STARTED for session {self.session_id} at {start_time.isoformat()}")
+            self.logger.info(f"🚀 Background final summary generation STARTED for session {session_id} at {start_time.isoformat()}", extra=log_context)
             
+            # Step 1: Validate prerequisites
+            if not self.conversation_history:
+                raise ValueError("No conversation history available for final summary generation")
+            
+            self.logger.info(f"📝 Processing {len(self.conversation_history)} conversation messages", extra=log_context)
+            
+            # Step 2: Attempt to generate coaching summary
+            self.logger.info("🤖 Invoking agentic coach for final summary generation...", extra=log_context)
             coaching_summary = self._generate_final_coaching_summary()
             
             generation_time = (datetime.utcnow() - start_time).total_seconds()
             
+            # Step 3: Process results
             if coaching_summary:
                 self.final_summary = coaching_summary
                 self.session_status = "completed"
                 
-                self.logger.info(f"✅ Background final summary COMPLETED for session {self.session_id}: {len(str(coaching_summary))} chars in {generation_time:.2f}s")
-                self.logger.info(f"DEBUG Background Task - Final summary result preview:")
-                self.logger.info(f"  - Keys: {list(coaching_summary.keys()) if isinstance(coaching_summary, dict) else 'Not a dict'}")
-                self.logger.info(f"  - Has recommended_resources: {bool(coaching_summary.get('recommended_resources')) if isinstance(coaching_summary, dict) else False}")
-                self.logger.info(f"  - Resources count: {len(coaching_summary.get('recommended_resources', [])) if isinstance(coaching_summary, dict) else 0}")
-                self.logger.info(f"  - Session status set to: {self.session_status}")
-                self.logger.info(f"  - Generation time: {generation_time:.2f} seconds")
+                # Enhanced logging with summary details
+                summary_keys = list(coaching_summary.keys()) if isinstance(coaching_summary, dict) else []
+                resources_count = len(coaching_summary.get('recommended_resources', [])) if isinstance(coaching_summary, dict) else 0
+                
+                self.logger.info(
+                    f"✅ Background final summary COMPLETED for session {session_id}: "
+                    f"{len(str(coaching_summary))} chars in {generation_time:.2f}s",
+                    extra={**log_context, "generation_time": generation_time, "summary_size": len(str(coaching_summary))}
+                )
+                
+                self.logger.info(
+                    f"📊 Summary details: {len(summary_keys)} sections, {resources_count} resources",
+                    extra={**log_context, "summary_sections": summary_keys, "resources_count": resources_count}
+                )
+                
             else:
-                error_msg = "Final coaching summary generation returned None"
+                # Handle None result
+                error_msg = "Final coaching summary generation returned None - likely LLM or chain failure"
+                self.logger.error(f"❌ Background final summary FAILED for session {session_id}: {error_msg}", extra=log_context)
+                
                 self.final_summary = {"error": error_msg}
                 self.session_status = "completed"  # Still mark as completed but with error
-                self.logger.error(f"❌ Background final summary FAILED for session {self.session_id} after {generation_time:.2f}s: {error_msg}")
                 
-        except Exception as e:
+        except ValueError as ve:
+            # Handle validation errors (missing data, etc.)
             generation_time = (datetime.utcnow() - start_time).total_seconds()
-            error_msg = f"Final coaching summary generation failed: {e}"
+            error_msg = f"Validation error in final summary generation: {ve}"
+            
+            self.logger.error(f"🔍 Background final summary VALIDATION ERROR for session {session_id}: {error_msg}", 
+                            extra={**log_context, "error_type": "validation", "generation_time": generation_time})
+            
+            self.final_summary = {"error": error_msg}
+            self.session_status = "completed"
+            
+        except Exception as e:
+            # Handle all other exceptions
+            generation_time = (datetime.utcnow() - start_time).total_seconds()
+            error_msg = f"Final coaching summary generation failed: {str(e)}"
+            exception_type = type(e).__name__
+            
+            self.logger.exception(
+                f"💥 Background final summary EXCEPTION for session {session_id}: {exception_type}",
+                extra={**log_context, "error_type": exception_type, "generation_time": generation_time},
+                exc_info=e
+            )
+            
             self.final_summary = {"error": error_msg}
             self.session_status = "completed"  # Still mark as completed but with error
-            self.logger.exception(f"💥 Background final summary ERROR for session {self.session_id} after {generation_time:.2f}s: {e}")
         
         finally:
+            # Ensure cleanup happens regardless of success/failure
             final_time = (datetime.utcnow() - start_time).total_seconds()
             self.final_summary_generating = False
             
-            self.logger.info(f"🏁 Background Task FINALIZED for session {self.session_id} after {final_time:.2f}s:")
-            self.logger.info(f"  - Session ID: {self.session_id}")
-            self.logger.info(f"  - Session status: {self.session_status}")
-            self.logger.info(f"  - Final summary generating: {self.final_summary_generating}")
-            self.logger.info(f"  - Has final summary: {bool(self.final_summary)}")
-            self.logger.info(f"  - Total processing time: {final_time:.2f} seconds")
+            # Enhanced finalization logging
+            final_status = "SUCCESS" if self.final_summary and not isinstance(self.final_summary, dict) or not self.final_summary.get("error") else "ERROR"
             
-            # CRITICAL FIX: Save session state to database after final summary completion
-            # This ensures that subsequent API calls will have access to the final summary
+            self.logger.info(
+                f"🏁 Background Task FINALIZED for session {session_id} after {final_time:.2f}s - Status: {final_status}",
+                extra={
+                    **log_context,
+                    "total_time": final_time,
+                    "final_status": final_status,
+                    "has_summary": bool(self.final_summary),
+                    "session_status": self.session_status
+                }
+            )
+            
+            # Flag for database save
             try:
-                # Import session registry to trigger a save
-                # Note: We need to access the session registry from the app state
-                # Since we don't have direct access here, we'll add a method to handle this
-                self.logger.info(f"🔄 Attempting to save session state after final summary completion...")
-                # This will be handled by a callback mechanism or direct save call
                 self.needs_database_save = True  # Flag for external save trigger
-            except Exception as save_error:
-                self.logger.error(f"Failed to trigger session save after final summary: {save_error}")
+                self.logger.debug(f"🔄 Session {session_id} flagged for database save", extra=log_context)
+            except Exception as save_flag_error:
+                self.logger.error(f"Failed to set database save flag: {save_flag_error}", extra=log_context)
 
     def _generate_final_coaching_summary(self) -> Optional[Dict[str, Any]]:
-        """Generate final coaching summary using agentic coach agent."""
-        coach_agent = self._get_agent("coach")
-        if not coach_agent:
-            return None
+        """Generate final coaching summary using agentic coach agent with enhanced error handling."""
+        session_id = self.session_id
+        log_context = {"session_id": session_id}
+        
+        try:
+            # Get coach agent
+            coach_agent = self._get_agent("coach")
+            if not coach_agent:
+                self.logger.error("Coach agent not available for final summary generation", extra=log_context)
+                return None
             
-        # Use the new agentic method that includes resource search
-        return coach_agent.generate_final_summary_with_resources(self.conversation_history)
+            self.logger.info(f"📚 Coach agent retrieved, generating summary with {len(self.conversation_history)} messages", extra=log_context)
+            
+            # Use the agentic method that includes resource search
+            summary_result = coach_agent.generate_final_summary_with_resources(self.conversation_history)
+            
+            if summary_result:
+                self.logger.info("✅ Agentic coach completed final summary generation successfully", extra=log_context)
+                
+                # Validate summary structure
+                if isinstance(summary_result, dict):
+                    required_keys = ["patterns_tendencies", "strengths", "weaknesses", "improvement_focus_areas"]
+                    missing_keys = [key for key in required_keys if key not in summary_result]
+                    
+                    if missing_keys:
+                        self.logger.warning(f"⚠️ Summary missing expected keys: {missing_keys}", extra=log_context)
+                    else:
+                        self.logger.info("✅ Summary structure validation passed", extra=log_context)
+                        
+                else:
+                    self.logger.warning("⚠️ Summary is not a dictionary as expected", extra=log_context)
+                    
+            else:
+                self.logger.error("❌ Agentic coach returned None for final summary", extra=log_context)
+                
+            return summary_result
+            
+        except Exception as e:
+            self.logger.exception(f"Exception in _generate_final_coaching_summary: {e}", extra=log_context, exc_info=e)
+            return None
 
     def get_conversation_history(self) -> List[Dict[str, Any]]:
         """Returns the full conversation history."""
