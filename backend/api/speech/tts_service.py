@@ -6,8 +6,9 @@ import asyncio
 import html
 import logging
 import os
-from typing import Optional
+from typing import Optional, Dict
 import random
+import hashlib
 
 import boto3
 from botocore.exceptions import NoCredentialsError, PartialCredentialsError, ClientError
@@ -21,11 +22,14 @@ logger = logging.getLogger(__name__)
 
 
 class TTSService:
-    """Text-to-Speech service using Amazon Polly with concurrency control."""
+    """Text-to-Speech service using Amazon Polly with concurrency control and caching."""
     
     def __init__(self):
         self.polly_client = None
         self.rate_limiter = get_rate_limiter()
+        # Simple in-memory cache for frequently used phrases
+        self.audio_cache: Dict[str, bytes] = {}
+        self.cache_max_size = 50  # Limit cache size
         self._initialize_polly()
     
     def _initialize_polly(self):
@@ -37,14 +41,19 @@ class TTSService:
             return
         
         try:
-            # Configure boto3 client with retry logic
+            # Enhanced boto3 client configuration for Azure deployment
             polly_config = Config(
                 retries={
                     'max_attempts': 3,
                     'mode': 'adaptive'
                 },
-                max_pool_connections=26,  # Match our semaphore limit
-                region_name=aws_region
+                max_pool_connections=50,  # Increased for better connection reuse
+                region_name=aws_region,
+                # Azure-optimized timeout settings
+                connect_timeout=30,  # Connection timeout
+                read_timeout=60,     # Read timeout for large audio files
+                # Enable TCP keepalive for persistent connections
+                tcp_keepalive=True
             )
             
             self.polly_client = boto3.client(
@@ -53,7 +62,7 @@ class TTSService:
                 aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
                 config=polly_config
             )
-            logger.info(f"Successfully initialized AWS Polly client in region {aws_region} with retry configuration.")
+            logger.info(f"Successfully initialized AWS Polly client in region {aws_region} with Azure-optimized configuration.")
         except (NoCredentialsError, PartialCredentialsError) as e:
             logger.error(f"AWS credentials not found or incomplete. Please configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY. Error: {e}")
         except ClientError as e:
@@ -155,6 +164,40 @@ class TTSService:
             # Always release the rate limiting slot
             self.rate_limiter.release_polly()
     
+    def _get_cache_key(self, text: str, voice_id: str, speed: float) -> str:
+        """Generate cache key for TTS request."""
+        content = f"{text}|{voice_id}|{speed}"
+        return hashlib.md5(content.encode()).hexdigest()
+    
+    def _should_cache(self, text: str) -> bool:
+        """Determine if text should be cached (short, common phrases)."""
+        # Cache short phrases that are likely to be repeated
+        return len(text) < 100 and any(phrase in text.lower() for phrase in [
+            'hello', 'welcome', 'thank you', 'please', 'ready', 'starting', 
+            'let me', 'can you', 'tell me', 'great', 'excellent', 'good'
+        ])
+    
+    async def _get_cached_or_synthesize(self, ssml_text: str, voice_id: str, speed: float, text: str) -> bytes:
+        """Get audio from cache or synthesize new."""
+        # Check cache first for cacheable content
+        if self._should_cache(text):
+            cache_key = self._get_cache_key(text, voice_id, speed)
+            
+            if cache_key in self.audio_cache:
+                logger.debug(f"TTS cache hit for: {text[:30]}...")
+                return self.audio_cache[cache_key]
+        
+        # Synthesize new audio
+        audio_content = await self._synthesize_speech_with_retry(ssml_text, voice_id)
+        
+        # Cache if appropriate
+        if self._should_cache(text) and len(self.audio_cache) < self.cache_max_size:
+            cache_key = self._get_cache_key(text, voice_id, speed)
+            self.audio_cache[cache_key] = audio_content
+            logger.debug(f"TTS cached: {text[:30]}...")
+        
+        return audio_content
+    
     async def synthesize_text(self, text: str, voice_id: str = "Matthew", speed: float = 1.0) -> Response:
         """
         Synthesize speech from text with rate limiting.
@@ -184,7 +227,7 @@ class TTSService:
         logger.debug(f"TTS request: voice={voice_id}, speed={speed}")
 
         try:
-            audio_content = await self._synthesize_speech_with_retry(ssml_text, voice_id)
+            audio_content = await self._get_cached_or_synthesize(ssml_text, voice_id, speed, text)
             return Response(content=audio_content, media_type="audio/mpeg")
 
         except HTTPException:

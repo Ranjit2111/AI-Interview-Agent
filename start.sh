@@ -16,5 +16,15 @@ echo "Host: $HOST"
 echo "Port: $PORT"
 echo "Working directory: $(pwd)"
 
-# Start the FastAPI application
-exec uvicorn backend.main:app --host $HOST --port $PORT --workers 1 --log-level info 
+# Enhanced startup for Azure Container Apps
+echo "Configuring for Azure deployment..."
+
+# Start the FastAPI application with lifespan management
+# --lifespan on ensures startup events complete before accepting requests
+exec uvicorn backend.main:app \
+    --host $HOST \
+    --port $PORT \
+    --workers 1 \
+    --log-level info \
+    --lifespan on \
+    --timeout-keep-alive 30 
