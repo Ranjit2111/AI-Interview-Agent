@@ -1108,22 +1108,22 @@ const Index = () => {
               </p>
               
               <div className="flex justify-center space-x-4 mb-6">
-                <a href="https://github.com/your-username/ai-interviewer" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-cyan-500/30 hover:shadow-cyan-500/20 transition-all duration-300">
+                <a href="https://github.com/Ranjit2111/AI-Interview-Agent" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-cyan-500/30 hover:shadow-cyan-500/20 transition-all duration-300">
                   <Github className="h-5 w-5 text-gray-300 hover:text-cyan-400" />
                 </a>
-                <a href="https://twitter.com/your-username" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-purple-500/30 hover:shadow-purple-500/20 transition-all duration-300">
+                <a href="https://x.com/Ranjit_AI" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-purple-500/30 hover:shadow-purple-500/20 transition-all duration-300">
                   <Twitter className="h-5 w-5 text-gray-300 hover:text-purple-400" />
                 </a>
-                <a href="https://linkedin.com/in/your-username" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-pink-500/30 hover:shadow-pink-500/20 transition-all duration-300">
+                <a href="https://www.linkedin.com/in/ranjit-n/" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-pink-500/30 hover:shadow-pink-500/20 transition-all duration-300">
                   <Linkedin className="h-5 w-5 text-gray-300 hover:text-pink-400" />
                 </a>
-                <a href="mailto:contact@example.com" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-cyan-500/30 hover:shadow-cyan-500/20 transition-all duration-300">
+                <a href="mailto:ranjitnagaraj2131@gmail.com" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-cyan-500/30 hover:shadow-cyan-500/20 transition-all duration-300">
                   <Mail className="h-5 w-5 text-gray-300 hover:text-cyan-400" />
                 </a>
               </div>
               
               <div className="text-center text-sm text-gray-500">
-                <p>© 2023 AI Interviewer. All rights reserved.</p>
+                <p>© 2025 AI Interviewer. All rights reserved.</p>
               </div>
             </div>
           </div>

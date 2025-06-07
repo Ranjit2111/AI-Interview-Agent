@@ -17,4 +17,4 @@ echo "Port: $PORT"
 echo "Working directory: $(pwd)"
 
 # Start the FastAPI application
-exec uvicorn main:app --host $HOST --port $PORT --workers 1 --log-level info 
+exec uvicorn backend.main:app --host $HOST --port $PORT --workers 1 --log-level info 
