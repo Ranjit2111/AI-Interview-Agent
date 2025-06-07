@@ -13,6 +13,7 @@ from pathlib import Path
 import json
 import sys
 from contextlib import asynccontextmanager
+import asyncio
 
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -174,12 +175,23 @@ async def health_check():
         # Get environment diagnostics
         env_info = get_environment_info()
         
-        # Check TTS service availability
+        # Enhanced TTS service availability check with warmup validation
         tts_available = False
+        tts_warmup_time = None
         try:
             from backend.api.speech.tts_service import TTSService
             tts_service = TTSService()
-            tts_available = tts_service.is_available()
+            
+            if tts_service.is_available():
+                # Test actual TTS performance
+                start_time = asyncio.get_event_loop().time()
+                ssml_text = tts_service._prepare_ssml("Health check", 1.0)
+                await tts_service._synthesize_speech_with_retry(ssml_text, "Matthew")
+                end_time = asyncio.get_event_loop().time()
+                
+                tts_warmup_time = round((end_time - start_time) * 1000, 2)  # Convert to ms
+                tts_available = True
+                
         except Exception as tts_error:
             logger.warning(f"TTS health check failed: {tts_error}")
         
@@ -193,7 +205,15 @@ async def health_check():
                 "database": "connected",
                 "llm_service": "available", 
                 "event_bus": "running",
-                "tts_service": "available" if tts_available else "unavailable"
+                "tts_service": {
+                    "status": "available" if tts_available else "unavailable",
+                    "warmup_time_ms": tts_warmup_time,
+                    "performance": (
+                        "excellent" if tts_warmup_time and tts_warmup_time < 1000 else
+                        "good" if tts_warmup_time and tts_warmup_time < 3000 else
+                        "slow" if tts_warmup_time else "unknown"
+                    )
+                }
             }
         }
         
@@ -245,21 +265,34 @@ async def get_metrics():
 
 async def warmup_services():
     """Warm up external services to reduce first-request latency."""
-    logger.info("🔥 Starting service warmup...")
+    logger.info("🔥 Starting comprehensive service warmup...")
     
-    # Warm up TTS service
+    # Enhanced TTS service warmup
     try:
         from backend.api.speech.tts_service import TTSService
         tts_service = TTSService()
         
         if tts_service.is_available():
             logger.info("🎤 Warming up Amazon Polly TTS service...")
-            # Synthesize a minimal warmup phrase
-            warmup_text = "Ready"
-            ssml_text = tts_service._prepare_ssml(warmup_text, 1.0)
             
-            # Run warmup synthesis
-            await tts_service._synthesize_speech_with_retry(ssml_text, "Matthew")
+            # Multiple warmup calls to establish connection pool
+            warmup_phrases = ["Ready", "Hello", "Interview starting"]
+            
+            for i, phrase in enumerate(warmup_phrases):
+                try:
+                    ssml_text = tts_service._prepare_ssml(phrase, 1.0)
+                    start_time = asyncio.get_event_loop().time()
+                    
+                    # Run warmup synthesis
+                    await tts_service._synthesize_speech_with_retry(ssml_text, "Matthew")
+                    
+                    end_time = asyncio.get_event_loop().time()
+                    duration = end_time - start_time
+                    logger.info(f"✅ TTS warmup call {i+1}/3 completed in {duration:.2f}s")
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ TTS warmup call {i+1}/3 failed: {e}")
+            
             logger.info("✅ TTS service warmed up successfully")
         else:
             logger.warning("⚠️ TTS service not available for warmup (missing AWS credentials)")

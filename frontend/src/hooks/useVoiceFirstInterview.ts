@@ -382,7 +382,15 @@ export function useVoiceFirstInterview(
     });
     
     try {
+      // Show loading state for first TTS request
+      handleTTSStart();
+      
+      const startTime = Date.now();
       const audioBlob = await api.textToSpeech(text, selectedVoice);
+      const synthesisTime = Date.now() - startTime;
+      
+      console.log(`🔊 TTS synthesis completed in ${synthesisTime}ms`);
+      
       const audioUrl = URL.createObjectURL(audioBlob);
       
       // Stop any currently playing audio
@@ -397,7 +405,7 @@ export function useVoiceFirstInterview(
       // Set up event handlers before playing
       audio.onplay = () => {
         console.log('🔊 TTS audio started playing - triggering visual effects');
-        handleTTSStart();
+        // Keep TTS start state since we already set it during synthesis
       };
       
       audio.onended = () => {
@@ -421,11 +429,21 @@ export function useVoiceFirstInterview(
     } catch (error) {
       console.error('TTS playback failed:', error);
       handleTTSEnd();
-      toast({
-        title: 'Audio Playback Error',
-        description: 'Could not play the AI response audio.',
-        variant: 'destructive',
-      });
+      
+      // Show user-friendly error for slow TTS
+      if (error instanceof Error && error.message.includes('timeout')) {
+        toast({
+          title: 'Speech Service Warming Up',
+          description: 'The speech service is initializing. Please try again in a moment.',
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: 'Audio Playback Error',
+          description: 'Could not play the AI response audio.',
+          variant: 'destructive',
+        });
+      }
     }
   }, [sessionData, handleTTSStart, handleTTSEnd, toast, audioPlaying, voiceState.turnState]);
 
