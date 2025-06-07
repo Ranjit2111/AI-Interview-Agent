@@ -61,7 +61,7 @@ const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
             {/* Social Links */}
             <div className="flex items-center space-x-3">
               <a 
-                href="https://github.com/your-username/ai-interviewer" 
+                href="https://github.com/Ranjit2111" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="p-2 rounded-full bg-black/30 hover:bg-white/10 border border-white/10 hover:border-cyan-500/30 transition-all duration-300 hover:shadow-cyan-500/20 group"
@@ -69,7 +69,7 @@ const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
                 <Github className="h-4 w-4 text-gray-400 group-hover:text-cyan-400 transition-colors" />
               </a>
               <a 
-                href="https://linkedin.com/in/your-username" 
+                href="https://www.linkedin.com/in/ranjit-n/" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 className="p-2 rounded-full bg-black/30 hover:bg-white/10 border border-white/10 hover:border-blue-500/30 transition-all duration-300 hover:shadow-blue-500/20 group"

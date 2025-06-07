@@ -333,4 +333,4 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     
     logger.info(f"Starting server on {host}:{port}")
-    uvicorn.run("backend.main:app", host=host, port=port, reload=True) 
+    uvicorn.run("backend.main:app", host=host, port=port) 
