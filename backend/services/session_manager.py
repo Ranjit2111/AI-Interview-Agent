@@ -11,6 +11,7 @@ from backend.database.db_manager import DatabaseManager
 from backend.services.llm_service import LLMService
 from backend.utils.event_bus import EventBus
 from backend.agents.config_models import SessionConfig
+from backend.agents.orchestrator import AgentSessionManager
 from backend.config import get_logger
 
 logger = get_logger(__name__)
@@ -34,7 +35,7 @@ class ThreadSafeSessionRegistry:
         self.db_manager = db_manager
         self.llm_service = llm_service
         self.event_bus = event_bus
-        self._active_sessions: Dict[str, "AgentSessionManager"] = {}
+        self._active_sessions: Dict[str, AgentSessionManager] = {}
         self._session_locks: Dict[str, asyncio.Lock] = {}
         self._session_access_times: Dict[str, datetime] = {}  # Track last access time
         self._registry_lock = asyncio.Lock()
@@ -75,7 +76,7 @@ class ThreadSafeSessionRegistry:
             except Exception as e:
                 logger.exception(f"Error in periodic session cleanup: {e}")
 
-    async def get_session_manager(self, session_id: str) -> "AgentSessionManager":
+    async def get_session_manager(self, session_id: str) -> AgentSessionManager:
         """
         Get or create session manager for specific session.
         Loads from database if not in memory.
