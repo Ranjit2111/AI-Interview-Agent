@@ -205,7 +205,7 @@ class ThreadSafeSessionRegistry:
                 success = await self.save_session(session_id)
                 
                 if success:
-                    # Remove from memory
+                    # FIXED: Comprehensive cleanup to prevent memory leaks
                     del self._active_sessions[session_id]
                     if session_id in self._session_locks:
                         del self._session_locks[session_id]
@@ -217,6 +217,13 @@ class ThreadSafeSessionRegistry:
                     logger.error(f"Failed to save session before release: {session_id}")
                     return False
             else:
+                # FIXED: Even if session not active, clean up any lingering references
+                if session_id in self._session_locks:
+                    del self._session_locks[session_id]
+                    logger.debug(f"Cleaned up orphaned session lock: {session_id}")
+                if session_id in self._session_access_times:
+                    del self._session_access_times[session_id]
+                    logger.debug(f"Cleaned up orphaned access time: {session_id}")
                 logger.warning(f"Attempted to release inactive session: {session_id}")
                 return True  # Consider it successful if already released
 
@@ -243,15 +250,21 @@ class ThreadSafeSessionRegistry:
         current_time = datetime.utcnow()
         max_idle_delta = timedelta(minutes=max_idle_minutes)
         
+        # FIXED: Get session candidates quickly under lock to avoid deadlock
+        session_candidates = []
         async with self._registry_lock:
-            sessions_to_release = []
-            
-            for session_id in list(self._active_sessions.keys()):
-                last_access = self._session_access_times.get(session_id)
-                if last_access and (current_time - last_access) > max_idle_delta:
-                    sessions_to_release.append(session_id)
+            # Quickly build list of candidates without long operations under lock
+            for session_id, last_access in self._session_access_times.items():
+                if session_id in self._active_sessions and last_access:
+                    session_candidates.append((session_id, last_access))
         
-        # Release sessions outside the lock to avoid deadlock
+        # FIXED: Process candidates outside lock to prevent deadlock
+        sessions_to_release = []
+        for session_id, last_access in session_candidates:
+            if (current_time - last_access) > max_idle_delta:
+                sessions_to_release.append(session_id)
+        
+        # Release sessions outside any locks to avoid deadlock
         for session_id in sessions_to_release:
             try:
                 success = await self.release_session(session_id)
@@ -301,4 +314,22 @@ class ThreadSafeSessionRegistry:
             except asyncio.CancelledError:
                 pass
             self._cleanup_task = None
-            logger.info("Session cleanup task stopped") 
+            logger.info("Session cleanup task stopped")
+
+    def _cleanup_session_references(self, session_id: str) -> None:
+        """
+        FIXED: Helper method to clean up all session references to prevent memory leaks.
+        Should be called whenever a session fails to initialize or needs cleanup.
+        
+        Args:
+            session_id: The session ID to clean up
+        """
+        if session_id in self._session_locks:
+            del self._session_locks[session_id]
+            logger.debug(f"Cleaned up session lock for: {session_id}")
+        if session_id in self._session_access_times:
+            del self._session_access_times[session_id]
+            logger.debug(f"Cleaned up access time for: {session_id}")
+        if session_id in self._active_sessions:
+            del self._active_sessions[session_id]
+            logger.debug(f"Cleaned up active session for: {session_id}") 

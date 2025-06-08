@@ -78,29 +78,35 @@ class SessionSavingMiddleware(BaseHTTPMiddleware):
     
     async def _save_session_safe(self, session_id: str, endpoint_path: str) -> None:
         """
-        Safely save session with error handling.
+        FIXED: Safely save session with error handling without blocking.
         
         Args:
             session_id: Session ID to save
             endpoint_path: API endpoint that triggered the save
         """
-        try:
-            # Get session registry from app state if available
-            if hasattr(self.app, 'state') and hasattr(self.app.state, 'agent_manager'):
-                session_registry = self.app.state.agent_manager
-                
-                # Check if session is active in memory
-                if session_id in session_registry._active_sessions:
-                    save_success = await session_registry.save_session(session_id)
-                    if save_success:
-                        logger.debug(f"Middleware auto-saved session {session_id} after {endpoint_path}")
+        import asyncio
+        
+        async def _do_save():
+            try:
+                # Get session registry from app state if available
+                if hasattr(self.app, 'state') and hasattr(self.app.state, 'agent_manager'):
+                    session_registry = self.app.state.agent_manager
+                    
+                    # Check if session is active in memory
+                    if session_id in session_registry._active_sessions:
+                        save_success = await session_registry.save_session(session_id)
+                        if save_success:
+                            logger.debug(f"Middleware auto-saved session {session_id} after {endpoint_path}")
+                        else:
+                            logger.warning(f"Middleware failed to save session {session_id} after {endpoint_path}")
                     else:
-                        logger.warning(f"Middleware failed to save session {session_id} after {endpoint_path}")
+                        logger.debug(f"Session {session_id} not active in memory, skipping middleware save")
                 else:
-                    logger.debug(f"Session {session_id} not active in memory, skipping middleware save")
-            else:
-                logger.debug("Session registry not available in app state, skipping middleware save")
-                
-        except Exception as e:
-            # Don't fail the request due to save errors, just log them
-            logger.error(f"Middleware session save error for {session_id} after {endpoint_path}: {e}")
+                    logger.debug("Session registry not available in app state, skipping middleware save")
+                    
+            except Exception as e:
+                # Don't fail the request due to save errors, just log them
+                logger.error(f"Middleware session save error for {session_id} after {endpoint_path}: {e}")
+        
+        # FIXED: Fire and forget to avoid blocking the response
+        asyncio.create_task(_do_save())
