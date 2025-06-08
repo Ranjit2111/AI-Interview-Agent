@@ -105,13 +105,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
   });
 
   // Feedback form state
-  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
-  const [feedbackForm, setFeedbackForm] = useState({
-    name: '',
-    email: '',
-    message: ''
-  });
-  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
 
   // FIXED: Search progress state for Perplexity-style timeline
   const [searchProgress, setSearchProgress] = useState({
@@ -373,54 +367,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  // Handle feedback form submission
-  const handleFeedbackSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!feedbackForm.name.trim() || !feedbackForm.email.trim() || !feedbackForm.message.trim()) {
-      return;
-    }
 
-    setIsSubmittingFeedback(true);
-    try {
-      // Send feedback via API
-      const response = await fetch('/api/send-feedback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: feedbackForm.name.trim(),
-          email: feedbackForm.email.trim(),
-          message: feedbackForm.message.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to send feedback');
-      }
-
-      const result = await response.json();
-      
-      // Show success message (you could add a toast notification here)
-      console.log('Feedback sent successfully:', result.message);
-      
-      // Reset form and close modal
-      setFeedbackForm({ name: '', email: '', message: '' });
-      setShowFeedbackForm(false);
-      
-      // Optional: Show success notification to user
-      alert('Thank you for your feedback! We\'ll review it and get back to you soon.');
-      
-    } catch (error) {
-      console.error('Error sending feedback:', error);
-      
-      // Show error message to user
-      alert(`Failed to send feedback: ${error instanceof Error ? error.message : 'Please try again later.'}`);
-    } finally {
-      setIsSubmittingFeedback(false);
-    }
-  };
 
   // Revolutionary background system with multiple layers
   const renderAdvancedBackground = () => (
@@ -716,103 +663,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
     );
   };
 
-  // ✨ Feedback Form Modal
-  const renderFeedbackForm = () => {
-    if (!showFeedbackForm) return null;
 
-    return (
-      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-gradient-to-br from-black/90 via-gray-900/90 to-black/90 backdrop-blur-xl border border-purple-500/20 rounded-3xl p-8 max-w-md w-full shadow-2xl">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
-                <MessageSquare className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">Share Your Feedback</h3>
-                <p className="text-gray-400 text-sm">Help us improve the AI Interviewer</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowFeedbackForm(false)}
-              className="text-gray-400 hover:text-white transition-colors p-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleFeedbackSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Your Name</label>
-              <input
-                type="text"
-                value={feedbackForm.name}
-                onChange={(e) => setFeedbackForm(prev => ({ ...prev, name: e.target.value }))}
-                className="w-full px-4 py-3 bg-black/60 border border-purple-500/20 rounded-xl text-white placeholder-gray-500 focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300"
-                placeholder="Enter your name"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
-              <input
-                type="email"
-                value={feedbackForm.email}
-                onChange={(e) => setFeedbackForm(prev => ({ ...prev, email: e.target.value }))}
-                className="w-full px-4 py-3 bg-black/60 border border-purple-500/20 rounded-xl text-white placeholder-gray-500 focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300"
-                placeholder="your.email@example.com"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Your Message</label>
-              <textarea
-                value={feedbackForm.message}
-                onChange={(e) => setFeedbackForm(prev => ({ ...prev, message: e.target.value }))}
-                rows={4}
-                className="w-full px-4 py-3 bg-black/60 border border-purple-500/20 rounded-xl text-white placeholder-gray-500 focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300 resize-none"
-                placeholder="Share your thoughts, suggestions, or feedback..."
-                required
-              />
-            </div>
-
-            <div className="flex space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setShowFeedbackForm(false)}
-                className="flex-1 px-6 py-3 bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 rounded-xl font-medium transition-all duration-300"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmittingFeedback || !feedbackForm.name.trim() || !feedbackForm.email.trim() || !feedbackForm.message.trim()}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-              >
-                {isSubmittingFeedback ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Sending...</span>
-                  </>
-                ) : (
-                  <>
-                    <ArrowRight className="w-4 h-4" />
-                    <span>Send Feedback</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
 
   // ✨ Footer Section (replicated from Index.tsx)
   const renderFooter = () => (
@@ -1257,7 +1108,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
               Apply what you've learned and practice again to improve further.
             </p>
             
-            {/* Three action buttons */}
+            {/* Two action buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
               <Button
                 onClick={onGoHome}
@@ -1275,14 +1126,6 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                 <span>Start New Interview</span>
                 <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </Button>
-
-              <Button
-                onClick={() => setShowFeedbackForm(true)}
-                className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white text-lg font-semibold px-8 py-4 rounded-2xl shadow-2xl hover:shadow-purple-500/20 transition-all duration-300 group border-0"
-              >
-                <MessageSquare className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-                <span>Share Review</span>
-              </Button>
             </div>
                       </div>
           </section>
@@ -1291,8 +1134,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
           {renderFooter()}
         </div>
 
-        {/* Feedback Form Modal */}
-        {renderFeedbackForm()}
+
 
         {/* Custom styles */}
       <style dangerouslySetInnerHTML={{

@@ -61,7 +61,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
     toggleMicrophone,
     toggleTranscript,
     playTextToSpeech,
-    lastExchange
+    lastExchange,
+    isInitialTTSSynthesizing,
+    isInitialMessage
   } = useVoiceFirstInterview(
     {
       messages,
@@ -499,9 +501,9 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       <VoiceFirstInterviewPanel
         isListening={isListening}
         isProcessing={isProcessing || isLoading}
-        isDisabled={isDisabled || audioPlaying}
+        isDisabled={isDisabled}
         voiceActivity={voiceActivityLevel}
-        turnState={audioPlaying ? 'ai' : turnState}
+        turnState={turnState}
         messages={messages}
         onToggleMicrophone={handleMicrophoneToggle}
         onToggleTranscript={toggleTranscript}
