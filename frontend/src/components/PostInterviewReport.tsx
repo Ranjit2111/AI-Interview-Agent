@@ -11,7 +11,8 @@ import {
   Code, Users, MessageSquare, BarChart3, Timer, Sparkles,
   Compass, Map, BookMarked, Telescope, Radar, Layers, Play,
   Filter, Cpu, Network, Scan, Bot,
-  Clock, Mic, Volume2, Heart, Waves, Atom, Orbit, User
+  Clock, Mic, Volume2, Heart, Waves, Atom, Orbit, User,
+  Github, Mail, Home
 } from 'lucide-react';
 import { PerTurnFeedbackItem } from '../services/api';
 
@@ -35,6 +36,7 @@ interface PostInterviewReportProps {
     error?: string;
   };
   onStartNewInterview: () => void;
+  onGoHome: () => void;
 }
 
 // Advanced particle system for immersive backgrounds
@@ -80,6 +82,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
   finalSummary,
   resources,
   onStartNewInterview,
+  onGoHome,
 }) => {
   // Advanced state management
   const [currentView, setCurrentView] = useState<'overview' | 'analysis' | 'resources'>('overview');
@@ -100,6 +103,15 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
     actualSummaryData: null as any,
     actualResourcesData: null as any[],
   });
+
+  // Feedback form state
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [feedbackForm, setFeedbackForm] = useState({
+    name: '',
+    email: '',
+    message: ''
+  });
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
   // FIXED: Search progress state for Perplexity-style timeline
   const [searchProgress, setSearchProgress] = useState({
@@ -360,6 +372,55 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
 
     return () => clearInterval(interval);
   }, []);
+
+  // Handle feedback form submission
+  const handleFeedbackSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!feedbackForm.name.trim() || !feedbackForm.email.trim() || !feedbackForm.message.trim()) {
+      return;
+    }
+
+    setIsSubmittingFeedback(true);
+    try {
+      // Send feedback via API
+      const response = await fetch('/api/send-feedback', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: feedbackForm.name.trim(),
+          email: feedbackForm.email.trim(),
+          message: feedbackForm.message.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to send feedback');
+      }
+
+      const result = await response.json();
+      
+      // Show success message (you could add a toast notification here)
+      console.log('Feedback sent successfully:', result.message);
+      
+      // Reset form and close modal
+      setFeedbackForm({ name: '', email: '', message: '' });
+      setShowFeedbackForm(false);
+      
+      // Optional: Show success notification to user
+      alert('Thank you for your feedback! We\'ll review it and get back to you soon.');
+      
+    } catch (error) {
+      console.error('Error sending feedback:', error);
+      
+      // Show error message to user
+      alert(`Failed to send feedback: ${error instanceof Error ? error.message : 'Please try again later.'}`);
+    } finally {
+      setIsSubmittingFeedback(false);
+    }
+  };
 
   // Revolutionary background system with multiple layers
   const renderAdvancedBackground = () => (
@@ -654,6 +715,155 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
       </div>
     );
   };
+
+  // ✨ Feedback Form Modal
+  const renderFeedbackForm = () => {
+    if (!showFeedbackForm) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-gradient-to-br from-black/90 via-gray-900/90 to-black/90 backdrop-blur-xl border border-purple-500/20 rounded-3xl p-8 max-w-md w-full shadow-2xl">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Share Your Feedback</h3>
+                <p className="text-gray-400 text-sm">Help us improve the AI Interviewer</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowFeedbackForm(false)}
+              className="text-gray-400 hover:text-white transition-colors p-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Form */}
+          <form onSubmit={handleFeedbackSubmit} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Your Name</label>
+              <input
+                type="text"
+                value={feedbackForm.name}
+                onChange={(e) => setFeedbackForm(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full px-4 py-3 bg-black/60 border border-purple-500/20 rounded-xl text-white placeholder-gray-500 focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300"
+                placeholder="Enter your name"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Email Address</label>
+              <input
+                type="email"
+                value={feedbackForm.email}
+                onChange={(e) => setFeedbackForm(prev => ({ ...prev, email: e.target.value }))}
+                className="w-full px-4 py-3 bg-black/60 border border-purple-500/20 rounded-xl text-white placeholder-gray-500 focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300"
+                placeholder="your.email@example.com"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Your Message</label>
+              <textarea
+                value={feedbackForm.message}
+                onChange={(e) => setFeedbackForm(prev => ({ ...prev, message: e.target.value }))}
+                rows={4}
+                className="w-full px-4 py-3 bg-black/60 border border-purple-500/20 rounded-xl text-white placeholder-gray-500 focus:border-purple-500/50 focus:ring-2 focus:ring-purple-500/20 transition-all duration-300 resize-none"
+                placeholder="Share your thoughts, suggestions, or feedback..."
+                required
+              />
+            </div>
+
+            <div className="flex space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowFeedbackForm(false)}
+                className="flex-1 px-6 py-3 bg-gray-600/20 hover:bg-gray-600/30 text-gray-300 rounded-xl font-medium transition-all duration-300"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmittingFeedback || !feedbackForm.name.trim() || !feedbackForm.email.trim() || !feedbackForm.message.trim()}
+                className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white rounded-xl font-medium transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              >
+                {isSubmittingFeedback ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Sending...</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowRight className="w-4 h-4" />
+                    <span>Send Feedback</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
+  // ✨ Footer Section (replicated from Index.tsx)
+  const renderFooter = () => (
+    <footer className="py-16 relative overflow-hidden mt-16">
+      <div className="absolute inset-0 bg-gradient-to-b from-black/0 to-purple-900/5 z-0"></div>
+      <div className="container mx-auto px-4 relative z-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="flex flex-col items-center justify-center">
+            <div className="flex items-center mb-6">
+              <div className="relative">
+                <div className="absolute -inset-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-600 opacity-70 blur-sm"></div>
+                <div className="relative p-1 rounded-full bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-500">
+                  <div className="w-10 h-10 flex items-center justify-center rounded-full bg-black">
+                    <Sparkles className="h-5 w-5 text-transparent bg-clip-text bg-gradient-to-br from-cyan-300 to-purple-400" />
+                  </div>
+                </div>
+              </div>
+              <h3 className="ml-3 text-2xl font-bold bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">AI Interviewer</h3>
+            </div>
+            
+            <p className="text-gray-400 text-center mb-6 max-w-md text-lg">
+              Enhance your interview skills with our AI-powered simulator. Practice, get feedback, and improve.
+            </p>
+            
+            <div className="flex justify-center space-x-4 mb-8">
+              <a href="https://github.com/Ranjit2111/AI-Interview-Agent" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-4 rounded-full hover:border-cyan-500/30 hover:shadow-cyan-500/20 transition-all duration-300 group">
+                <Github className="h-6 w-6 text-gray-300 group-hover:text-cyan-400 transition-colors" />
+              </a>
+              <a href="https://x.com/Ranjit_AI" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-4 rounded-full hover:border-purple-500/30 hover:shadow-purple-500/20 transition-all duration-300 group">
+                <svg className="h-6 w-6 text-gray-300 group-hover:text-purple-400 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+              </a>
+              <a href="https://www.linkedin.com/in/ranjit-n/" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-4 rounded-full hover:border-pink-500/30 hover:shadow-pink-500/20 transition-all duration-300 group">
+                <svg className="h-6 w-6 text-gray-300 group-hover:text-pink-400 transition-colors" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                </svg>
+              </a>
+              <a href="mailto:ranjitnagaraj2131@gmail.com" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-4 rounded-full hover:border-cyan-500/30 hover:shadow-cyan-500/20 transition-all duration-300 group">
+                <Mail className="h-6 w-6 text-gray-300 group-hover:text-cyan-400 transition-colors" />
+              </a>
+            </div>
+            
+            <div className="text-center text-sm text-gray-500">
+              <p>© 2025 AI Interviewer. All rights reserved.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
 
   // ✨ Clean Minimal Resource List
   const renderSearchResults = (actualResourcesData: any[]) => (
@@ -1037,29 +1247,54 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
 
         {/* Call to action section */}
         <section className="py-16 px-4 md:px-8">
-          <div className="max-w-2xl mx-auto text-center space-y-8">
+          <div className="max-w-4xl mx-auto text-center space-y-8">
             <div className="w-20 h-20 rounded-full bg-gradient-to-br from-cyan-500 via-purple-600 to-pink-500 flex items-center justify-center mx-auto shadow-2xl">
               <Zap className="w-10 h-10 text-white" />
             </div>
             
             <h3 className="text-3xl font-bold text-white">Ready for Your Next Challenge?</h3>
-            <p className="text-xl text-gray-400 leading-relaxed">
+            <p className="text-xl text-gray-400 leading-relaxed max-w-2xl mx-auto">
               Apply what you've learned and practice again to improve further.
             </p>
             
-          <Button
-            onClick={onStartNewInterview}
-            size="lg"
-              className="bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 hover:from-cyan-400 hover:via-purple-500 hover:to-pink-400 text-white text-lg font-semibold px-8 py-4 rounded-2xl shadow-2xl hover:shadow-cyan-500/20 transition-all duration-300 group"
-          >
-              <span>Start New Interview</span>
-              <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-          </Button>
-        </div>
-        </section>
-      </div>
+            {/* Three action buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
+              <Button
+                onClick={onGoHome}
+                className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white text-lg font-semibold px-8 py-4 rounded-2xl shadow-2xl hover:shadow-purple-500/20 transition-all duration-300 group border-0"
+              >
+                <Home className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+                <span>Go Home</span>
+              </Button>
 
-      {/* Custom styles */}
+              <Button
+                onClick={onStartNewInterview}
+                size="lg"
+                className="bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 hover:from-cyan-400 hover:via-purple-500 hover:to-pink-400 text-white text-lg font-semibold px-8 py-4 rounded-2xl shadow-2xl hover:shadow-cyan-500/20 transition-all duration-300 group border-0"
+              >
+                <span>Start New Interview</span>
+                <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Button>
+
+              <Button
+                onClick={() => setShowFeedbackForm(true)}
+                className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white text-lg font-semibold px-8 py-4 rounded-2xl shadow-2xl hover:shadow-purple-500/20 transition-all duration-300 group border-0"
+              >
+                <MessageSquare className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
+                <span>Share Review</span>
+              </Button>
+            </div>
+                      </div>
+          </section>
+
+          {/* Footer */}
+          {renderFooter()}
+        </div>
+
+        {/* Feedback Form Modal */}
+        {renderFeedbackForm()}
+
+        {/* Custom styles */}
       <style dangerouslySetInnerHTML={{
         __html: `
           @keyframes shimmer {

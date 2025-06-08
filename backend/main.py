@@ -30,6 +30,7 @@ from backend.api.agent_api import create_agent_api
 from backend.api.speech_api import create_speech_api
 from backend.api.file_processing_api import create_file_processing_api
 from backend.api.auth_api import create_auth_api
+from backend.api.email_api import create_email_api
 from backend.middleware import SessionSavingMiddleware
 load_dotenv()
 
@@ -151,6 +152,9 @@ logger.info("Speech API routes registered")
 
 create_file_processing_api(app)
 logger.info("File Processing API routes registered")
+
+create_email_api(app)
+logger.info("Email API routes registered")
 
 api_key = os.environ.get("GOOGLE_API_KEY", "MISSING_API_KEY")
 

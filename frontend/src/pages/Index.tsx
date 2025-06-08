@@ -1134,7 +1134,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-black text-gray-100 relative overflow-hidden">
-      {state !== 'interviewing' && (
+      {state !== 'interviewing' && state !== 'post_interview' && (
         <Header 
           showReset={state === 'completed'} 
           onReset={actions.resetInterview}
@@ -1169,6 +1169,7 @@ const Index = () => {
             finalSummary={postInterviewState.finalSummary}
             resources={postInterviewState.resources}
             onStartNewInterview={actions.resetInterview}
+            onGoHome={actions.resetInterview}
           />
         )}
         
