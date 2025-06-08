@@ -655,72 +655,70 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
     );
   };
 
-  // ✨ Compact Professional Resource Display
+  // ✨ Clean Minimal Resource List
   const renderSearchResults = (actualResourcesData: any[]) => (
     <div className="relative">
-      {/* Subtle background effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-20 h-20 bg-emerald-500/5 rounded-full blur-2xl" />
-        <div className="absolute bottom-20 right-10 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl" />
-      </div>
-
       {/* Clean header */}
-      <div className="relative z-10 mb-12">
-        <h3 className="text-3xl font-bold text-center bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent mb-4">
+      <div className="text-center mb-16">
+        <h3 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent mb-4">
           Learning Resources
         </h3>
-        <p className="text-center text-gray-400 text-sm">AI-curated resources based on your interview performance</p>
+        <p className="text-gray-400 text-sm">AI-curated resources based on your interview performance</p>
       </div>
 
-      {/* Compact grid layout */}
-      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+      {/* Minimal list layout */}
+      <div className="max-w-4xl mx-auto space-y-1">
         {actualResourcesData.map((resource: any, index: number) => (
           <div 
             key={index}
-            className="group relative bg-black/30 backdrop-blur-xl border border-white/10 hover:border-emerald-400/30 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02] hover:bg-black/40"
+            className="group relative border-l-2 border-transparent hover:border-emerald-400/60 transition-all duration-300"
           >
-            {/* Resource type badge */}
-            {resource.resource_type && (
-              <div className="absolute top-4 right-4">
-                <span className="px-2 py-1 text-xs font-medium bg-emerald-500/20 text-emerald-300 rounded-lg border border-emerald-500/30">
-                  {resource.resource_type}
-                </span>
-              </div>
-            )}
-
-            {/* Resource content */}
-            <div className="space-y-4">
-              {/* Title and link */}
-              <div>
-                <a
-                  href={resource.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group/link block"
-                >
-                  <h4 className="text-lg font-semibold text-white group-hover/link:text-emerald-300 transition-colors duration-300 line-clamp-2">
-                    {resource.title}
-                    <ExternalLink className="inline-block ml-2 w-4 h-4 opacity-60 group-hover/link:opacity-100 group-hover/link:text-emerald-400 transition-all duration-300" />
-                  </h4>
-                </a>
+            {/* Clean row container */}
+            <div className="flex items-start space-x-4 p-6 hover:bg-white/5 transition-colors duration-300 rounded-r-xl">
+              
+              {/* Resource type badge */}
+              <div className="flex-shrink-0 mt-1">
+                {resource.resource_type && (
+                  <span className="inline-block px-3 py-1 text-xs font-medium bg-emerald-500/15 text-emerald-300 rounded-full border border-emerald-500/30">
+                    {resource.resource_type}
+                  </span>
+                )}
               </div>
 
-              {/* Reasoning section */}
-              {resource.reasoning && (
-                <div className="p-3 bg-gradient-to-r from-blue-900/10 to-purple-900/10 border border-blue-400/20 rounded-xl">
-                  <div className="flex items-start space-x-2">
-                    <Target className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <p className="text-xs font-medium text-blue-300 mb-1">Why this helps:</p>
-                      <p className="text-sm text-blue-200/90 leading-relaxed">{resource.reasoning}</p>
-                    </div>
-                  </div>
+              {/* Content area */}
+              <div className="flex-1 min-w-0">
+                {/* Title and link */}
+                <div className="mb-3">
+                  <a
+                    href={resource.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group/link inline-flex items-center"
+                  >
+                    <h4 className="text-lg font-medium text-white group-hover/link:text-emerald-300 transition-colors duration-300 mr-2">
+                      {resource.title}
+                    </h4>
+                    <ExternalLink className="w-4 h-4 text-gray-500 group-hover/link:text-emerald-400 opacity-60 group-hover/link:opacity-100 transition-all duration-300" />
+                  </a>
                 </div>
-              )}
+
+                {/* Reasoning */}
+                {resource.reasoning && (
+                  <div className="flex items-start space-x-2 text-sm">
+                    <Target className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-gray-300 leading-relaxed">
+                      <span className="text-cyan-300 font-medium">Why this helps: </span>
+                      {resource.reasoning}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Hover effect overlay */}
-            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/0 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            {/* Subtle separator line */}
+            {index < actualResourcesData.length - 1 && (
+              <div className="ml-6 mr-6 h-px bg-gradient-to-r from-transparent via-gray-700/50 to-transparent" />
+            )}
           </div>
         ))}
       </div>
