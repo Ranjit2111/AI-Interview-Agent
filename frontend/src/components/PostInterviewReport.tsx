@@ -5,12 +5,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { 
   ExternalLink, Brain, Search, Loader2, CheckCircle, AlertCircle, 
-  Globe, BookOpen, Video, FileText, GraduationCap, Target, 
+  Globe, Video, FileText, GraduationCap, Target, 
   TrendingUp, Award, Lightbulb, Zap, ArrowRight, 
   Circle, Square, Triangle, Hexagon, Activity, Eye, Database,
   Code, Users, MessageSquare, BarChart3, Timer, Sparkles,
   Compass, Map, BookMarked, Telescope, Radar, Layers, Play,
-  Filter, Cpu, Network, Scan, Bot, ChevronDown, ChevronUp,
+  Filter, Cpu, Network, Scan, Bot,
   Clock, Mic, Volume2, Heart, Waves, Atom, Orbit, User
 } from 'lucide-react';
 import { PerTurnFeedbackItem } from '../services/api';
@@ -655,179 +655,74 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
     );
   };
 
-  // ✨ Revolutionary search results display - Creative flowing design instead of cards
+  // ✨ Compact Professional Resource Display
   const renderSearchResults = (actualResourcesData: any[]) => (
     <div className="relative">
-      {/* Background orbs and effects */}
+      {/* Subtle background effects */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-32 right-20 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl animate-pulse delay-1000" />
-        <div className="absolute top-40 right-10 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl animate-pulse delay-500" />
+        <div className="absolute top-20 left-10 w-20 h-20 bg-emerald-500/5 rounded-full blur-2xl" />
+        <div className="absolute bottom-20 right-10 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl" />
       </div>
 
-      {/* Header section with floating elements */}
-      <div className="relative z-10 text-center mb-16">
-        <div className="inline-flex items-center space-x-4 mb-6 p-4 bg-black/20 backdrop-blur-xl border border-emerald-500/20 rounded-3xl">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500 via-cyan-600 to-blue-500 flex items-center justify-center shadow-lg">
-            <BookOpen className="w-6 h-6 text-white" />
-          </div>
-          <div className="text-left">
-            <h3 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent">
-              Learning Resources
-            </h3>
-            <p className="text-emerald-300/80 text-sm">Curated by AI based on your performance</p>
-          </div>
-        </div>
+      {/* Clean header */}
+      <div className="relative z-10 mb-12">
+        <h3 className="text-3xl font-bold text-center bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent mb-4">
+          Learning Resources
+        </h3>
+        <p className="text-center text-gray-400 text-sm">AI-curated resources based on your interview performance</p>
       </div>
 
-      {/* Innovative Bento-style grid layout */}
-      <div className="relative z-10 space-y-8">
-        {actualResourcesData.map((resource: any, index: number) => {
-          const isLarge = index % 3 === 0; // Every 3rd item is larger
-          const isLeft = index % 2 === 0;
-          
-          return (
-            <div 
-              key={index}
-              className={`group relative ${
-                isLarge ? 'w-full' : isLeft ? 'ml-0 mr-auto w-4/5' : 'ml-auto mr-0 w-4/5'
-              }`}
-            >
-              {/* Floating connector line for visual flow */}
-              {index > 0 && (
-                <div className={`absolute ${
-                  isLeft ? '-top-8 right-20' : '-top-8 left-20'
-                } w-px h-8 bg-gradient-to-b from-transparent via-cyan-400/30 to-transparent`} />
-              )}
-              
-              {/* Main resource container with advanced glassmorphism */}
-              <div 
-                className={`
-                  relative overflow-hidden backdrop-blur-2xl border transition-all duration-500 group-hover:scale-105
-                  bg-gradient-to-br from-black/40 via-emerald-900/10 to-cyan-900/10
-                  border-emerald-500/20 hover:border-emerald-400/40
-                  shadow-2xl hover:shadow-emerald-500/20
-                  ${isLarge ? 'rounded-3xl p-8' : 'rounded-2xl p-6'}
-                `}
-                style={{
-                  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-                }}
-              >
-                {/* Animated background pattern */}
-                <div 
-                  className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity duration-500"
-                  style={{
-                    backgroundImage: `
-                      radial-gradient(circle at 25% 25%, rgba(34, 197, 94, 0.3) 0%, transparent 50%),
-                      radial-gradient(circle at 75% 75%, rgba(6, 182, 212, 0.3) 0%, transparent 50%)
-                    `,
-                    backgroundSize: '200px 200px',
-                    animation: 'float 6s ease-in-out infinite'
-                  }}
-                />
+      {/* Compact grid layout */}
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+        {actualResourcesData.map((resource: any, index: number) => (
+          <div 
+            key={index}
+            className="group relative bg-black/30 backdrop-blur-xl border border-white/10 hover:border-emerald-400/30 rounded-2xl p-6 transition-all duration-300 hover:scale-[1.02] hover:bg-black/40"
+          >
+            {/* Resource type badge */}
+            {resource.resource_type && (
+              <div className="absolute top-4 right-4">
+                <span className="px-2 py-1 text-xs font-medium bg-emerald-500/20 text-emerald-300 rounded-lg border border-emerald-500/30">
+                  {resource.resource_type}
+                </span>
+              </div>
+            )}
 
-                {/* Resource type badge floating in corner */}
-                {resource.resource_type && (
-                  <div className="absolute top-4 right-4 z-10">
-                    <div className="px-3 py-1 text-xs font-medium bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-400/30 rounded-full text-emerald-300 backdrop-blur-md">
-                      {resource.resource_type}
-                    </div>
-                  </div>
-                )}
+            {/* Resource content */}
+            <div className="space-y-4">
+              {/* Title and link */}
+              <div>
+                <a
+                  href={resource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group/link block"
+                >
+                  <h4 className="text-lg font-semibold text-white group-hover/link:text-emerald-300 transition-colors duration-300 line-clamp-2">
+                    {resource.title}
+                    <ExternalLink className="inline-block ml-2 w-4 h-4 opacity-60 group-hover/link:opacity-100 group-hover/link:text-emerald-400 transition-all duration-300" />
+                  </h4>
+                </a>
+              </div>
 
-                {/* Main content with advanced layout */}
-                <div className="relative z-10 space-y-4">
-                  {/* Title with hover effects */}
-                  <div className="space-y-2">
-                    <a
-                      href={resource.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="group/link block"
-                    >
-                      <h4 className={`
-                        font-bold leading-tight transition-all duration-300
-                        text-white group-hover/link:text-emerald-300
-                        ${isLarge ? 'text-2xl' : 'text-xl'}
-                      `}>
-                        {resource.title}
-                        <ExternalLink className="inline-block ml-2 w-5 h-5 opacity-60 group-hover/link:opacity-100 group-hover/link:text-emerald-400 transition-all duration-300" />
-                      </h4>
-                    </a>
-                    
-                    {/* Animated underline */}
-                    <div className="h-px w-0 group-hover:w-16 bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all duration-500" />
-                  </div>
-
-                  {/* Description with enhanced styling */}
-                  <p className={`
-                    text-gray-300 leading-relaxed
-                    ${isLarge ? 'text-base' : 'text-sm'}
-                  `}>
-                    {resource.description}
-                  </p>
-
-                  {/* Reasoning section with special styling */}
-                  {resource.reasoning && (
-                    <div className="relative mt-6 p-4 rounded-2xl bg-gradient-to-r from-blue-900/20 via-purple-900/20 to-indigo-900/20 border border-blue-400/20 backdrop-blur-md">
-                      {/* Floating accent dots */}
-                      <div className="absolute -top-2 -left-2 w-4 h-4 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full opacity-60" />
-                      <div className="absolute -bottom-2 -right-2 w-3 h-3 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full opacity-40" />
-                      
-                      <div className="relative z-10">
-                        <div className="flex items-center space-x-2 mb-2">
-                          <Target className="w-4 h-4 text-blue-400" />
-                          <span className="text-xs font-semibold text-blue-300 uppercase tracking-wide">
-                            Why This Resource
-                          </span>
-                        </div>
-                        <p className="text-sm text-blue-200 leading-relaxed italic">
-                          {resource.reasoning}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Interactive elements at bottom */}
-                  <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                    {/* Simple recommended indicator */}
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs text-gray-400">Recommended</span>
-                    </div>
-                    
-                    {/* Hover reveal action */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <ArrowRight className="w-5 h-5 text-emerald-400 animate-pulse" />
+              {/* Reasoning section */}
+              {resource.reasoning && (
+                <div className="p-3 bg-gradient-to-r from-blue-900/10 to-purple-900/10 border border-blue-400/20 rounded-xl">
+                  <div className="flex items-start space-x-2">
+                    <Target className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-blue-300 mb-1">Why this helps:</p>
+                      <p className="text-sm text-blue-200/90 leading-relaxed">{resource.reasoning}</p>
                     </div>
                   </div>
                 </div>
-
-                {/* Subtle glow effect on hover */}
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/0 via-cyan-500/5 to-blue-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              </div>
-
-              {/* Floating numbered indicator */}
-              <div className={`
-                absolute -left-6 top-6 w-12 h-12 rounded-full 
-                bg-gradient-to-br from-emerald-500 to-cyan-600 
-                flex items-center justify-center text-white font-bold shadow-lg z-20
-                transform group-hover:scale-110 transition-transform duration-300
-              `}>
-                {index + 1}
-              </div>
+              )}
             </div>
-          );
-        })}
-      </div>
 
-      {/* Bottom floating CTA */}
-      <div className="relative z-10 text-center mt-16">
-        <div className="inline-flex items-center space-x-3 p-4 bg-black/40 backdrop-blur-xl border border-emerald-500/20 rounded-2xl">
-          <Lightbulb className="w-5 h-5 text-emerald-400" />
-          <span className="text-emerald-300 text-sm font-medium">
-            Resources are personalized based on your interview responses
-          </span>
-        </div>
+            {/* Hover effect overlay */}
+            <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-emerald-500/0 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -842,20 +737,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         <div className="absolute top-20 right-20 w-20 h-20 bg-red-500/10 rounded-full blur-2xl animate-pulse delay-1000" />
       </div>
 
-      {/* Header section with dynamic elements */}
-      <div className="relative z-10 text-center mb-16">
-        <div className="inline-flex items-center space-x-4 mb-6 p-4 bg-black/20 backdrop-blur-xl border border-purple-500/20 rounded-3xl">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 via-pink-600 to-red-500 flex items-center justify-center shadow-lg">
-            <MessageSquare className="w-6 h-6 text-white" />
-          </div>
-          <div className="text-left">
-            <h3 className="text-2xl font-bold bg-gradient-to-r from-purple-400 via-pink-500 to-red-400 bg-clip-text text-transparent">
-              Conversation Analysis
-            </h3>
-            <p className="text-purple-300/80 text-sm">Turn-by-turn coaching insights</p>
-          </div>
-        </div>
-      </div>
+
 
       {/* Innovative conversation timeline */}
       <div className="relative z-10 max-w-5xl mx-auto">
@@ -865,7 +747,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
           <div className="absolute left-1/2 transform -translate-x-1/2 top-0 bottom-0 w-1 bg-gradient-to-b from-purple-500/30 via-pink-500/30 to-red-500/30"></div>
           
           {/* Conversation bubbles */}
-          <div className="space-y-24">
+          <div className="space-y-8">
             {perTurnFeedback.map((item, index) => {
               
               return (
@@ -875,13 +757,10 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                     <span className="text-white font-bold text-lg">{index + 1}</span>
                   </div>
 
-                  {/* Question bubble (always on left, positioned below the number) */}
-                  <div className="pt-20 mb-8">
-                    <div className="flex justify-start">
-                      <div className="relative max-w-md mr-auto">
-                        {/* Consistent connector line from box to center */}
-                        <div className="absolute top-8 -right-6 w-6 h-px bg-gradient-to-r from-transparent to-purple-400/50"></div>
-                        
+                  {/* Question bubble (left side, attached to center line) */}
+                  <div className="pt-20 mb-2">
+                    <div className="flex">
+                      <div className="relative max-w-md mr-2 ml-auto" style={{ marginRight: 'calc(50% + 0.125rem)' }}>
                         {/* Question container */}
                         <div className="relative group">
                           <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 to-purple-800/20 rounded-3xl blur-lg opacity-50 group-hover:opacity-70 transition-opacity duration-500"></div>
@@ -903,13 +782,10 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                     </div>
                   </div>
 
-                  {/* Answer bubble (always on right, positioned below the question) */}
-                  <div className="mb-12">
-                    <div className="flex justify-end">
-                      <div className="relative max-w-md ml-auto">
-                        {/* Consistent connector line from box to center */}
-                        <div className="absolute top-8 -left-6 w-6 h-px bg-gradient-to-r from-blue-400/50 to-transparent"></div>
-                        
+                  {/* Answer bubble (right side, attached to center line) */}
+                  <div className="mb-4">
+                    <div className="flex">
+                      <div className="relative max-w-md ml-2 mr-auto" style={{ marginLeft: 'calc(50% + 0.125rem)' }}>
                         {/* Answer container */}
                         <div className="relative group">
                           <div className="absolute inset-0 bg-gradient-to-br from-blue-600/20 to-cyan-800/20 rounded-3xl blur-lg opacity-50 group-hover:opacity-70 transition-opacity duration-500"></div>
@@ -932,7 +808,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                   </div>
 
                   {/* AI Coach Feedback (center, simplified to match other bubbles) */}
-                  <div className="flex justify-center mb-12">
+                  <div className="flex justify-center mb-4">
                     <div className="relative max-w-4xl w-full">
                       {/* Simplified coaching feedback container */}
                       <div className="relative group">
@@ -967,16 +843,6 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
             })}
           </div>
         </div>
-
-        {/* Summary insights at the bottom */}
-        <div className="mt-16 text-center">
-          <div className="inline-flex items-center space-x-3 p-4 bg-black/40 backdrop-blur-xl border border-purple-500/20 rounded-2xl">
-            <Compass className="w-5 h-5 text-purple-400" />
-            <span className="text-purple-300 text-sm font-medium">
-              {perTurnFeedback.length} conversation exchanges analyzed for improvement insights
-            </span>
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -994,37 +860,28 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
       {/* Main content with revolutionary layout */}
       <div className="relative z-10 min-h-screen">
         
-        {/* Hero section with dynamic navigation */}
-        <section className="min-h-screen flex flex-col justify-center items-center px-4 md:px-8 relative">
-          <div className="text-center space-y-8 max-w-4xl">
-            {/* Animated header */}
-            <div 
-              className="space-y-6"
-              style={{
-                transform: `translateY(${scrollY * 0.1}px)`,
-                opacity: Math.max(0, 1 - scrollY / 500)
-              }}
-            >
-              <div className="flex items-center justify-center space-x-4 mb-8">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500 via-purple-600 to-pink-500 flex items-center justify-center shadow-2xl">
-                  <BarChart3 className="w-8 h-8 text-white" />
-                </div>
+        {/* Minimal Hero Section */}
+        <section className="py-16 px-4 md:px-8 relative">
+          <div className="max-w-4xl mx-auto">
+            {/* Compact header */}
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-cyan-500 via-purple-600 to-pink-500 mb-6 shadow-lg">
+                <BarChart3 className="w-8 h-8 text-white" />
               </div>
               
-              <h1 className="text-6xl md:text-7xl font-bold leading-tight">
+              <h1 className="text-4xl md:text-5xl font-bold mb-4">
                 <span className="bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-400 bg-clip-text text-transparent">
-                  Interview Analysis
+                  Interview Analysis Report
                 </span>
-          </h1>
+              </h1>
               
-              <p className="text-xl md:text-2xl text-gray-300 leading-relaxed max-w-3xl mx-auto">
-                Comprehensive AI-powered insights into your interview performance 
-                with personalized learning recommendations
-          </p>
-        </div>
+              <p className="text-gray-400 max-w-xl mx-auto">
+                AI-powered insights into your interview performance
+              </p>
+            </div>
 
-            {/* Dynamic section navigation */}
-            <div className="flex justify-center space-x-6">
+            {/* Compact navigation buttons */}
+            <div className="flex flex-wrap justify-center gap-4">
               {[
                 { 
                   id: 'analysis', 
@@ -1042,7 +899,12 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                          (timingControl.actualResourcesData || resources.status === 'completed') ? 'completed' as const : 
                          resources.status 
                 },
-                { id: 'feedback', label: 'Detailed Feedback', icon: MessageSquare, status: 'completed' as const }
+                { 
+                  id: 'feedback', 
+                  label: 'Turn-by-Turn Feedback', 
+                  icon: MessageSquare, 
+                  status: 'completed' as const 
+                }
               ].map((section) => (
                 <button
                   key={section.id}
@@ -1050,30 +912,18 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                     const element = document.getElementById(section.id);
                     element?.scrollIntoView({ behavior: 'smooth' });
                   }}
-                  className="group flex flex-col items-center space-y-3 p-6 bg-black/30 backdrop-blur-xl border border-white/10 rounded-2xl hover:border-white/20 transition-all duration-300 hover:scale-105"
+                  className="group relative inline-flex items-center space-x-2 px-6 py-3 bg-black/30 backdrop-blur-xl border border-white/10 hover:border-cyan-400/40 rounded-xl transition-all duration-300 hover:scale-105"
                 >
-                  <div className="relative">
-                    <section.icon className="w-8 h-8 text-white group-hover:text-cyan-400 transition-colors" />
-                    {section.status === 'loading' && (
-                      <div className="absolute -inset-2 rounded-full border-2 border-cyan-400/50 animate-ping" />
-                    )}
-                  </div>
-                  <span className="text-white font-medium group-hover:text-cyan-400 transition-colors">
+                  {/* Icon */}
+                  <section.icon className="w-5 h-5 text-gray-300 group-hover:text-cyan-400 transition-colors" />
+                  
+                  {/* Label */}
+                  <span className="text-sm font-medium text-white group-hover:text-cyan-400 transition-colors">
                     {section.label}
                   </span>
-                  <div className={`w-2 h-2 rounded-full ${
-                    section.status === 'completed' ? 'bg-green-400' :
-                    section.status === 'loading' ? 'bg-yellow-400 animate-pulse' :
-                    'bg-red-400'
-                  }`} />
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Scroll indicator */}
-          <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
-            <ChevronDown className="w-6 h-6 text-white/60" />
           </div>
         </section>
 
