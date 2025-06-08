@@ -3,6 +3,7 @@ API endpoints for interacting with the interview agent.
 Refactored for multi-session support with database persistence.
 """
 
+import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 import uuid
@@ -110,6 +111,24 @@ def create_agent_api(app):
     """Creates and registers agent API routes."""
     router = APIRouter(prefix="/interview", tags=["interview"])
 
+    async def _save_session_async(session_registry: ThreadSafeSessionRegistry, session_id: str, operation: str) -> None:
+        """
+        FIXED: Async helper to save sessions without blocking request processing.
+        
+        Args:
+            session_registry: The session registry
+            session_id: The session ID to save
+            operation: The operation that triggered the save (for logging)
+        """
+        try:
+            save_success = await session_registry.save_session(session_id)
+            if save_success:
+                logger.debug(f"Successfully saved session {session_id} after {operation}")
+            else:
+                logger.error(f"Failed to save session {session_id} after {operation}")
+        except Exception as e:
+            logger.exception(f"Error saving session {session_id} after {operation}: {e}")
+
     @router.post("/session", response_model=SessionResponse)
     async def create_session(
         start_request: InterviewStartRequest,
@@ -176,12 +195,8 @@ def create_agent_api(app):
             initial_response = session_manager.process_message(message="")
             logger.info(f"Generated initial introduction for session {session_manager.session_id}")
             
-            # CRITICAL FIX: Save session state to database after processing
-            save_success = await session_registry.save_session(session_manager.session_id)
-            if not save_success:
-                logger.error(f"Failed to save session {session_manager.session_id} after start_interview")
-            else:
-                logger.debug(f"Successfully saved session {session_manager.session_id} after start_interview")
+            # FIXED: Make database save non-blocking to improve response time
+            asyncio.create_task(_save_session_async(session_registry, session_manager.session_id, "start_interview"))
             
             # Debug logging to track message processing
             logger.info(f"DEBUG - Initial response structure: {initial_response}")
@@ -213,13 +228,8 @@ def create_agent_api(app):
             interviewer_response_dict = session_manager.process_message(message=user_input.message)
             logger.info(f"Session {session_manager.session_id} generated response")
             
-            # CRITICAL FIX: Save session state to database after processing message
-            save_success = await session_registry.save_session(session_manager.session_id)
-            if not save_success:
-                logger.error(f"Failed to save session {session_manager.session_id} after processing message")
-                # Don't fail the request, but log the error
-            else:
-                logger.debug(f"Successfully saved session {session_manager.session_id} after processing message")
+            # FIXED: Make database save non-blocking to improve response time
+            asyncio.create_task(_save_session_async(session_registry, session_manager.session_id, "message"))
             
             return interviewer_response_dict
 
@@ -244,12 +254,8 @@ def create_agent_api(app):
             final_session_results = session_manager.end_interview()
             logger.info(f"Session {session_manager.session_id} ended with results")
 
-            # CRITICAL FIX: Save session state to database after ending interview
-            save_success = await session_registry.save_session(session_manager.session_id)
-            if not save_success:
-                logger.error(f"Failed to save session {session_manager.session_id} after ending interview")
-            else:
-                logger.debug(f"Successfully saved session {session_manager.session_id} after ending interview")
+            # FIXED: Make database save non-blocking to improve response time
+            asyncio.create_task(_save_session_async(session_registry, session_manager.session_id, "end_interview"))
 
             # ALWAYS return empty coaching_summary to ensure frontend polling and loading states
             return EndResponse(
@@ -412,12 +418,8 @@ def create_agent_api(app):
             session_manager.reset_session()
             logger.info(f"Session {session_manager.session_id} reset")
 
-            # CRITICAL FIX: Save session state to database after reset
-            save_success = await session_registry.save_session(session_manager.session_id)
-            if not save_success:
-                logger.error(f"Failed to save session {session_manager.session_id} after reset")
-            else:
-                logger.debug(f"Successfully saved session {session_manager.session_id} after reset")
+            # FIXED: Make database save non-blocking to improve response time
+            asyncio.create_task(_save_session_async(session_registry, session_manager.session_id, "reset"))
 
             return ResetResponse(
                 message="Session reset successfully",
