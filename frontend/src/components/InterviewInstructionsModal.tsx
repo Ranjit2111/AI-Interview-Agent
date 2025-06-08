@@ -16,7 +16,7 @@ const InterviewInstructionsModal: React.FC<InterviewInstructionsModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="max-w-md w-full mx-4">
+      <div className="max-w-lg w-full mx-4">
         <Card className="bg-gray-900/95 border-cyan-500/30 shadow-xl shadow-cyan-500/10 backdrop-blur-lg">
           <CardHeader className="text-center border-b border-cyan-500/20 pb-4">
             <CardTitle className="text-xl font-bold bg-gradient-to-r from-cyan-300 to-purple-400 bg-clip-text text-transparent">
@@ -47,6 +47,19 @@ const InterviewInstructionsModal: React.FC<InterviewInstructionsModalProps> = ({
                 <h3 className="font-semibold text-purple-300 mb-1">Best Performance</h3>
                 <p className="text-gray-300 text-sm leading-relaxed">
                   Use earphones and speak loudly and clearly for best performance.
+                </p>
+              </div>
+            </div>
+
+            {/* Instruction 3 */}
+            <div className="flex items-start space-x-3">
+              <div className="w-8 h-8 rounded-full bg-orange-500/20 border border-orange-400/30 flex items-center justify-center flex-shrink-0 mt-1">
+                <CheckCircle className="w-4 h-4 text-orange-300" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-orange-300 mb-1">Timing Tip</h3>
+                <p className="text-gray-300 text-sm leading-relaxed">
+                  Wait about one second after finishing your response before clicking stop to ensure your complete answer is captured.
                 </p>
               </div>
             </div>
