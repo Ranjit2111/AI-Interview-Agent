@@ -35,6 +35,7 @@ export interface SessionData {
   sessionId?: string; // Add sessionId for speech task tracking
   results?: any; // Add results field
   disableAutoTTS?: boolean; // Add flag to disable auto-TTS when needed
+  isInitialMessage?: boolean; // Add flag to identify initial message TTS
 }
 
 export function useVoiceFirstInterview(
@@ -64,6 +65,10 @@ export function useVoiceFirstInterview(
   
   // Track current interim text for race condition fix (not for display)
   const [currentInterimText, setCurrentInterimText] = useState('');
+  
+  // Add state to track initial TTS synthesis vs playing
+  const [isInitialTTSSynthesizing, setIsInitialTTSSynthesizing] = useState<boolean>(false);
+  const [isInitialMessage, setIsInitialMessage] = useState<boolean>(false);
   
   // Refs for voice management
   const recognitionRef = useRef<StreamingSpeechRecognition | null>(null);
@@ -322,24 +327,39 @@ export function useVoiceFirstInterview(
   }, [microphoneActive, startVoiceRecognition, stopVoiceRecognition]);
 
   // TTS state management
-  const handleTTSStart = useCallback(() => {
-    console.log('🎙️ TTS Start - Setting audioPlaying=true, turnState=ai');
-    setAudioPlaying(true);
-    setVoiceState(prev => {
-      const newState: VoiceState = {
+  const handleTTSStart = useCallback((isInitial: boolean = false) => {
+    console.log('🎙️ TTS Start - Setting audioPlaying=true, turnState=ai', { isInitial });
+    
+    if (isInitial) {
+      // For initial message, only set synthesis state, not visual AI state yet
+      setIsInitialTTSSynthesizing(true);
+      setIsInitialMessage(true);
+      setVoiceState(prev => ({
         ...prev,
-        audioState: 'playing' as const,
-        turnState: 'ai' as const,
-        microphoneState: 'disabled' as const
-      };
-      console.log('🎙️ TTS Start - Voice state updated:', newState);
-      return newState;
-    });
+        microphoneState: 'disabled' as const // Block mic during synthesis
+      }));
+      console.log('🎙️ Initial TTS Start - Setting synthesis state, mic disabled');
+    } else {
+      // For regular interview messages, use existing behavior
+      setAudioPlaying(true);
+      setVoiceState(prev => {
+        const newState: VoiceState = {
+          ...prev,
+          audioState: 'playing' as const,
+          turnState: 'ai' as const,
+          microphoneState: 'disabled' as const
+        };
+        console.log('🎙️ Regular TTS Start - Voice state updated:', newState);
+        return newState;
+      });
+    }
   }, []);
 
   const handleTTSEnd = useCallback(() => {
     console.log('🎙️ TTS End - Setting audioPlaying=false, turnState=idle');
     setAudioPlaying(false);
+    setIsInitialTTSSynthesizing(false);
+    setIsInitialMessage(false);
     setVoiceState(prev => {
       const newState: VoiceState = {
         ...prev,
@@ -351,6 +371,21 @@ export function useVoiceFirstInterview(
       return newState;
     });
   }, []);
+
+  // Handler for when initial TTS audio actually starts playing
+  const handleInitialTTSPlay = useCallback(() => {
+    if (isInitialMessage) {
+      console.log('🎙️ Initial TTS audio started playing - showing visual state');
+      setIsInitialTTSSynthesizing(false);
+      setAudioPlaying(true);
+      setVoiceState(prev => ({
+        ...prev,
+        audioState: 'playing' as const,
+        turnState: 'ai' as const,
+        microphoneState: 'disabled' as const
+      }));
+    }
+  }, [isInitialMessage]);
 
   // Transcript and feedback controls
   const toggleTranscript = useCallback(() => {
@@ -367,23 +402,28 @@ export function useVoiceFirstInterview(
 
   // Enhanced TTS implementation
   const playTextToSpeech = useCallback(async (text: string) => {
-    const { selectedVoice } = sessionData;
+    const { selectedVoice, messages } = sessionData;
     
     if (!selectedVoice) {
       console.warn('⚠️ No selectedVoice available for TTS');
       return;
     }
     
+    // Detect if this is the initial/introduction message
+    const assistantMessages = messages.filter(m => m.role === 'assistant' && m.agent === 'interviewer');
+    const isInitialMsg = assistantMessages.length === 1;
+    
     console.log('🔊 Starting TTS playback:', {
       text: text.slice(0, 50) + '...',
       audioPlayingBefore: audioPlaying,
       turnStateBefore: voiceState.turnState,
-      disableAutoTTS: sessionData.disableAutoTTS
+      disableAutoTTS: sessionData.disableAutoTTS,
+      isInitialMessage: isInitialMsg
     });
     
     try {
-      // Show loading state for first TTS request
-      handleTTSStart();
+      // Start TTS with appropriate handler
+      handleTTSStart(isInitialMsg);
       
       const startTime = Date.now();
       const audioBlob = await api.textToSpeech(text, selectedVoice);
@@ -405,7 +445,11 @@ export function useVoiceFirstInterview(
       // Set up event handlers before playing
       audio.onplay = () => {
         console.log('🔊 TTS audio started playing - triggering visual effects');
-        // Keep TTS start state since we already set it during synthesis
+        if (isInitialMsg) {
+          // For initial message, now show the visual state
+          handleInitialTTSPlay();
+        }
+        // For regular messages, visual state was already set during synthesis
       };
       
       audio.onended = () => {
@@ -445,7 +489,7 @@ export function useVoiceFirstInterview(
         });
       }
     }
-  }, [sessionData, handleTTSStart, handleTTSEnd, toast, audioPlaying, voiceState.turnState]);
+  }, [sessionData, handleTTSStart, handleTTSEnd, handleInitialTTSPlay, toast, audioPlaying, voiceState.turnState]);
 
   // Auto-enable voice when new AI message arrives
   const { messages, disableAutoTTS } = sessionData;
@@ -490,19 +534,18 @@ export function useVoiceFirstInterview(
 
   // Determine overall interaction state
   const getInteractionState = useCallback(() => {
-    const disabled = voiceState.microphoneState === 'disabled' || audioPlaying;
+    const isMicDisabledByTTS = audioPlaying || isInitialTTSSynthesizing;
+    const isMicDisabledByLogic = voiceState.microphoneState === 'disabled';
     const sessionNotReady = sessionData.state !== 'interviewing';
-    
-    if (disabled || audioPlaying) {
-      return { isListening: false, isProcessing: false, isDisabled: true };
-    }
+
+    const disabled = isMicDisabledByTTS || isMicDisabledByLogic || sessionNotReady;
     
     return {
-      isListening: microphoneActive,
-      isProcessing: voiceState.microphoneState === 'processing',
-      isDisabled: sessionNotReady
+      isListening: microphoneActive && !disabled,
+      isProcessing: voiceState.microphoneState === 'processing' && !disabled,
+      isDisabled: disabled
     };
-  }, [voiceState, microphoneActive, audioPlaying, sessionData.state]);
+  }, [voiceState, microphoneActive, audioPlaying, isInitialTTSSynthesizing, sessionData.state]);
 
   // Calculate interaction state once
   const interactionState = getInteractionState();
@@ -556,7 +599,11 @@ export function useVoiceFirstInterview(
     
     // Computed values
     lastExchange: getLastExchange(),
-    turnState: voiceState.turnState
+    turnState: voiceState.turnState,
+    
+    // Initial TTS state (for debugging and UI logic)
+    isInitialTTSSynthesizing,
+    isInitialMessage
   };
 }
 

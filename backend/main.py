@@ -30,7 +30,7 @@ from backend.api.agent_api import create_agent_api
 from backend.api.speech_api import create_speech_api
 from backend.api.file_processing_api import create_file_processing_api
 from backend.api.auth_api import create_auth_api
-from backend.api.email_api import create_email_api
+
 from backend.middleware import SessionSavingMiddleware
 load_dotenv()
 
@@ -153,8 +153,7 @@ logger.info("Speech API routes registered")
 create_file_processing_api(app)
 logger.info("File Processing API routes registered")
 
-create_email_api(app)
-logger.info("Email API routes registered")
+
 
 api_key = os.environ.get("GOOGLE_API_KEY", "MISSING_API_KEY")
 
@@ -271,33 +270,37 @@ async def warmup_services():
     """Warm up external services to reduce first-request latency."""
     logger.info("🔥 Starting comprehensive service warmup...")
     
-    # Enhanced TTS service warmup
+    # Check if running in production (Azure has WEBSITES_PORT environment variable)
+    is_production = os.environ.get("WEBSITES_PORT") is not None
+    
+    # Enhanced TTS service warmup - only in production
     try:
         from backend.api.speech.tts_service import TTSService
         tts_service = TTSService()
         
         if tts_service.is_available():
-            logger.info("🎤 Warming up Amazon Polly TTS service...")
-            
-            # Multiple warmup calls to establish connection pool
-            warmup_phrases = ["Ready", "Hello", "Interview starting"]
-            
-            for i, phrase in enumerate(warmup_phrases):
+            if is_production:
+                logger.info("🎤 Warming up Amazon Polly TTS service (production mode)...")
+                
+                # Single optimized warmup call to establish connection pool
+                # Using minimal text to reduce character consumption: "Hi" = 2 characters vs previous 28
                 try:
-                    ssml_text = tts_service._prepare_ssml(phrase, 1.0)
+                    ssml_text = tts_service._prepare_ssml("Hi", 1.0)
                     start_time = asyncio.get_event_loop().time()
                     
-                    # Run warmup synthesis
+                    # Run single warmup synthesis to establish connection
                     await tts_service._synthesize_speech_with_retry(ssml_text, "Matthew")
                     
                     end_time = asyncio.get_event_loop().time()
                     duration = end_time - start_time
-                    logger.info(f"✅ TTS warmup call {i+1}/3 completed in {duration:.2f}s")
+                    logger.info(f"✅ TTS warmup completed in {duration:.2f}s (2 characters used)")
                     
                 except Exception as e:
-                    logger.warning(f"⚠️ TTS warmup call {i+1}/3 failed: {e}")
-            
-            logger.info("✅ TTS service warmed up successfully")
+                    logger.warning(f"⚠️ TTS warmup failed: {e}")
+                
+                logger.info("✅ TTS service warmed up successfully")
+            else:
+                logger.info("⚠️ Skipping TTS warmup (development mode - cost optimization)")
         else:
             logger.warning("⚠️ TTS service not available for warmup (missing AWS credentials)")
             
