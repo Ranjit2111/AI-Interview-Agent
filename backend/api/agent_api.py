@@ -8,7 +8,7 @@ import logging
 from typing import List, Dict, Any, Optional
 import uuid
 
-from fastapi import APIRouter, HTTPException, Depends, Path, Request, Header
+from fastapi import APIRouter, HTTPException, Depends, Path, Request, Header, Query
 from pydantic import BaseModel, Field
 from backend.agents.orchestrator import AgentSessionManager
 from backend.agents.config_models import SessionConfig
@@ -61,12 +61,17 @@ class EndResponse(BaseModel):
     """Response for ending the interview."""
     results: Optional[Dict[str, Any]] = None
     per_turn_feedback: Optional[List[Dict[str, str]]] = None
+    final_summary_status: str = "generating"  # 'generating', 'completed', 'error'
+    has_immediate_data: bool = True  # Indicates per-turn feedback is immediately available
 
 class FinalSummaryStatusResponse(BaseModel):
     """Response for final summary status check."""
     status: str  # 'generating', 'completed', 'error'
     results: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+    suggested_poll_interval: int = 1000  # Milliseconds until next poll (exponential backoff)
+    generation_time_estimate: Optional[int] = None  # Estimated remaining time in seconds
+    resource_completion_timestamp: Optional[str] = None  # ISO timestamp when resources completed for frontend delay
 
 class SessionResponse(BaseModel):
     """Response for new session creation."""
@@ -257,10 +262,23 @@ def create_agent_api(app):
             # FIXED: Make database save non-blocking to improve response time
             asyncio.create_task(_save_session_async(session_registry, session_manager.session_id, "end_interview"))
 
-            # ALWAYS return empty coaching_summary to ensure frontend polling and loading states
+            # FIXED: Return per-turn feedback immediately for instant UX
+            # Check if final summary is already available (rare but possible)
+            final_summary_status = "generating"
+            final_summary_data = {}
+            
+            if hasattr(session_manager, 'final_summary') and session_manager.final_summary:
+                if isinstance(session_manager.final_summary, dict) and "error" in session_manager.final_summary:
+                    final_summary_status = "error"
+                else:
+                    final_summary_status = "completed"
+                    final_summary_data = session_manager.final_summary
+            
             return EndResponse(
-                results={},  # Always empty - frontend must poll for final summary
-                per_turn_feedback=final_session_results.get("per_turn_feedback", [])
+                results=final_summary_data,  # Include final summary if available, empty otherwise
+                per_turn_feedback=final_session_results.get("per_turn_feedback", []),
+                final_summary_status=final_summary_status,
+                has_immediate_data=True
             )
 
         except Exception as e:
@@ -271,7 +289,8 @@ def create_agent_api(app):
     async def get_final_summary_status(
         session_manager: AgentSessionManager = Depends(get_session_manager),
         current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
-        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry)
+        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry),
+        poll_count: Optional[int] = Query(None, description="Current poll attempt count for exponential backoff")
     ):
         """
         Check the status of final summary generation.
@@ -281,8 +300,14 @@ def create_agent_api(app):
         user_email = current_user["email"] if current_user else "anonymous"
         logger.info(f"Checking final summary status for session {session_manager.session_id} for user: {user_email}")
         try:
-            logger.info(f"DEBUG Final Summary Status Check:")
+            # FIXED: Calculate exponential backoff interval based on poll count
+            poll_count = poll_count or 1
+            # Exponential backoff: 1s -> 2s -> 4s -> 8s -> max 10s
+            suggested_interval = min(1000 * (2 ** min(poll_count - 1, 3)), 10000)
+            
+            logger.info(f"DEBUG Final Summary Status Check (poll #{poll_count}):")
             logger.info(f"  - Session manager exists: {session_manager is not None}")
+            logger.info(f"  - Suggested next poll interval: {suggested_interval}ms")
             
             if session_manager:
                 logger.info(f"  - Has final_summary attr: {hasattr(session_manager, 'final_summary')}")
@@ -313,34 +338,48 @@ def create_agent_api(app):
                         logger.info(f"DEBUG Returning error status: {error_message}")
                         return FinalSummaryStatusResponse(
                             status="error",
-                            error=error_message
+                            error=error_message,
+                            suggested_poll_interval=suggested_interval
                         )
                     else:
                         # Final summary completed successfully
                         logger.info(f"DEBUG Returning completed status with {len(str(session_manager.final_summary))} chars of data")
                         logger.info(f"DEBUG Final summary data preview: {str(session_manager.final_summary)[:200]}...")
+                        # Include resource completion timestamp for frontend delay logic
+                        resource_timestamp = None
+                        if hasattr(session_manager, 'resource_generation_completed_at') and session_manager.resource_generation_completed_at:
+                            resource_timestamp = session_manager.resource_generation_completed_at.isoformat()
+                        
                         return FinalSummaryStatusResponse(
                             status="completed",
-                            results=session_manager.final_summary
+                            results=session_manager.final_summary,
+                            suggested_poll_interval=0,  # No more polling needed
+                            resource_completion_timestamp=resource_timestamp
                         )
                 else:
                     # Still generating or not started
                     logger.info(f"DEBUG Returning generating status")
+                    # FIXED: Add time estimate based on typical generation time (10-45 seconds)
+                    time_estimate = max(30 - (poll_count * 2), 5) if poll_count < 15 else 5
                     return FinalSummaryStatusResponse(
-                        status="generating"
+                        status="generating",
+                        suggested_poll_interval=suggested_interval,
+                        generation_time_estimate=time_estimate
                     )
             else:
                 logger.error("DEBUG Session manager is None")
                 return FinalSummaryStatusResponse(
                     status="error",
-                    error="Session manager not found"
+                    error="Session manager not found",
+                    suggested_poll_interval=suggested_interval
                 )
 
         except Exception as e:
             logger.exception(f"Error checking final summary status for session {session_manager.session_id}: {e}")
             return FinalSummaryStatusResponse(
                 status="error",
-                error=f"Error checking status: {e}"
+                error=f"Error checking status: {e}",
+                suggested_poll_interval=5000  # Wait 5 seconds before retry on error
             )
 
     @router.get("/history", response_model=HistoryResponse)

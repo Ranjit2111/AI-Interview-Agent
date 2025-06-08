@@ -65,6 +65,16 @@ interface FloatingOrb {
   pulse: number;
 }
 
+// FIXED: Add interface for search timeline stages
+interface SearchStage {
+  id: number;
+  label: string;
+  description: string;
+  icon: React.ComponentType<any>;
+  duration: number; // Duration in seconds for this stage
+  color: string;
+}
+
 const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
   perTurnFeedback,
   finalSummary,
@@ -81,26 +91,172 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
   const [floatingOrbs, setFloatingOrbs] = useState<FloatingOrb[]>([]);
   const [currentTime, setCurrentTime] = useState(Date.now());
   
-  // Analysis progress state
-  const [analysisProgress, setAnalysisProgress] = useState({
-    phase: 0,
-    currentStep: '',
+  // FIXED: Add artificial timing control state
+  const [timingControl, setTimingControl] = useState({
+    summaryStartTime: Date.now(),
+    resourcesStartTime: Date.now(),
+    summaryForceLoading: false,
+    resourcesForceLoading: false,
+    actualSummaryData: null as any,
+    actualResourcesData: null as any[],
+  });
+
+  // FIXED: Search progress state for Perplexity-style timeline
+  const [searchProgress, setSearchProgress] = useState({
+    currentStage: 0,
     progress: 0,
-    details: []
+    elapsedTime: 0,
+    stages: [
+      {
+        id: 0,
+        label: "Analyzing Interview Context",
+        description: "Understanding your performance and identifying skill gaps",
+        icon: Brain,
+        duration: 3,
+        color: "blue"
+      },
+      {
+        id: 1, 
+        label: "Building Search Queries",
+        description: "Crafting targeted search queries based on your interview context",
+        icon: Search,
+        duration: 3,
+        color: "cyan"
+      },
+      {
+        id: 2,
+        label: "Searching the Web",
+        description: "Querying online resources and databases",
+        icon: Database,
+        duration: 5,
+        color: "emerald"
+      },
+      {
+        id: 3,
+        label: "Filtering & Ranking",
+        description: "Evaluating relevance and quality of found resources",
+        icon: Filter,
+        duration: 2,
+        color: "purple"
+      },
+      {
+        id: 4,
+        label: "Consolidating Results",
+        description: "Organizing and personalizing recommendations for you",
+        icon: Target,
+        duration: 2,
+        color: "pink"
+      }
+    ] as SearchStage[]
   });
   
-  // Search progress state
-  const [searchProgress, setSearchProgress] = useState({
-    phase: 0,
-    currentQuery: '',
-    foundResources: 0,
-    totalQueries: 0,
-    currentActivity: '',
-    progress: 0
+  // Analysis progress state (simplified for 10-second display)
+  const [analysisProgress, setAnalysisProgress] = useState({
+    progress: 0,
+    currentStep: 'Initializing AI Analysis...',
+    elapsedTime: 0
   });
   
   const containerRef = useRef<HTMLDivElement>(null);
   const [currentSection, setCurrentSection] = useState(0);
+
+  // FIXED: Initialize timing control when component mounts
+  useEffect(() => {
+    const now = Date.now();
+    setTimingControl(prev => ({
+      ...prev,
+      summaryStartTime: now,
+      resourcesStartTime: now,
+      summaryForceLoading: finalSummary.status === 'loading',
+      resourcesForceLoading: resources.status === 'loading'
+    }));
+  }, []);
+
+  // FIXED: Monitor actual data and apply artificial delays
+  useEffect(() => {
+    const now = Date.now();
+    
+    // Handle final summary data with 10-second delay
+    if (finalSummary.status === 'completed' && finalSummary.data && !timingControl.actualSummaryData) {
+      setTimingControl(prev => ({
+        ...prev,
+        actualSummaryData: finalSummary.data
+      }));
+    }
+    
+    // Handle resources data with 15-second delay  
+    if (resources.status === 'completed' && resources.data && !timingControl.actualResourcesData) {
+      setTimingControl(prev => ({
+        ...prev,
+        actualResourcesData: resources.data
+      }));
+    }
+  }, [finalSummary, resources, timingControl.actualSummaryData, timingControl.actualResourcesData]);
+
+  // FIXED: Timer effect for artificial delays and progress tracking
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const summaryElapsed = (now - timingControl.summaryStartTime) / 1000;
+      const resourcesElapsed = (now - timingControl.resourcesStartTime) / 1000;
+
+      // Update analysis progress (10 seconds)
+      if (timingControl.summaryForceLoading || (finalSummary.status === 'loading' && summaryElapsed < 10)) {
+        const progress = Math.min((summaryElapsed / 10) * 100, 100);
+        const steps = [
+          'Initializing AI Analysis...',
+          'Processing conversation patterns...',
+          'Identifying key strengths...',
+          'Analyzing improvement areas...',
+          'Generating insights...',
+          'Finalizing recommendations...'
+        ];
+        const stepIndex = Math.floor((summaryElapsed / 10) * steps.length);
+        
+        setAnalysisProgress({
+          progress,
+          currentStep: steps[Math.min(stepIndex, steps.length - 1)],
+          elapsedTime: summaryElapsed
+        });
+
+        // Check if we should stop showing loading (10 seconds passed AND we have data)
+        if (summaryElapsed >= 10 && timingControl.actualSummaryData) {
+          setTimingControl(prev => ({ ...prev, summaryForceLoading: false }));
+        }
+      }
+
+      // Update search progress (15 seconds) with stage-based timeline
+      if (timingControl.resourcesForceLoading || (resources.status === 'loading' && resourcesElapsed < 15)) {
+        let cumulativeTime = 0;
+        let currentStage = 0;
+        
+        // Determine current stage based on elapsed time
+        for (let i = 0; i < searchProgress.stages.length; i++) {
+          cumulativeTime += searchProgress.stages[i].duration;
+          if (resourcesElapsed <= cumulativeTime) {
+            currentStage = i;
+            break;
+          }
+        }
+
+        const totalProgress = Math.min((resourcesElapsed / 15) * 100, 100);
+        
+        setSearchProgress(prev => ({
+          ...prev,
+          currentStage,
+          progress: totalProgress,
+          elapsedTime: resourcesElapsed
+        }));
+
+        // Check if we should stop showing loading (15 seconds passed AND we have data)
+        if (resourcesElapsed >= 15 && timingControl.actualResourcesData) {
+          setTimingControl(prev => ({ ...prev, resourcesForceLoading: false }));
+        }
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [timingControl.summaryStartTime, timingControl.resourcesStartTime, timingControl.summaryForceLoading, timingControl.resourcesForceLoading, timingControl.actualSummaryData, timingControl.actualResourcesData, finalSummary.status, resources.status, searchProgress.stages]);
 
   // Enhanced mouse tracking with smoothing
   const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
@@ -130,7 +286,10 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
   // Dynamic particle system
   useEffect(() => {
     const createParticles = () => {
-      const count = finalSummary.status === 'loading' || resources.status === 'loading' ? 20 : 8;
+      const summaryLoading = timingControl.summaryForceLoading || finalSummary.status === 'loading';
+      const resourcesLoading = timingControl.resourcesForceLoading || resources.status === 'loading';
+      const count = (summaryLoading || resourcesLoading) ? 20 : 8;
+      
       return Array.from({ length: count }, (_, i) => ({
         id: Date.now() + i,
         x: Math.random() * 100,
@@ -138,7 +297,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         vx: (Math.random() - 0.5) * 0.5,
         vy: (Math.random() - 0.5) * 0.5,
         size: Math.random() * 3 + 1,
-        color: finalSummary.status === 'loading' ? 'blue' : resources.status === 'loading' ? 'green' : 'purple',
+        color: summaryLoading ? 'blue' : resourcesLoading ? 'green' : 'purple',
         life: 1,
         pulsation: Math.random() * Math.PI * 2,
         rotation: 0,
@@ -160,7 +319,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
     }, 50);
 
     return () => clearInterval(animationLoop);
-  }, [finalSummary.status, resources.status]);
+  }, [timingControl.summaryForceLoading, timingControl.resourcesForceLoading, finalSummary.status, resources.status]);
 
   // Floating orbs system
   useEffect(() => {
@@ -198,78 +357,9 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
     const interval = setInterval(() => {
       setCurrentTime(Date.now());
     }, 100);
+
     return () => clearInterval(interval);
   }, []);
-
-  // Enhanced analysis progress simulation
-  useEffect(() => {
-    if (finalSummary.status === 'loading') {
-      const analysisSteps = [
-        { step: 'Initializing AI Coach', details: 'Loading conversation context and user profile' },
-        { step: 'Processing Responses', details: 'Analyzing linguistic patterns and content quality' },
-        { step: 'Identifying Strengths', details: 'Recognizing strong performance areas' },
-        { step: 'Evaluating Weaknesses', details: 'Detecting improvement opportunities' },
-        { step: 'Generating Insights', details: 'Creating personalized recommendations' }
-      ];
-
-      let currentPhase = 0;
-      const progressInterval = setInterval(() => {
-        if (currentPhase < analysisSteps.length) {
-          setAnalysisProgress({
-            phase: currentPhase,
-            currentStep: analysisSteps[currentPhase].step,
-            progress: ((currentPhase + 1) / analysisSteps.length) * 100,
-            details: [analysisSteps[currentPhase].details]
-          });
-          currentPhase++;
-        } else {
-          clearInterval(progressInterval);
-        }
-      }, 2000);
-
-      return () => clearInterval(progressInterval);
-    }
-  }, [finalSummary.status]);
-
-  // Enhanced search progress simulation
-  useEffect(() => {
-    if (resources.status === 'loading' && finalSummary.data?.resource_search_topics) {
-      const topics = finalSummary.data.resource_search_topics;
-      const searchActivities = [
-        'Initializing search agents',
-        'Querying educational platforms',
-        'Filtering by quality metrics',
-        'Analyzing content relevance',
-        'Ranking by learning value',
-        'Finalizing recommendations'
-      ];
-
-      let queryIndex = 0;
-      let activityIndex = 0;
-      let resourceCount = 0;
-
-      const searchInterval = setInterval(() => {
-        if (queryIndex < topics.length) {
-          setSearchProgress({
-            phase: Math.floor((queryIndex / topics.length) * searchActivities.length),
-            currentQuery: topics[queryIndex],
-            foundResources: resourceCount,
-            totalQueries: topics.length,
-            currentActivity: searchActivities[activityIndex % searchActivities.length],
-            progress: ((queryIndex + 1) / topics.length) * 100
-          });
-          
-          queryIndex++;
-          activityIndex++;
-          resourceCount += Math.floor(Math.random() * 3) + 2;
-        } else {
-          clearInterval(searchInterval);
-        }
-      }, 1500);
-
-      return () => clearInterval(searchInterval);
-    }
-  }, [resources.status, finalSummary.data?.resource_search_topics]);
 
   // Revolutionary background system with multiple layers
   const renderAdvancedBackground = () => (
@@ -354,7 +444,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         </div>
       );
 
-  // Premium loading state for analysis
+  // FIXED: Elegant loading state for analysis (without fake progress indicators)
   const renderAnalysisLoading = () => (
     <div className="relative">
       {/* Main analysis card */}
@@ -383,7 +473,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
               <div className="absolute -inset-2 rounded-full border-2 border-blue-400/30 animate-ping" />
               <div className="absolute -inset-4 rounded-full border border-purple-400/20 animate-pulse" />
             </div>
-        <div>
+            <div>
               <h3 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-purple-500 to-pink-400 bg-clip-text text-transparent">
                 AI Coach Analyzing
               </h3>
@@ -391,157 +481,179 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
             </div>
           </div>
 
-          {/* Current step */}
+          {/* Current step without time/progress */}
           <div className="text-center space-y-4">
             <div className="inline-flex items-center space-x-3 px-6 py-3 bg-black/40 rounded-2xl border border-blue-500/20">
               <Activity className="w-5 h-5 text-blue-400 animate-spin" />
               <span className="text-blue-300 font-medium">{analysisProgress.currentStep}</span>
-                      </div>
-            
-            {/* Progress bar */}
-            <div className="w-full max-w-md mx-auto">
-              <div className="flex justify-between text-sm text-gray-400 mb-2">
-                <span>Progress</span>
-                <span>{Math.round(analysisProgress.progress)}%</span>
-                  </div>
-              <div className="w-full bg-gray-800/50 rounded-full h-3 overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full transition-all duration-1000 ease-out relative"
-                  style={{ width: `${analysisProgress.progress}%` }}
-                >
-                  <div className="absolute inset-0 bg-white/20 animate-pulse" />
-                </div>
-              </div>
             </div>
           </div>
 
-          {/* Analysis modules */}
+          {/* Analysis modules - simplified without progress indicators */}
           <div className="grid grid-cols-2 gap-4">
             {[
-              { icon: MessageSquare, label: 'Response Analysis', active: analysisProgress.phase >= 0 },
-              { icon: TrendingUp, label: 'Pattern Recognition', active: analysisProgress.phase >= 1 },
-              { icon: Award, label: 'Strength Identification', active: analysisProgress.phase >= 2 },
-              { icon: Target, label: 'Improvement Areas', active: analysisProgress.phase >= 3 }
-            ].map((module, index) => (
-              <div 
-                key={index}
-                className={`flex items-center space-x-3 p-4 rounded-xl transition-all duration-500 ${
-                  module.active 
-                    ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/40' 
-                    : 'bg-gray-800/20 border border-gray-600/20'
-                }`}
-              >
-                <module.icon className={`w-6 h-6 ${
-                  module.active ? 'text-blue-400' : 'text-gray-500'
-                }`} />
-                <span className={`text-sm font-medium ${
-                  module.active ? 'text-blue-300' : 'text-gray-500'
-                }`}>
-                  {module.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-        </div>
-      );
-
-  // Premium loading state for search
-  const renderSearchLoading = () => (
-    <div className="relative">
-      {/* Main search card */}
-      <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 relative overflow-hidden">
-        {/* Animated background */}
-        <div 
-          className="absolute inset-0 opacity-20"
-          style={{
-            background: `
-              linear-gradient(45deg, 
-                rgba(34, 197, 94, 0.1) 0%, 
-                rgba(6, 182, 212, 0.1) 50%, 
-                rgba(59, 130, 246, 0.1) 100%)
-            `,
-            animation: 'shimmer 2s ease-in-out infinite reverse'
-          }}
-        />
-        
-        <div className="relative z-10 space-y-8">
-          {/* Search Agent Header */}
-          <div className="text-center space-y-4">
-            <div className="relative mx-auto w-20 h-20">
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 via-cyan-600 to-blue-500 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
-                <Search className="w-10 h-10 text-white animate-bounce" />
-              </div>
-              <div className="absolute -inset-2 rounded-full border-2 border-emerald-400/30 animate-ping" />
-              <div className="absolute -inset-4 rounded-full border border-cyan-400/20 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent">
-                AI Search Agent Active
-              </h3>
-              <p className="text-emerald-300/80 text-lg">Curating personalized learning resources</p>
-            </div>
-          </div>
-
-          {/* Current search query */}
-          {searchProgress.currentQuery && (
-            <div className="text-center space-y-3">
-              <div className="inline-flex items-center space-x-3 px-6 py-3 bg-black/40 rounded-2xl border border-emerald-500/20">
-                <Globe className="w-5 h-5 text-emerald-400 animate-spin" />
-                <span className="text-emerald-300 font-medium">Searching: {searchProgress.currentQuery}</span>
-              </div>
-              <p className="text-gray-400 text-sm">{searchProgress.currentActivity}</p>
-            </div>
-          )}
-
-          {/* Search statistics */}
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-emerald-400">{searchProgress.foundResources}</div>
-              <div className="text-xs text-gray-400">Resources Found</div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-cyan-400">{searchProgress.totalQueries}</div>
-              <div className="text-xs text-gray-400">Topics Searched</div>
-            </div>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-blue-400">{Math.round(searchProgress.progress)}%</div>
-              <div className="text-xs text-gray-400">Complete</div>
-            </div>
-          </div>
-
-          {/* Search phases */}
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { icon: Telescope, label: 'Query Formation', phase: 0 },
-              { icon: Database, label: 'Platform Search', phase: 1 },
-              { icon: Filter, label: 'Quality Filter', phase: 2 },
-              { icon: Radar, label: 'Relevance Ranking', phase: 3 }
-            ].map((item, index) => (
-              <div 
-                key={index}
-                className={`flex items-center space-x-3 p-3 rounded-xl transition-all duration-500 ${
-                  searchProgress.phase >= item.phase
-                    ? 'bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 border border-emerald-500/40' 
-                    : 'bg-gray-800/20 border border-gray-600/20'
-                }`}
-              >
-                <item.icon className={`w-5 h-5 ${
-                  searchProgress.phase >= item.phase ? 'text-emerald-400' : 'text-gray-500'
-                }`} />
-                <span className={`text-sm font-medium ${
-                  searchProgress.phase >= item.phase ? 'text-emerald-300' : 'text-gray-500'
-                }`}>
-                  {item.label}
-                </span>
-              </div>
-            ))}
+              { icon: MessageSquare, label: 'Response Analysis' },
+              { icon: TrendingUp, label: 'Pattern Recognition' },
+              { icon: Award, label: 'Strength Identification' },
+              { icon: Target, label: 'Improvement Areas' }
+            ].map((module, index) => {
+              const isActive = analysisProgress.progress > (index * 25);
+              return (
+                <div 
+                  key={index}
+                  className={`flex items-center space-x-3 p-4 rounded-xl transition-all duration-500 ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/40' 
+                      : 'bg-gray-800/20 border border-gray-600/20'
+                  }`}
+                >
+                  <module.icon className={`w-6 h-6 ${
+                    isActive ? 'text-blue-400' : 'text-gray-500'
+                  }`} />
+                  <span className={`text-sm font-medium ${
+                    isActive ? 'text-blue-300' : 'text-gray-500'
+                  }`}>
+                    {module.label}
+                  </span>
+                  {isActive && (
+                    <CheckCircle className="w-4 h-4 text-green-400 ml-auto" />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
     </div>
   );
+
+  // FIXED: Perplexity-style resource search loading with timeline (without fake progress indicators)
+  const renderSearchLoading = () => {
+    const currentStageData = searchProgress.stages[searchProgress.currentStage];
+    
+    return (
+      <div className="relative">
+        {/* Main search card */}
+        <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 relative overflow-hidden">
+          {/* Animated background */}
+          <div 
+            className="absolute inset-0 opacity-20"
+            style={{
+              background: `
+                linear-gradient(45deg, 
+                  rgba(34, 197, 94, 0.1) 0%, 
+                  rgba(6, 182, 212, 0.1) 50%, 
+                  rgba(59, 130, 246, 0.1) 100%)
+              `,
+              animation: 'shimmer 2s ease-in-out infinite reverse'
+            }}
+          />
+          
+          <div className="relative z-10 space-y-8">
+            {/* Search Agent Header */}
+            <div className="text-center space-y-4">
+              <div className="relative mx-auto w-20 h-20">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 via-cyan-600 to-blue-500 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
+                  <Search className="w-10 h-10 text-white animate-bounce" />
+                </div>
+                <div className="absolute -inset-2 rounded-full border-2 border-emerald-400/30 animate-ping" />
+                <div className="absolute -inset-4 rounded-full border border-cyan-400/20 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent">
+                  AI Search Agent Active
+                </h3>
+                <p className="text-emerald-300/80 text-lg">Curating personalized learning resources</p>
+              </div>
+            </div>
+
+            {/* Current stage without time/progress */}
+            <div className="text-center space-y-3">
+              <div className="inline-flex items-center space-x-3 px-6 py-3 bg-black/40 rounded-2xl border border-emerald-500/20">
+                <currentStageData.icon className="w-5 h-5 text-emerald-400 animate-pulse" />
+                <span className="text-emerald-300 font-medium">{currentStageData.label}</span>
+              </div>
+              <p className="text-gray-400 text-sm">{currentStageData.description}</p>
+            </div>
+
+            {/* Perplexity-style timeline without progress indicators */}
+            <div className="space-y-6">
+              {/* Timeline with line and dots */}
+              <div className="relative max-w-2xl mx-auto">
+                {/* Timeline line */}
+                <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-600/50"></div>
+                
+                {/* Progress line */}
+                <div 
+                  className="absolute left-8 top-0 w-0.5 bg-gradient-to-b from-emerald-400 to-cyan-400 transition-all duration-300"
+                  style={{ 
+                    height: `${(searchProgress.currentStage / (searchProgress.stages.length - 1)) * 100}%`
+                  }}
+                ></div>
+                
+                {/* Timeline stages */}
+                <div className="space-y-8">
+                  {searchProgress.stages.map((stage, index) => {
+                    const isActive = index === searchProgress.currentStage;
+                    const isCompleted = index < searchProgress.currentStage;
+                    const isPending = index > searchProgress.currentStage;
+                    
+                    return (
+                      <div key={stage.id} className="relative flex items-center space-x-6">
+                        {/* Timeline dot */}
+                        <div className={`relative z-10 w-4 h-4 rounded-full border-2 flex-shrink-0 transition-all duration-300 ${
+                          isCompleted 
+                            ? 'bg-emerald-400 border-emerald-400' 
+                            : isActive 
+                              ? 'bg-cyan-400 border-cyan-400 animate-pulse shadow-lg shadow-cyan-400/50' 
+                              : 'bg-gray-600 border-gray-600'
+                        }`}>
+                          {isCompleted && (
+                            <CheckCircle className="w-3 h-3 text-white absolute -top-0.5 -left-0.5" />
+                          )}
+                        </div>
+                        
+                        {/* Stage content */}
+                        <div className={`flex-1 transition-all duration-300 ${
+                          isActive ? 'opacity-100' : isPending ? 'opacity-50' : 'opacity-75'
+                        }`}>
+                          <div className="flex items-center space-x-3 mb-1">
+                            <stage.icon className={`w-5 h-5 ${
+                              isCompleted ? 'text-emerald-400' : isActive ? 'text-cyan-400' : 'text-gray-500'
+                            }`} />
+                            <h4 className={`text-lg font-medium ${
+                              isCompleted ? 'text-emerald-300' : isActive ? 'text-cyan-300' : 'text-gray-500'
+                            }`}>
+                              {stage.label}
+                            </h4>
+                            {isActive && (
+                              <span className="px-2 py-1 text-xs bg-cyan-500/20 text-cyan-300 rounded-lg animate-pulse">
+                                Active
+                              </span>
+                            )}
+                            {isCompleted && (
+                              <span className="px-2 py-1 text-xs bg-emerald-500/20 text-emerald-300 rounded-lg">
+                                Complete
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-sm leading-relaxed ${
+                            isActive ? 'text-gray-300' : 'text-gray-500'
+                          }`}>
+                            {stage.description}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Rest of component implementation continues...
   return (
@@ -588,8 +700,22 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
             {/* Dynamic section navigation */}
             <div className="flex justify-center space-x-6">
               {[
-                { id: 'analysis', label: 'Performance Analysis', icon: Brain, status: finalSummary.status },
-                { id: 'resources', label: 'Learning Resources', icon: Search, status: resources.status },
+                { 
+                  id: 'analysis', 
+                  label: 'Performance Analysis', 
+                  icon: Brain, 
+                  status: (timingControl.summaryForceLoading || finalSummary.status === 'loading') ? 'loading' as const : 
+                         (timingControl.actualSummaryData || finalSummary.status === 'completed') ? 'completed' as const : 
+                         finalSummary.status 
+                },
+                { 
+                  id: 'resources', 
+                  label: 'Learning Resources', 
+                  icon: Search, 
+                  status: (timingControl.resourcesForceLoading || resources.status === 'loading') ? 'loading' as const : 
+                         (timingControl.actualResourcesData || resources.status === 'completed') ? 'completed' as const : 
+                         resources.status 
+                },
                 { id: 'feedback', label: 'Detailed Feedback', icon: MessageSquare, status: 'completed' as const }
               ].map((section) => (
                 <button
@@ -628,8 +754,8 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         {/* Analysis section */}
         <section id="analysis" className="min-h-screen flex items-center px-4 md:px-8 py-16">
           <div className="w-full max-w-6xl mx-auto">
-            {finalSummary.status === 'loading' && renderAnalysisLoading()}
-            {finalSummary.status === 'completed' && finalSummary.data && (
+            {(timingControl.summaryForceLoading || finalSummary.status === 'loading') && renderAnalysisLoading()}
+            {!timingControl.summaryForceLoading && (timingControl.actualSummaryData || (finalSummary.status === 'completed' && finalSummary.data)) && (
               <div className="space-y-8">
                 <h2 className="text-4xl font-bold text-center bg-gradient-to-r from-blue-400 via-purple-500 to-pink-400 bg-clip-text text-transparent mb-12">
                   Performance Analysis
@@ -644,7 +770,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                       <h3 className="text-2xl font-bold text-white">Observed Patterns</h3>
                     </div>
                     <p className="text-gray-300 leading-relaxed">
-                      {finalSummary.data.patterns_tendencies || 'No specific patterns identified.'}
+                      {(timingControl.actualSummaryData?.patterns_tendencies || finalSummary.data?.patterns_tendencies) || 'No specific patterns identified.'}
                     </p>
                   </div>
 
@@ -655,7 +781,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                       <h3 className="text-2xl font-bold text-white">Key Strengths</h3>
                     </div>
                     <p className="text-gray-300 leading-relaxed">
-                      {finalSummary.data.strengths || 'No specific strengths identified.'}
+                      {(timingControl.actualSummaryData?.strengths || finalSummary.data?.strengths) || 'No specific strengths identified.'}
                     </p>
                   </div>
 
@@ -666,7 +792,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                       <h3 className="text-2xl font-bold text-white">Development Areas</h3>
                     </div>
                     <p className="text-gray-300 leading-relaxed">
-                      {finalSummary.data.weaknesses || 'No specific weaknesses identified.'}
+                      {(timingControl.actualSummaryData?.weaknesses || finalSummary.data?.weaknesses) || 'No specific weaknesses identified.'}
                     </p>
                   </div>
 
@@ -677,7 +803,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                       <h3 className="text-2xl font-bold text-white">Focus Areas</h3>
                     </div>
                     <p className="text-gray-300 leading-relaxed">
-                      {finalSummary.data.improvement_focus_areas || 'No specific focus areas identified.'}
+                      {(timingControl.actualSummaryData?.improvement_focus_areas || finalSummary.data?.improvement_focus_areas) || 'No specific focus areas identified.'}
                     </p>
                   </div>
                 </div>
@@ -696,8 +822,8 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         {/* Resources section */}
         <section id="resources" className="min-h-screen flex items-center px-4 md:px-8 py-16">
           <div className="w-full max-w-6xl mx-auto">
-            {resources.status === 'loading' && renderSearchLoading()}
-            {resources.status === 'completed' && resources.data && (
+            {(timingControl.resourcesForceLoading || resources.status === 'loading') && renderSearchLoading()}
+            {!timingControl.resourcesForceLoading && (timingControl.actualResourcesData || (resources.status === 'completed' && resources.data)) && (
               <div className="space-y-8">
                 <h2 className="text-4xl font-bold text-center bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent mb-12">
                   Learning Resources
@@ -705,7 +831,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                 
                 {/* Resources grid - simplified and cleaner */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {resources.data.map((resource: any, index: number) => (
+                  {(timingControl.actualResourcesData || resources.data)?.map((resource: any, index: number) => (
                     <div 
                       key={index}
                       className="group bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl overflow-hidden hover:border-emerald-500/40 hover:scale-105 transition-all duration-300"

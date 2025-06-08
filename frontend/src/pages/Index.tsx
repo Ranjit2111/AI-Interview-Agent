@@ -532,7 +532,7 @@ const Index = () => {
               {/* Custom role input with premium styling */}
               <div className="relative">
                 <Input
-                  placeholder="Or describe your custom role (e.g., Senior Full-Stack Developer at Tech Startup)..."
+                  placeholder="Or describe your custom role ..."
                   value={jobRole}
                   onChange={(e) => setJobRole(e.target.value)}
                   className="bg-black/60 border-white/20 text-white placeholder-gray-400 rounded-xl px-4 py-4 text-lg focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-300 hover:border-white/30"

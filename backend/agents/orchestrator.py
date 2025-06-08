@@ -58,6 +58,7 @@ class AgentSessionManager:
         
         # Initialize final summary storage
         self.final_summary: Optional[Dict[str, Any]] = None
+        self.resource_generation_completed_at: Optional[datetime] = None  # Track when resources are ready for frontend delay
         
         # Initialize agents dictionary
         self._agents: Dict[str, BaseAgent] = {}
@@ -364,6 +365,9 @@ class AgentSessionManager:
             if coaching_summary:
                 self.final_summary = coaching_summary
                 self.session_status = "completed"
+                # FIXED: Track when resources become available for frontend timing control
+                if isinstance(coaching_summary, dict) and coaching_summary.get('recommended_resources'):
+                    self.resource_generation_completed_at = datetime.utcnow()
                 
                 # Enhanced logging with summary details
                 summary_keys = list(coaching_summary.keys()) if isinstance(coaching_summary, dict) else []
@@ -507,6 +511,7 @@ class AgentSessionManager:
         self.final_summary = None  # CRITICAL FIX: Clear final summary on reset
         self.final_summary_generating = False  # Reset background generation flag
         self.needs_database_save = False  # Reset save flag
+        self.resource_generation_completed_at = None  # Reset resource timestamp
         self._agents = {}
         
         self.response_times = []
@@ -553,6 +558,13 @@ class AgentSessionManager:
         manager.final_summary = session_data.get("final_summary")  # CRITICAL FIX: Restore final summary from database
         manager.final_summary_generating = session_data.get("final_summary_generating", False)  # Restore generation flag
         manager.needs_database_save = session_data.get("needs_database_save", False)  # Restore save flag
+        # Restore resource timestamp if available
+        resource_timestamp_str = session_data.get("resource_generation_completed_at")
+        if resource_timestamp_str:
+            try:
+                manager.resource_generation_completed_at = datetime.fromisoformat(resource_timestamp_str.replace('Z', '+00:00'))
+            except (ValueError, AttributeError):
+                manager.resource_generation_completed_at = None
         manager.total_response_time = session_data.get("session_stats", {}).get("total_response_time_seconds", 0.0)
         manager.total_tokens_used = session_data.get("session_stats", {}).get("total_tokens_used", 0)
         manager.api_call_count = session_data.get("session_stats", {}).get("total_api_calls", 0)
@@ -586,6 +598,7 @@ class AgentSessionManager:
             "final_summary": self.final_summary,
             "final_summary_generating": self.final_summary_generating,
             "needs_database_save": self.needs_database_save,
+            "resource_generation_completed_at": self.resource_generation_completed_at.isoformat() if self.resource_generation_completed_at else None,
             "session_stats": self.get_session_stats(),
             "status": self.session_status
         }
