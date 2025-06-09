@@ -354,8 +354,8 @@ const Index = () => {
       {renderAdvancedBackground()}
       
       {/* Centered Hero Content */}
-      <div className="container mx-auto px-4 relative z-20">
-        <div className="max-w-5xl mx-auto text-center">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
+        <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto text-center">
           
           {/* Badge */}
           <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500/20 to-purple-600/20 border border-purple-500/30 backdrop-blur-sm mb-8 transition-all duration-1000 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-8'}`}>
@@ -365,7 +365,7 @@ const Index = () => {
 
           {/* Main Headline with Modern Typography */}
           <div className={`space-y-6 mb-12 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-12'}`}>
-            <h1 className="text-5xl lg:text-7xl font-bold leading-tight">
+            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold leading-tight">
               <span className="bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
                 Modern AI for the
               </span>
@@ -379,7 +379,7 @@ const Index = () => {
               </span>
             </h1>
             
-            <p className="text-xl lg:text-2xl text-gray-300 max-w-3xl mx-auto leading-relaxed font-light">
+            <p className="text-lg sm:text-xl lg:text-2xl text-gray-300 max-w-3xl xl:max-w-4xl mx-auto leading-relaxed font-light">
               Practice with AI-powered agents that provide real-time coaching 
               and personalized learning recommendations.
             </p>
@@ -389,7 +389,7 @@ const Index = () => {
           <div className={`flex flex-col sm:flex-row gap-6 justify-center items-center mb-16 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'}`}>
             <Button
               onClick={scrollToConfig}
-              className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 group border-0"
+              className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 group border-0 min-h-[56px]"
             >
               Get Started
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -398,14 +398,14 @@ const Index = () => {
             <Button
               onClick={scrollToFeatures}
               variant="outline"
-              className="border-2 border-white/20 bg-black/20 hover:bg-white/10 text-white px-8 py-4 rounded-2xl text-lg font-semibold backdrop-blur-sm hover:border-cyan-500/50 transition-all duration-300"
+              className="w-full sm:w-auto border-2 border-white/20 bg-black/20 hover:bg-white/10 text-white px-8 py-4 rounded-2xl text-lg font-semibold backdrop-blur-sm hover:border-cyan-500/50 transition-all duration-300 min-h-[56px]"
             >
               Know More
             </Button>
           </div>
 
           {/* Real Statistics */}
-          <div className={`grid grid-cols-3 gap-8 max-w-2xl mx-auto transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-12'}`}>
+          <div className={`grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 max-w-2xl xl:max-w-3xl mx-auto transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-12'}`}>
             <div className="text-center group cursor-default">
               <div className="flex items-center justify-center mb-2">
                 <Clock className="w-6 h-6 text-cyan-400 mr-2" />
@@ -458,22 +458,22 @@ const Index = () => {
         ))}
       </div>
       
-      <div className="container mx-auto px-4 relative z-10">
-        <div className="max-w-7xl mx-auto">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="max-w-7xl 2xl:max-w-none mx-auto">
           {/* Section Header */}
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500/20 to-purple-600/20 border border-purple-500/30 backdrop-blur-sm mb-6">
               <Settings className="w-4 h-4 text-cyan-300" />
               <span className="text-sm font-semibold text-cyan-300 tracking-wider">Interview Configuration</span>
             </div>
-            <h2 className="text-5xl lg:text-6xl font-bold mb-6">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
               <span className="bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
                 Craft Your Perfect
               </span>
               <br />
               <span className="text-white">Interview Experience</span>
             </h2>
-            <p className="text-gray-400 text-xl max-w-3xl mx-auto leading-relaxed">
+            <p className="text-gray-400 text-xl max-w-3xl xl:max-w-4xl mx-auto leading-relaxed">
               Configure every aspect of your practice session with our intelligent wizard
             </p>
           </div>
@@ -482,7 +482,7 @@ const Index = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
             
             {/* Job Role Selection - Large Featured Panel */}
-            <div className="lg:col-span-8 bg-gradient-to-br from-black/80 via-gray-900/80 to-black/80 backdrop-blur-3xl border border-white/10 rounded-3xl p-8 shadow-2xl hover:shadow-cyan-500/10 transition-all duration-500 group">
+            <div className="lg:col-span-8 bg-gradient-to-br from-black/80 via-gray-900/80 to-black/80 backdrop-blur-3xl border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl hover:shadow-cyan-500/10 transition-all duration-500 group">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-purple-600 shadow-lg">
                   <Target className="w-6 h-6 text-white" />
@@ -495,7 +495,7 @@ const Index = () => {
               </div>
               
               {/* Popular roles with advanced hover effects */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
                 {popularRoles.map((role, index) => (
                   <button
                     key={role.title}
@@ -876,10 +876,10 @@ const Index = () => {
           ))}
         </div>
 
-        <div className="container mx-auto px-4 relative z-10">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           {/* Section Header */}
-          <div className="text-center mb-16">
-            <h2 className="text-6xl lg:text-7xl font-bold mb-6">
+          <div className="text-center mb-12 sm:mb-16">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold mb-6">
               <span className="bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">
                 How It Works
               </span>
@@ -892,7 +892,7 @@ const Index = () => {
           {/* Interactive Constellation Container */}
           <div 
             ref={constellationRef}
-            className="relative w-full h-[600px] mx-auto"
+            className="relative w-full h-[500px] sm:h-[600px] mx-auto"
             onMouseMove={handleMouseMove}
           >
             {/* Central AI Hub Core */}
@@ -934,6 +934,7 @@ const Index = () => {
                   }}
                   onMouseEnter={() => setHoveredFeature(feature.id)}
                   onMouseLeave={() => setHoveredFeature(null)}
+                  onTouchStart={() => setHoveredFeature(feature.id)}
                   onClick={() => {
                     if (activeFeature === feature.id) {
                       setActiveFeature(null);
@@ -1088,8 +1089,8 @@ const Index = () => {
     return (
       <footer className="py-8 relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-black/0 to-purple-900/5 z-0"></div>
-        <div className="container mx-auto px-4 relative z-10">
-          <div className="max-w-5xl mx-auto">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="max-w-5xl xl:max-w-6xl mx-auto">
             <div className="flex flex-col items-center justify-center">
               <div className="flex items-center mb-4">
                 <div className="relative">

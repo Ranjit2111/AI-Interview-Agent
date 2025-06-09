@@ -6,6 +6,8 @@
 @tailwind components;
 @tailwind utilities;
 
+
+
 @layer base {
   :root {
     --background: 240 10% 3.9%;
@@ -61,10 +63,12 @@
 @layer base {
   * {
     @apply border-border selection:bg-purple-500/25 selection:text-white;
+    -webkit-overflow-scrolling: touch;
   }
 
   html {
     @apply scroll-smooth;
+    overflow-x: hidden;
   }
 
   body {
@@ -89,6 +93,11 @@
   input,
   textarea {
     @apply focus-visible:ring-interview-secondary bg-gray-900/70 border-gray-700 transition-all duration-200;
+    font-size: 16px; /* Prevent zoom on iOS Safari */
+  }
+  
+  select {
+    font-size: 16px; /* Prevent zoom on iOS Safari */
   }
 
   input:focus,

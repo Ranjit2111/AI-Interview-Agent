@@ -113,12 +113,12 @@ const InterviewConfig: React.FC<InterviewConfigProps> = ({ onSubmit, isLoading }
 
   return (
     <form onSubmit={handleSubmit}>
-      <Card className="neo-effect border border-white/10 shadow-lg backdrop-blur-lg bg-black/50 max-w-4xl mx-auto overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_rgba(56,178,172,0.15)]">
-        <CardHeader className="bg-gradient-to-r from-black/60 via-gray-900/60 to-black/60 border-b border-white/10 text-white">
-          <CardTitle className="text-2xl bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">Configure Your Interview</CardTitle>
+      <Card className="neo-effect border border-white/10 shadow-lg backdrop-blur-lg bg-black/50 max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_rgba(56,178,172,0.15)]">
+        <CardHeader className="bg-gradient-to-r from-black/60 via-gray-900/60 to-black/60 border-b border-white/10 text-white p-4 sm:p-6">
+          <CardTitle className="text-xl sm:text-2xl bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent">Configure Your Interview</CardTitle>
         </CardHeader>
         
-        <CardContent className="space-y-6 pt-6 bg-black/70">
+        <CardContent className="space-y-6 pt-6 bg-black/70 p-4 sm:p-6">
           {/* Job Role and Company */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2 group">
@@ -182,14 +182,14 @@ const InterviewConfig: React.FC<InterviewConfigProps> = ({ onSubmit, isLoading }
                 rows={6}
                 className="glass-effect border-white/10 bg-black/50 focus:border-purple-500/50 focus:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition-all duration-300"
               />
-              <div className="flex items-center">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                  {isUploading ? (
                   <div className="flex items-center text-sm text-purple-400">
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Processing resume...
                   </div>
                 ) : (
-                  <span className="text-sm text-gray-400 mr-2">Or upload a file (TXT, PDF, DOCX):</span>
+                  <span className="text-sm text-gray-400">Or upload a file (TXT, PDF, DOCX):</span>
                 )}
                 <Input
                   type="file"
@@ -197,14 +197,14 @@ const InterviewConfig: React.FC<InterviewConfigProps> = ({ onSubmit, isLoading }
                   accept=".txt,.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
                   onChange={handleFileUpload}
                   disabled={isUploading}
-                  className="max-w-xs glass-effect border-white/10 bg-black/50 text-gray-300 focus:border-purple-500/50 focus:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition-all duration-300 file:mr-2 file:py-1 file:px-2 file:rounded-sm file:border-0 file:text-xs file:bg-purple-600/30 file:text-purple-300 hover:file:bg-purple-600/50"
+                  className="w-full sm:max-w-xs glass-effect border-white/10 bg-black/50 text-gray-300 focus:border-purple-500/50 focus:shadow-[0_0_10px_rgba(168,85,247,0.3)] transition-all duration-300 file:mr-2 file:py-1 file:px-2 file:rounded-sm file:border-0 file:text-xs file:bg-purple-600/30 file:text-purple-300 hover:file:bg-purple-600/50"
                 />
               </div>
             </div>
           </div>
 
           {/* Interview Settings */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             <div className="space-y-2 group">
               <Label htmlFor="style" className="flex items-center gap-2 text-gray-300 group-focus-within:text-white">
                 <MessageSquare className="h-4 w-4 text-pink-500" />
@@ -268,11 +268,11 @@ const InterviewConfig: React.FC<InterviewConfigProps> = ({ onSubmit, isLoading }
           </div>
         </CardContent>
         
-        <CardFooter className="flex justify-end bg-gradient-to-r from-black/80 via-gray-900/80 to-black/80 border-t border-white/10 p-6">
+        <CardFooter className="flex flex-col sm:flex-row justify-end bg-gradient-to-r from-black/80 via-gray-900/80 to-black/80 border-t border-white/10 p-4 sm:p-6">
           <Button 
             type="submit"
             disabled={isLoading || !jobRole.trim()}
-            className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 shadow-lg hover:shadow-purple-500/20 transition-all duration-300 text-white font-medium halo-glow"
+            className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 shadow-lg hover:shadow-purple-500/20 transition-all duration-300 text-white font-medium halo-glow min-h-[48px]"
           >
             {isLoading ? 'Starting Interview...' : 'Start Interview'}
           </Button>
