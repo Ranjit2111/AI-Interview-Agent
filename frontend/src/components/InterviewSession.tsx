@@ -4,6 +4,7 @@ import VoiceFirstInterviewPanel from './VoiceFirstInterviewPanel';
 import TranscriptDrawer from './TranscriptDrawer';
 import InterviewInstructionsModal from './InterviewInstructionsModal';
 import { useVoiceFirstInterview } from '../hooks/useVoiceFirstInterview';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Message, CoachFeedbackState } from '@/hooks/useInterviewSession';
 import { 
   X, ChevronLeft, ChevronRight, Mic, MicOff, Brain, Activity, 
@@ -32,6 +33,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   coachFeedbackStates,
 }) => {
   // Enhanced state management
+  const isMobile = useIsMobile();
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(true);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
@@ -265,57 +267,57 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
 
   // Premium floating status panel
   const renderFloatingStatusPanel = () => (
-    <div className="fixed top-6 right-6 z-40 space-y-4">
+    <div className="fixed top-4 right-4 md:top-6 md:right-6 z-40 space-y-2 md:space-y-4">
       {/* Session info card */}
-      <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-2xl p-4 hover:border-cyan-500/30 transition-all duration-500 group">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-            <Timer className="w-5 h-5 text-white" />
+      <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-xl md:rounded-2xl p-3 md:p-4 hover:border-cyan-500/30 transition-all duration-500 group">
+        <div className="flex items-center space-x-2 md:space-x-3">
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-br from-cyan-500 to-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+            <Timer className="w-4 h-4 md:w-5 md:h-5 text-white" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-white">
+            <div className="text-xs md:text-sm font-semibold text-white">
               {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
             </div>
-            <div className="text-xs text-gray-400">Session Time</div>
+            <div className="text-xs text-gray-400 hidden md:block">Session Time</div>
           </div>
         </div>
       </div>
 
       {/* Question counter */}
-      <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-2xl p-4 hover:border-purple-500/30 transition-all duration-500 group">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-            <MessageCircle className="w-5 h-5 text-white" />
+      <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-xl md:rounded-2xl p-3 md:p-4 hover:border-purple-500/30 transition-all duration-500 group">
+        <div className="flex items-center space-x-2 md:space-x-3">
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+            <MessageCircle className="w-4 h-4 md:w-5 md:h-5 text-white" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-white">{questionCount}</div>
-            <div className="text-xs text-gray-400">Questions</div>
+            <div className="text-xs md:text-sm font-semibold text-white">{questionCount}</div>
+            <div className="text-xs text-gray-400 hidden md:block">Questions</div>
           </div>
         </div>
       </div>
 
       {/* Current state indicator */}
-      <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-2xl p-4 hover:border-emerald-500/30 transition-all duration-500 group">
-        <div className="flex items-center space-x-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 ${
+      <div className="bg-black/60 backdrop-blur-2xl border border-white/20 rounded-xl md:rounded-2xl p-3 md:p-4 hover:border-emerald-500/30 transition-all duration-500 group">
+        <div className="flex items-center space-x-2 md:space-x-3">
+          <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 ${
             turnState === 'ai' ? 'bg-gradient-to-br from-orange-500 to-red-600' :
             isListening ? 'bg-gradient-to-br from-blue-500 to-cyan-600' :
             isProcessing ? 'bg-gradient-to-br from-purple-500 to-indigo-600' :
             'bg-gradient-to-br from-emerald-500 to-teal-600'
           }`}>
-            {turnState === 'ai' ? <Volume2 className="w-5 h-5 text-white" /> :
-             isListening ? <Mic className="w-5 h-5 text-white" /> :
-             isProcessing ? <Brain className="w-5 h-5 text-white animate-pulse" /> :
-             <Target className="w-5 h-5 text-white" />}
+            {turnState === 'ai' ? <Volume2 className="w-4 h-4 md:w-5 md:h-5 text-white" /> :
+             isListening ? <Mic className="w-4 h-4 md:w-5 md:h-5 text-white" /> :
+             isProcessing ? <Brain className="w-4 h-4 md:w-5 md:h-5 text-white animate-pulse" /> :
+             <Target className="w-4 h-4 md:w-5 md:h-5 text-white" />}
           </div>
           <div>
-            <div className="text-sm font-semibold text-white">
+            <div className="text-xs md:text-sm font-semibold text-white">
               {turnState === 'ai' ? 'AI Speaking' :
                isListening ? 'Listening' :
                isProcessing ? 'Processing' :
                'Ready'}
             </div>
-            <div className="text-xs text-gray-400">Status</div>
+            <div className="text-xs text-gray-400 hidden md:block">Status</div>
           </div>
         </div>
       </div>
@@ -324,47 +326,48 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
 
   // Advanced control panel
   const renderAdvancedControls = () => (
-    <div className="fixed bottom-6 left-6 right-6 z-40">
-      <div className="bg-black/70 backdrop-blur-2xl border border-white/20 rounded-3xl p-6 max-w-4xl mx-auto">
-        <div className="flex items-center justify-between">
+    <div className="fixed bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-6 z-40">
+      <div className="bg-black/70 backdrop-blur-2xl border border-white/20 rounded-2xl md:rounded-3xl p-4 md:p-6 max-w-4xl mx-auto">
+        <div className="flex flex-col md:flex-row items-center gap-4 md:gap-0">
           {/* Left: Primary controls */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3 md:space-x-4">
             <Button
               onClick={handleMicrophoneToggle}
               disabled={isDisabled}
-              className={`w-16 h-16 rounded-2xl shadow-lg transition-all duration-300 group ${
+              className={`w-14 h-14 md:w-16 md:h-16 rounded-xl md:rounded-2xl shadow-lg transition-all duration-300 group focus:outline-none focus:ring-4 focus:ring-cyan-500/50 active:scale-95 ${
                 isListening 
-                  ? 'bg-gradient-to-br from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 shadow-red-500/25' 
+                  ? 'bg-gradient-to-br from-red-500 to-red-600 hover:from-red-400 hover:to-red-500 shadow-red-500/25 focus:ring-red-500/50' 
                   : 'bg-gradient-to-br from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-cyan-500/25'
               }`}
             >
               {isListening ? (
-                <MicOff className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+                <MicOff className="w-5 h-5 md:w-6 md:h-6 text-white group-hover:scale-110 transition-transform" />
               ) : (
-                <Mic className="w-6 h-6 text-white group-hover:scale-110 transition-transform" />
+                <Mic className="w-5 h-5 md:w-6 md:h-6 text-white group-hover:scale-110 transition-transform" />
               )}
             </Button>
 
             <Button
               onClick={toggleTranscript}
               variant="outline"
-              className="w-14 h-14 rounded-xl bg-black/40 border-white/20 hover:border-purple-500/40 hover:bg-purple-500/10 transition-all duration-300 group"
+              className="w-12 h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl bg-black/40 border-white/20 hover:border-purple-500/40 hover:bg-purple-500/10 transition-all duration-300 group focus:outline-none focus:ring-4 focus:ring-purple-500/50 active:scale-95"
+              aria-label={transcriptVisible ? 'Hide transcript' : 'Show transcript'}
             >
-              <MessageCircle className="w-5 h-5 text-gray-300 group-hover:text-purple-300 group-hover:scale-110 transition-all" />
+              <MessageCircle className="w-4 h-4 md:w-5 md:h-5 text-gray-300 group-hover:text-purple-300 group-hover:scale-110 transition-all" />
             </Button>
 
             {/* Coach Feedback Button */}
             <div className="relative">
               <Button
                 variant="outline"
-                className={`w-14 h-14 rounded-xl transition-all duration-300 group relative ${
+                className={`w-12 h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl transition-all duration-300 group relative ${
                   Object.values(coachFeedbackStates).some(state => state.isAnalyzing)
                     ? 'bg-yellow-900/30 border-yellow-500/40 hover:bg-yellow-900/50'
                     : 'bg-black/40 border-white/20 hover:border-yellow-500/40 hover:bg-yellow-500/10'
                 }`}
               >
                 <div className="relative">
-                  <Brain className={`w-5 h-5 transition-all ${
+                  <Brain className={`w-4 h-4 md:w-5 md:h-5 transition-all ${
                     Object.values(coachFeedbackStates).some(state => state.isAnalyzing)
                       ? 'text-yellow-300'
                       : 'text-gray-300 group-hover:text-yellow-300 group-hover:scale-110'
@@ -372,7 +375,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
                   
                   {/* Loading spinner overlay when analyzing */}
                   {Object.values(coachFeedbackStates).some(state => state.isAnalyzing) && (
-                    <Loader2 className="absolute inset-0 w-5 h-5 text-yellow-400 animate-spin" />
+                    <Loader2 className="absolute inset-0 w-4 h-4 md:w-5 md:h-5 text-yellow-400 animate-spin" />
                   )}
                 </div>
               </Button>
@@ -398,7 +401,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
           </div>
 
           {/* Center: Voice activity visualization */}
-          <div className="flex-1 flex justify-center">
+          <div className="flex-1 flex justify-center order-first md:order-none">
             <div className="flex items-center space-x-2">
               {turnState === 'ai' && (
                 <div className="flex items-center space-x-2">
@@ -428,16 +431,18 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             </div>
           </div>
 
-          {/* Right: Secondary controls */}
-          <div className="flex items-center space-x-4">
-          <Button
-            onClick={onEndInterview}
-            variant="outline"
-            className="px-6 h-14 rounded-xl bg-black/40 border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-300 hover:text-red-100 transition-all duration-300 group"
-          >
-            <X className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
-            End Interview
-          </Button>
+          {/* Right: End Interview Button */}
+          <div className="flex items-center">
+            <Button
+              onClick={onEndInterview}
+              variant="outline"
+              className="px-4 py-2 md:px-6 h-12 md:h-14 rounded-lg md:rounded-xl bg-black/40 border-red-500/30 hover:border-red-500/50 hover:bg-red-500/10 text-red-300 hover:text-red-100 transition-all duration-300 group text-sm md:text-base focus:outline-none focus:ring-4 focus:ring-red-500/50 active:scale-95"
+              aria-label="End interview session"
+            >
+              <X className="w-4 h-4 md:w-5 md:h-5 mr-1 md:mr-2 group-hover:scale-110 transition-transform" />
+              <span className="hidden sm:inline">End Interview</span>
+              <span className="sm:hidden">End</span>
+            </Button>
           </div>
         </div>
       </div>
@@ -477,22 +482,21 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       <button
         onClick={toggleTranscript}
         className={`
-          fixed top-1/2 -translate-y-1/2 z-30 p-4 
+          fixed top-1/2 -translate-y-1/2 z-30 p-3 md:p-4 
           bg-black/70 backdrop-blur-2xl border border-white/20 
           hover:border-cyan-500/40 hover:bg-cyan-500/10 
           shadow-2xl text-white transition-all duration-500 ease-out
-          ${transcriptVisible ? 'left-80 md:left-96 rounded-r-2xl' : 'left-0 rounded-r-2xl'}
+          ${transcriptVisible ? 'left-72 sm:left-80 md:left-96 rounded-r-xl md:rounded-r-2xl' : 'left-0 rounded-r-xl md:rounded-r-2xl'}
           group
         `}
         title={transcriptVisible ? 'Hide Transcript' : 'Show Transcript'}
       >
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-1 md:space-x-2">
           {transcriptVisible ? (
-            <ChevronLeft className="w-6 h-6 group-hover:scale-110 transition-transform" />
+            <ChevronLeft className="w-5 h-5 md:w-6 md:h-6 group-hover:scale-110 transition-transform" />
           ) : (
-            <ChevronRight className="w-6 h-6 group-hover:scale-110 transition-transform" />
+            <ChevronRight className="w-5 h-5 md:w-6 md:h-6 group-hover:scale-110 transition-transform" />
           )}
-          {!transcriptVisible}
         </div>
       </button>
 
