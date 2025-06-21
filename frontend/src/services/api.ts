@@ -506,10 +506,10 @@ export const api = {
   },
   
   // Text to Speech API
-  textToSpeech: async (text: string, voiceId: string = "Matthew", speed?: number): Promise<Blob> => {
+  textToSpeech: async (text: string, speed?: number): Promise<Blob> => {
     const formData = new URLSearchParams();
     formData.append('text', text);
-    formData.append('voice_id', voiceId);
+    // Note: voice_id is intentionally not sent - backend will use environment variables
     if (speed !== undefined) {
       formData.append('speed', speed.toString());
     }

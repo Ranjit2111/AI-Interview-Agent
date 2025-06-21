@@ -14,8 +14,8 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ onVoiceSelect }) => {
     setIsEnabled(checked);
     
     if (checked) {
-      // Always use Matthew as the default voice
-      onVoiceSelect("Matthew");
+      // Voice selection is handled by backend environment variables
+      onVoiceSelect("enabled");
     } else {
       onVoiceSelect(null);
     }
@@ -29,7 +29,7 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({ onVoiceSelect }) => {
           checked={isEnabled} 
           onCheckedChange={handleToggleChange}
         />
-        <Label htmlFor="tts-toggle">Voice Responses (Matthew)</Label>
+        <Label htmlFor="tts-toggle">Voice Responses</Label>
       </div>
     </div>
   );

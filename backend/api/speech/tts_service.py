@@ -30,6 +30,11 @@ class TTSService:
         # Simple in-memory cache for frequently used phrases
         self.audio_cache: Dict[str, bytes] = {}
         self.cache_max_size = 50  # Limit cache size
+        
+        # Load TTS configuration from environment variables
+        self.polly_engine = os.environ.get("POLLY_ENGINE", "long-form")
+        self.default_voice = os.environ.get("POLLY_DEFAULT_VOICE", "Patrick")
+        
         self._initialize_polly()
     
     def _initialize_polly(self):
@@ -63,6 +68,7 @@ class TTSService:
                 config=polly_config
             )
             logger.info(f"Successfully initialized AWS Polly client in region {aws_region} with Azure-optimized configuration.")
+            logger.info(f"TTS Configuration - Engine: {self.polly_engine}, Default Voice: {self.default_voice}")
         except (NoCredentialsError, PartialCredentialsError) as e:
             logger.error(f"AWS credentials not found or incomplete. Please configure AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY. Error: {e}")
         except ClientError as e:
@@ -116,7 +122,7 @@ class TTSService:
                         OutputFormat="mp3",
                         VoiceId=voice_id,
                         TextType="ssml",
-                        Engine="generative"
+                        Engine=self.polly_engine
                     )
                     
                     audio_stream = response.get("AudioStream")
@@ -198,13 +204,13 @@ class TTSService:
         
         return audio_content
     
-    async def synthesize_text(self, text: str, voice_id: str = "Matthew", speed: float = 1.0) -> Response:
+    async def synthesize_text(self, text: str, voice_id: Optional[str] = None, speed: float = 1.0) -> Response:
         """
         Synthesize speech from text with rate limiting.
         
         Args:
             text: Text to synthesize.
-            voice_id: ID (name) of the Polly voice to use.
+            voice_id: IGNORED - Voice is controlled by environment variables only.
             speed: Speech speed (0.5 to 2.0).
             
         Returns:
@@ -223,8 +229,11 @@ class TTSService:
                 detail="TTS service temporarily unavailable due to high demand. Please try again later."
             )
 
+        # Always use environment variable voice - ignore any frontend input
+        voice_id = self.default_voice
+
         ssml_text = self._prepare_ssml(text, speed)
-        logger.debug(f"TTS request: voice={voice_id}, speed={speed}")
+        logger.debug(f"TTS request: voice={voice_id}, speed={speed}, engine={self.polly_engine}")
 
         try:
             audio_content = await self._get_cached_or_synthesize(ssml_text, voice_id, speed, text)
@@ -237,13 +246,13 @@ class TTSService:
             logger.exception("Unexpected error during text-to-speech synthesis")
             raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     
-    async def stream_text(self, text: str, voice_id: str = "Matthew", speed: float = 1.0) -> StreamingResponse:
+    async def stream_text(self, text: str, voice_id: Optional[str] = None, speed: float = 1.0) -> StreamingResponse:
         """
         Synthesize speech from text and stream the audio with rate limiting.
         
         Args:
             text: Text to synthesize.
-            voice_id: ID (name) of the voice to use.
+            voice_id: IGNORED - Voice is controlled by environment variables only.
             speed: Speech speed (0.5 to 2.0).
             
         Returns:
@@ -262,8 +271,11 @@ class TTSService:
                 detail="TTS service temporarily unavailable due to high demand. Please try again later."
             )
 
+        # Always use environment variable voice - ignore any frontend input
+        voice_id = self.default_voice
+
         ssml_text = self._prepare_ssml(text, speed)
-        logger.debug(f"Streaming TTS request: voice={voice_id}, speed={speed}")
+        logger.debug(f"Streaming TTS request: voice={voice_id}, speed={speed}, engine={self.polly_engine}")
         
         # Acquire rate limiting slot
         if not await self.rate_limiter.acquire_polly():
@@ -280,7 +292,7 @@ class TTSService:
                 OutputFormat="mp3",
                 VoiceId=voice_id,
                 TextType="ssml",
-                Engine="generative"
+                Engine=self.polly_engine
             )
 
             audio_stream = response.get("AudioStream")

@@ -189,7 +189,7 @@ async def health_check():
                 # Test actual TTS performance
                 start_time = asyncio.get_event_loop().time()
                 ssml_text = tts_service._prepare_ssml("Health check", 1.0)
-                await tts_service._synthesize_speech_with_retry(ssml_text, "Matthew")
+                await tts_service._synthesize_speech_with_retry(ssml_text, tts_service.default_voice)
                 end_time = asyncio.get_event_loop().time()
                 
                 tts_warmup_time = round((end_time - start_time) * 1000, 2)  # Convert to ms
@@ -289,7 +289,7 @@ async def warmup_services():
                     start_time = asyncio.get_event_loop().time()
                     
                     # Run single warmup synthesis to establish connection
-                    await tts_service._synthesize_speech_with_retry(ssml_text, "Matthew")
+                    await tts_service._synthesize_speech_with_retry(ssml_text, tts_service.default_voice)
                     
                     end_time = asyncio.get_event_loop().time()
                     duration = end_time - start_time
