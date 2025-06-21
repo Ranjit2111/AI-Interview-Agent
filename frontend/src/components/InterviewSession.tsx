@@ -142,8 +142,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   // Auto-enable voice on component mount
   useEffect(() => {
     if (!defaultVoiceSetRef.current) {
-      setSelectedVoice('Matthew');
-      onVoiceSelect('Matthew');
+      setSelectedVoice('enabled');
+      onVoiceSelect('enabled');
       defaultVoiceSetRef.current = true;
     }
   }, []);

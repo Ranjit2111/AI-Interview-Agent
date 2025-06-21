@@ -24,6 +24,13 @@ AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your_aws_access_key_here
 AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
 
+# Amazon Polly TTS Configuration
+# Engine options: "generative" (high quality, limited usage) or "long-form" (better for longer content)
+POLLY_ENGINE=long-form
+# Voice options for long-form: Gregory, Ruth, Danielle, Patrick (English), Alba, Raúl (Spanish)
+# Voice options for generative: Matthew, Joanna, Danielle, Ruth, Stephen, etc.
+POLLY_DEFAULT_VOICE=Patrick
+
 # Optional: Google API Key (if used)
 GOOGLE_API_KEY=your_google_api_key_here
 

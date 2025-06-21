@@ -426,7 +426,7 @@ export function useVoiceFirstInterview(
       handleTTSStart(isInitialMsg);
       
       const startTime = Date.now();
-      const audioBlob = await api.textToSpeech(text, selectedVoice);
+      const audioBlob = await api.textToSpeech(text);
       const synthesisTime = Date.now() - startTime;
       
       console.log(`🔊 TTS synthesis completed in ${synthesisTime}ms`);

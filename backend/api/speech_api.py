@@ -489,7 +489,7 @@ def create_speech_api(app):
     @router.post("/api/text-to-speech")
     async def text_to_speech(
         text: str = Form(...),
-        voice_id: str = Form("Matthew"),
+        voice_id: Optional[str] = Form(None),
         speed: float = Form(1.0, ge=0.5, le=2.0),
     ):
         """
@@ -508,7 +508,7 @@ def create_speech_api(app):
     @router.post("/api/text-to-speech/stream")
     async def stream_text_to_speech(
         text: str = Form(...),
-        voice_id: str = Form("Matthew"),
+        voice_id: Optional[str] = Form(None),
         speed: float = Form(1.0, ge=0.5, le=2.0),
     ):
         """

@@ -572,7 +572,7 @@ export function useInterviewSession() {
     if (!selectedVoice) return;
     
     try {
-      const audioBlob = await api.textToSpeech(text, selectedVoice);
+      const audioBlob = await api.textToSpeech(text);
       const audioUrl = URL.createObjectURL(audioBlob);
       
       const audio = new Audio(audioUrl);
