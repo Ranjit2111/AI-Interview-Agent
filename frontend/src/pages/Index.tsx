@@ -40,9 +40,8 @@ const Index = () => {
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('register');
   const { toast } = useToast();
   
-  // Advanced interaction states
+  // Animation and interaction states
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [activeFloatingElement, setActiveFloatingElement] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   
   // Feature Constellation states
@@ -63,9 +62,9 @@ const Index = () => {
   const configSectionRef = useRef<HTMLDivElement>(null);
   const jobRoleSectionRef = useRef<HTMLDivElement>(null);
   const featuresSectionRef = useRef<HTMLDivElement>(null);
-  const constellationRef = useRef<HTMLDivElement>(null);
+    const constellationRef = useRef<HTMLDivElement>(null);
 
-  // Enhanced mouse tracking for 3D effects
+  // Mouse tracking for feature constellation interactions
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 100;
@@ -94,13 +93,7 @@ const Index = () => {
     };
   }, []);
 
-  // Auto-cycle floating elements
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveFloatingElement((prev) => (prev + 1) % 3);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
+
 
   // Clear required error when user starts typing job role
   useEffect(() => {
@@ -323,140 +316,115 @@ const Index = () => {
     actions.startInterview(config);
   };
 
-  // Advanced floating orbs background
-  const renderAdvancedBackground = () => (
+  // Hero background with image and light effects
+  const renderHeroBackground = () => (
     <div className="absolute inset-0 overflow-hidden">
-      {/* Primary floating orbs with physics */}
+      {/* Hero gradient background image */}
       <div 
-        className="absolute w-96 h-96 rounded-full opacity-20 blur-3xl transition-all duration-[3000ms] ease-in-out"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{
-          background: 'radial-gradient(circle, rgba(34, 211, 238, 0.4) 0%, rgba(168, 85, 247, 0.2) 50%, transparent 100%)',
-          transform: `translate(${20 + mousePosition.x * 0.5}px, ${10 + mousePosition.y * 0.3}px) scale(${activeFloatingElement === 0 ? 1.2 : 1})`,
-          top: '10%',
-          left: '60%',
-        }}
-      />
-      <div 
-        className="absolute w-80 h-80 rounded-full opacity-25 blur-2xl transition-all duration-[2500ms] ease-in-out"
-        style={{
-          background: 'radial-gradient(circle, rgba(168, 85, 247, 0.5) 0%, rgba(236, 72, 153, 0.3) 50%, transparent 100%)',
-          transform: `translate(${-mousePosition.x * 0.3}px, ${-mousePosition.y * 0.4}px) scale(${activeFloatingElement === 1 ? 1.3 : 1})`,
-          bottom: '20%',
-          left: '10%',
-        }}
-      />
-      <div 
-        className="absolute w-64 h-64 rounded-full opacity-30 blur-xl transition-all duration-[2000ms] ease-in-out"
-        style={{
-          background: 'radial-gradient(circle, rgba(34, 197, 94, 0.4) 0%, rgba(34, 211, 238, 0.3) 50%, transparent 100%)',
-          transform: `translate(${mousePosition.x * 0.2}px, ${mousePosition.y * 0.5}px) scale(${activeFloatingElement === 2 ? 1.1 : 1})`,
-          top: '50%',
-          right: '5%',
+          backgroundImage: "url('/hero-gradient.jpg')"
         }}
       />
       
-      {/* Geometric accent shapes */}
-      <div className="absolute top-1/4 left-1/4 w-2 h-2 bg-cyan-400 rounded-full animate-pulse opacity-60" />
-      <div className="absolute top-3/4 right-1/3 w-3 h-3 bg-purple-400 rotate-45 animate-bounce opacity-40" />
-      <div className="absolute bottom-1/3 left-2/3 w-1 h-8 bg-gradient-to-b from-pink-400 to-transparent animate-pulse" />
+      {/* Overlay for better text readability */}
+      <div className="absolute inset-0 bg-black/20" />
       
-      {/* Dynamic mesh gradient overlay */}
-      <div 
-        className="absolute inset-0 opacity-30"
-        style={{
-          background: `
-            radial-gradient(circle at ${mousePosition.x}% ${mousePosition.y}%, rgba(34, 211, 238, 0.1) 0%, transparent 50%),
-            radial-gradient(circle at ${100 - mousePosition.x}% ${100 - mousePosition.y}%, rgba(168, 85, 247, 0.1) 0%, transparent 50%)
-          `
-        }}
-      />
+      {/* Subtle light beam effects */}
+      <div className="absolute inset-0">
+        {/* Central light beam */}
+        <div 
+          className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1 h-full opacity-30"
+          style={{
+            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%)',
+            filter: 'blur(2px)'
+          }}
+        />
+        
+        {/* Side light accents */}
+        <div 
+          className="absolute top-1/4 left-1/4 w-px h-32 opacity-20 rotate-12"
+          style={{
+            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.6), transparent)',
+            filter: 'blur(1px)'
+          }}
+        />
+        <div 
+          className="absolute top-1/3 right-1/4 w-px h-24 opacity-20 -rotate-12"
+          style={{
+            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.6), transparent)',
+            filter: 'blur(1px)'
+          }}
+        />
+      </div>
     </div>
   );
 
-  // Revolutionary Hero Section
+  // Stunning Hero Section with Modern Typography
   const renderHeroSection = () => (
     <div 
       className="relative min-h-screen flex items-center justify-center overflow-hidden"
       ref={heroRef}
-      onMouseMove={handleMouseMove}
     >
-      {renderAdvancedBackground()}
+      {renderHeroBackground()}
       
       {/* Centered Hero Content */}
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
-        <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl mx-auto text-center">
+        <div className="max-w-6xl mx-auto text-center">
           
-          {/* Badge */}
-          <div className={`inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500/20 to-purple-600/20 border border-purple-500/30 backdrop-blur-sm mb-8 transition-all duration-1000 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-8'}`}>
-            <Sparkles className="w-4 h-4 text-cyan-300" />
-            <span className="text-sm font-semibold text-cyan-300 tracking-wider">Introducing AI Interview System</span>
+          {/* Refined Badge */}
+          <div className={`inline-flex items-center gap-3 px-8 py-4 rounded-full bg-black/30 backdrop-blur-md border border-white/10 mb-12 transition-all duration-1000 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-8'}`}>
+            <Bot className="w-5 h-5 text-gray-300" />
+            <span className="text-sm font-medium text-gray-300 tracking-wide">AI Interview Agent</span>
           </div>
 
-          {/* Main Headline with Modern Typography */}
-          <div className={`space-y-6 mb-12 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-12'}`}>
-            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-bold leading-tight">
-              <span className="bg-gradient-to-r from-white to-gray-200 bg-clip-text text-transparent">
-                Modern AI for the
-              </span>
-              <br />
-              <span className="relative">
-                <span className="bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-                  next generation
-                </span>
-                {/* Stylish underline */}
-                <div className="absolute bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 transform scale-x-0 animate-[scale-x_1s_ease-out_0.8s_forwards] origin-left"></div>
-              </span>
+          {/* Main Headline with Refined Dark Typography */}
+          <div className={`space-y-8 mb-12 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-12'}`}>
+            <h1 className="text-4xl sm:text-5xl lg:text-7xl xl:text-8xl font-black leading-tight tracking-tight">
+              <div className="text-gray-100 mb-3" style={{
+                textShadow: '0 2px 8px rgba(0, 0, 0, 0.5)'
+              }}>
+                Master Your
+              </div>
+              <div className="text-white" style={{
+                textShadow: '0 2px 12px rgba(0, 0, 0, 0.7)'
+              }}>
+                Interview Skills
+              </div>
             </h1>
             
-            <p className="text-lg sm:text-xl lg:text-2xl text-gray-300 max-w-3xl xl:max-w-4xl mx-auto leading-relaxed font-light">
-              Practice with AI-powered agents that provide real-time coaching 
-              and personalized learning recommendations.
+            <p className="text-xl sm:text-2xl lg:text-3xl text-gray-300 max-w-4xl mx-auto leading-relaxed font-normal">
+              Practice with intelligent AI agents that simulate real interviews
+              <br className="hidden sm:block" />
+              and provide personalized coaching feedback
             </p>
           </div>
 
-          {/* Action Buttons */}
-          <div className={`flex flex-col sm:flex-row gap-6 justify-center items-center mb-16 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'}`}>
+          {/* Action Buttons with Dark Theme */}
+          <div className={`flex flex-col sm:flex-row gap-4 justify-center items-center mb-16 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'}`}>
             <Button
               onClick={scrollToConfig}
-              className="w-full sm:w-auto bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white px-8 py-4 rounded-2xl text-lg font-semibold shadow-2xl hover:shadow-purple-500/25 transition-all duration-300 group border-0 min-h-[56px]"
+              className="w-full sm:w-auto bg-white/90 hover:bg-white text-gray-900 px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:shadow-white/10 transition-all duration-300 group border-0 min-h-[56px] hover:scale-105"
             >
               Get Started
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
             
             <Button
-              onClick={scrollToFeatures}
               variant="outline"
-              className="w-full sm:w-auto border-2 border-white/20 bg-black/20 hover:bg-white/10 text-white px-8 py-4 rounded-2xl text-lg font-semibold backdrop-blur-sm hover:border-cyan-500/50 transition-all duration-300 min-h-[56px]"
+              onClick={scrollToFeatures}
+              className="w-full sm:w-auto border-2 border-white/30 bg-black/20 hover:bg-white/10 text-gray-200 hover:text-white px-8 py-4 rounded-xl text-lg font-semibold backdrop-blur-sm hover:border-white/50 transition-all duration-300 min-h-[56px] hover:scale-105"
             >
-              Know More
+              Learn More
             </Button>
           </div>
 
-          {/* Real Statistics */}
-          <div className={`grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 max-w-2xl xl:max-w-3xl mx-auto transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-12'}`}>
-            <div className="text-center group cursor-default">
-              <div className="flex items-center justify-center mb-2">
-                <Clock className="w-6 h-6 text-cyan-400 mr-2" />
-              </div>
-              <div className="text-3xl font-bold text-cyan-400 group-hover:scale-110 transition-transform">24/7</div>
-              <div className="text-sm text-gray-400 tracking-wide">Available</div>
-            </div>
-            
-            <div className="text-center group cursor-default">
-              <div className="flex items-center justify-center mb-2">
-                <Volume2 className="w-6 h-6 text-purple-400 mr-2" />
-              </div>
-              <div className="text-3xl font-bold text-purple-400 group-hover:scale-110 transition-transform">Voice</div>
-              <div className="text-sm text-gray-400 tracking-wide">Enabled</div>
-            </div>
-            
-            <div className="text-center group cursor-default">
-              <div className="flex items-center justify-center mb-2">
-                <Lightning className="w-6 h-6 text-pink-400 mr-2" />
-              </div>
-              <div className="text-3xl font-bold text-pink-400 group-hover:scale-110 transition-transform">Instant</div>
-              <div className="text-sm text-gray-400 tracking-wide">Feedback</div>
+          {/* Subtle scroll indicator */}
+          <div className={`transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'}`}>
+            <div className="flex items-center justify-center space-x-2 text-gray-400">
+              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
+              <span className="text-sm font-medium tracking-wider">Scroll to explore features</span>
+              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
             </div>
           </div>
         </div>
@@ -1366,6 +1334,23 @@ const Index = () => {
           
           .animate-gentle-shake {
             animation: gentle-shake 0.5s ease-in-out;
+          }
+          
+          /* Enhanced hero typography effects */
+          @keyframes hero-text-glow {
+            0%, 100% { text-shadow: 0 0 20px rgba(255, 255, 255, 0.1); }
+            50% { text-shadow: 0 0 30px rgba(255, 255, 255, 0.2), 0 0 40px rgba(255, 255, 255, 0.1); }
+          }
+          
+          .hero-title {
+            animation: hero-text-glow 4s ease-in-out infinite;
+          }
+          
+          /* Better text rendering */
+          .hero-text {
+            text-rendering: optimizeLegibility;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
           }
         `
       }} />
