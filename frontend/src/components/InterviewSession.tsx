@@ -208,7 +208,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
     } else {
       // Transcript is already open, just toggle the feedback
       setLatestFeedbackToggled(!latestFeedbackToggled);
-    }
+      }
   };
 
   // Calculate session duration
@@ -485,7 +485,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
           </div>
         </div>
       </div>
-    </div>
+        </div>
   );
 
   // Handle modal close and trigger TTS
