@@ -257,8 +257,18 @@ export function useVoiceFirstInterview(
     }
   }, [setupVoiceActivityDetection, toast]);
 
-  // Stop voice recognition
+  // Stop voice recognition and handle transcript
   const stopVoiceRecognition = useCallback(() => {
+    console.log('🛑 Stopping voice recognition...');
+    
+    // IMMEDIATE PROCESSING STATE - Show processing state right away
+    setVoiceState(prev => ({
+      ...prev,
+      microphoneState: 'processing',
+      turnState: 'idle'
+    }));
+    
+    // Clean up WebSocket connection and audio streams
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       recognitionRef.current = null;
@@ -266,7 +276,6 @@ export function useVoiceFirstInterview(
     
     setMicrophoneActive(false);
     
-    // Clean up audio resources
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach(track => track.stop());
       micStreamRef.current = null;
@@ -289,13 +298,7 @@ export function useVoiceFirstInterview(
     if (completeTranscript) {
       console.log('📤 Sending complete transcript on manual stop:', completeTranscript);
       
-      // ROBUST FIX: Set processing state and maintain it until TTS starts
-      setVoiceState(prev => ({
-        ...prev,
-        microphoneState: 'processing',
-        turnState: 'idle'
-      }));
-      
+      // Processing state already set above - maintain it until TTS starts
       if (onSendMessageRef.current) {
         onSendMessageRef.current(completeTranscript);
       } else {
@@ -305,12 +308,14 @@ export function useVoiceFirstInterview(
       setCurrentInterimText('');
     } else {
       console.log('⚠️ No transcript to send - user may have stopped without speaking');
-      // If no transcript, return to idle immediately since no message was sent
-      setVoiceState(prev => ({
-        ...prev,
-        microphoneState: 'idle',
-        turnState: 'idle'
-      }));
+      // Brief delay to show processing, then return to idle
+      setTimeout(() => {
+        setVoiceState(prev => ({
+          ...prev,
+          microphoneState: 'idle',
+          turnState: 'idle'
+        }));
+      }, 500); // 500ms delay to show processing briefly
     }
     
     // NOTE: Processing state continues until TTS audio starts playing
