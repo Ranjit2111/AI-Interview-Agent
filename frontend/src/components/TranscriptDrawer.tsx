@@ -9,6 +9,8 @@ interface TranscriptDrawerProps {
   onPlayMessage?: (message: string) => void;
   onSendTextFromTranscript: (message: string) => void;
   coachFeedbackStates: CoachFeedbackState;
+  latestFeedbackToggled?: boolean;
+  latestFeedbackIndex?: number | null;
 }
 
 const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
@@ -17,7 +19,9 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
   onClose,
   onPlayMessage,
   onSendTextFromTranscript,
-  coachFeedbackStates
+  coachFeedbackStates,
+  latestFeedbackToggled,
+  latestFeedbackIndex
 }) => {
   const drawerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -59,6 +63,21 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
       setTimeout(scrollToBottom, 100);
     }
   }, [messages, isOpen]);
+
+  // Handle latest feedback toggle from parent
+  useEffect(() => {
+    if (latestFeedbackIndex !== null && latestFeedbackIndex !== undefined) {
+      if (latestFeedbackToggled) {
+        setExpandedCoachFeedback(prev => new Set(prev).add(latestFeedbackIndex));
+      } else {
+        setExpandedCoachFeedback(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(latestFeedbackIndex);
+          return newSet;
+        });
+      }
+    }
+  }, [latestFeedbackToggled, latestFeedbackIndex]);
 
   // Helper to convert content to string
   const getContentAsString = (content: string | any): string => {
