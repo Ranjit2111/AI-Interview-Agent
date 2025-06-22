@@ -110,7 +110,7 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
   return (
     <div 
       ref={panelRef}
-      className="immersive-interview-panel relative overflow-hidden"
+      className="immersive-interview-panel relative overflow-hidden min-h-screen flex flex-col"
       style={{
         backgroundImage: getBackgroundGradient(),
         transition: 'all 0.8s ease-out'
@@ -148,26 +148,11 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
       ))}
 
       {/* Main Content Layout */}
-      <div className="voice-first-layout">
-        
-        {/* Minimal Message Display - Positioned at top */}
-        {/* 
-        {showMessages && (
-          <div className="absolute top-0 left-0 right-0 z-20">
-            <MinimalMessageDisplay
-              lastUserMessage={lastUserMessage}
-              lastAIMessage={lastAIMessage}
-              isVisible={Boolean(lastUserMessage || lastAIMessage)}
-              autoHideTimeout={8000}
-              onToggleTranscript={showTranscriptButton ? onToggleTranscript : undefined}
-            />
-          </div>
-        )}
-        */}
+      <div className="voice-first-layout h-full min-h-screen flex flex-col">
 
         {/* Central Microphone Button - Main focal point */}
-        <div className="flex-1 flex items-center justify-center min-h-screen">
-          <div className="flex flex-col items-center">
+        <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center w-full max-w-xl sm:max-w-2xl">
             <CentralMicButton
               isListening={isListening}
               isProcessing={isProcessing}
@@ -182,113 +167,49 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
         {/* User Transcript Display */}
         {accumulatedTranscript && accumulatedTranscript.trim() && (
           <div className="
-            mt-6 px-6 py-4 
+            mx-3 sm:mx-4 lg:mx-6 xl:mx-8 mb-4 sm:mb-6 lg:mb-8 px-3 sm:px-4 lg:px-6 py-2.5 sm:py-3 lg:py-4 
             bg-gray-900/40 backdrop-blur-sm 
             border border-blue-500/20 
-            rounded-xl shadow-lg
-            max-w-2xl mx-auto
+            rounded-lg sm:rounded-xl shadow-lg
+            max-w-xl sm:max-w-2xl self-center w-full
             transition-all duration-300
           ">
-            <div className="flex items-start space-x-3">
+            <div className="flex items-start space-x-2 sm:space-x-3">
               <div className="
-                w-8 h-8 rounded-full 
+                w-5 h-5 sm:w-6 sm:h-6 lg:w-8 lg:h-8 rounded-full 
                 bg-blue-500/20 border border-blue-400/30
                 flex items-center justify-center flex-shrink-0 mt-0.5
               ">
-                <span className="text-blue-300 text-sm font-medium">You</span>
+                <span className="text-blue-300 text-xs sm:text-xs lg:text-sm font-medium">You</span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-300 leading-relaxed">
+                <p className="text-white/90 text-sm sm:text-base lg:text-lg leading-relaxed break-words">
                   {accumulatedTranscript}
                 </p>
               </div>
             </div>
           </div>
         )}
-
-        {/* Status Area - Fixed at bottom */}
-        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
-          <div className="text-center space-y-4">
-
-            {/* Ambient Audio Visualizer */}
-            {(isListening || turnState === 'ai') && (
-              <div className="flex items-center space-x-2 opacity-40 mb-4">
-                {Array.from({ length: 12 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`
-                      w-0.5 rounded-full transition-all duration-200
-                      ${turnState === 'ai' ? 'bg-orange-400' : 'bg-blue-400'}
-                    `}
-                    style={{
-                      height: `${4 + Math.sin(Date.now() * 0.01 + i * 0.5) * (isListening ? voiceActivity * 8 : 4)}px`,
-                      animationDelay: `${i * 0.1}s`
-                    }}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Connection Status */}
-            <div className="flex items-center justify-center space-x-2">
-              <div 
-                className={`
-                  w-2 h-2 rounded-full transition-colors duration-300
-                  ${isDisabled ? 'bg-red-500 animate-pulse' : 'bg-green-500'}
-                `}
-              />
-              <span className="text-xs text-gray-400 font-medium">
-                {isDisabled ? 'Connecting...' : 'Connected'}
-              </span>
-            </div>
-
-            {/* Session Progress Indicator */}
-            {messages.length > 0 && (
-              <div className="text-xs text-gray-500">
-                {messages.filter(m => m.role === 'user').length} exchanges
-              </div>
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Corner Accent Lights */}
-      <div className="absolute top-4 left-4 w-16 h-16">
+      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 w-12 h-12 sm:w-16 sm:h-16">
         <div 
           className="w-full h-full rounded-full opacity-20 blur-xl"
           style={{
             background: turnState === 'ai' 
-              ? `radial-gradient(circle, rgba(255, 149, 0, ${ambientIntensity}) 0%, transparent 70%)`
-              : `radial-gradient(circle, rgba(0, 122, 255, ${ambientIntensity}) 0%, transparent 70%)`
+              ? 'radial-gradient(circle, rgba(255, 149, 0, 0.6), transparent)'
+              : 'radial-gradient(circle, rgba(0, 122, 255, 0.6), transparent)',
           }}
         />
       </div>
-      
-      <div className="absolute top-4 right-4 w-16 h-16">
+      <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 w-12 h-12 sm:w-16 sm:h-16">
         <div 
-          className="w-full h-full rounded-full opacity-20 blur-xl"
+          className="w-full h-full rounded-full opacity-15 blur-xl"
           style={{
-            background: turnState === 'ai' 
-              ? `radial-gradient(circle, rgba(175, 82, 222, ${ambientIntensity}) 0%, transparent 70%)`
-              : `radial-gradient(circle, rgba(0, 122, 255, ${ambientIntensity * 0.7}) 0%, transparent 70%)`
-          }}
-        />
-      </div>
-
-      <div className="absolute bottom-4 left-4 w-12 h-12">
-        <div 
-          className="w-full h-full rounded-full opacity-15 blur-lg"
-          style={{
-            background: `radial-gradient(circle, rgba(255, 255, 255, ${ambientIntensity * 0.5}) 0%, transparent 70%)`
-          }}
-        />
-      </div>
-
-      <div className="absolute bottom-4 right-4 w-12 h-12">
-        <div 
-          className="w-full h-full rounded-full opacity-15 blur-lg"
-          style={{
-            background: `radial-gradient(circle, rgba(255, 255, 255, ${ambientIntensity * 0.3}) 0%, transparent 70%)`
+            background: isListening 
+              ? 'radial-gradient(circle, rgba(0, 122, 255, 0.5), transparent)'
+              : 'radial-gradient(circle, rgba(175, 82, 222, 0.5), transparent)',
           }}
         />
       </div>

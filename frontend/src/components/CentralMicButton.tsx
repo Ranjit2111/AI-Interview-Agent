@@ -60,14 +60,14 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
 
   const getIconComponent = () => {
     if (isProcessing) {
-      return <Loader2 className="w-8 h-8 text-white animate-spin" />;
+      return <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-white animate-spin" />;
     }
     
     if (isListening) {
-      return <MicOff className="w-8 h-8 text-white" />;
+      return <MicOff className="w-6 h-6 sm:w-8 sm:h-8 text-white" />;
     }
     
-    return <Mic className="w-8 h-8 text-white" />;
+    return <Mic className="w-6 h-6 sm:w-8 sm:h-8 text-white" />;
   };
 
   const buttonState = getButtonState();
@@ -80,7 +80,7 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
         isActive={isListening || turnState === 'ai'}
         mode={glowMode}
         voiceActivity={voiceActivity}
-        className="p-6 rounded-full bg-transparent"
+        className="p-4 sm:p-6 rounded-full bg-transparent"
       >
         <button
           ref={buttonRef}
@@ -95,6 +95,7 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
             ${buttonState === 'processing' ? 'processing' : ''}
             ${buttonState === 'disabled' ? 'disabled' : ''}
             ${isPressed ? 'scale-95' : ''}
+            min-h-[48px] min-w-[48px] sm:min-h-[64px] sm:min-w-[64px]
           `}
           style={{
             '--voice-intensity': '0',
@@ -153,7 +154,7 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
 
       {/* Voice Activity Waveform - User */}
       {isListening && (
-        <div className="mt-6 flex items-center space-x-2 text-blue-400">
+        <div className="mt-4 sm:mt-6 flex items-center space-x-1.5 sm:space-x-2 text-blue-400">
           <div className="voice-activity-wave">
             <div className="wave-bar animate-voice-wave" />
             <div className="wave-bar animate-voice-wave animation-delay-100" />
@@ -166,7 +167,7 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
 
       {/* AI Speaking Indicator */}
       {turnState === 'ai' && (
-        <div className="mt-6 flex items-center space-x-2 text-orange-400">
+        <div className="mt-4 sm:mt-6 flex items-center space-x-1.5 sm:space-x-2 text-orange-400">
           <div className="ai-voice-activity-wave">
             <div className="wave-bar animate-voice-wave" />
             <div className="wave-bar animate-voice-wave animation-delay-100" />
@@ -178,9 +179,9 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
       )}
 
       {/* Status Text */}
-      <div className="mt-4 text-center">
+      <div className="mt-3 sm:mt-4 text-center">
         {buttonState === 'idle' && !isDisabled && (
-          <p className="text-sm text-gray-400 font-medium">
+          <p className="text-xs sm:text-sm text-gray-400 font-medium">
             Tap to speak
           </p>
         )}
