@@ -51,8 +51,9 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
   };
 
   const getGlowMode = (): 'user' | 'ai' | 'idle' => {
-    if (isDisabled) return 'idle';
+    // FIXED: Check turnState first, before isDisabled - AI should glow even when disabled
     if (turnState === 'ai') return 'ai';
+    if (isDisabled) return 'idle';
     if (isListening || turnState === 'user') return 'user';
     return 'idle';
   };
