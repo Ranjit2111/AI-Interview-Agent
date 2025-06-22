@@ -45,19 +45,19 @@ const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
 
   return (
     <>
-      <header className="relative z-10 bg-black/40 backdrop-blur-lg py-4 shadow-lg">
+      <header className="absolute top-0 left-0 right-0 z-50 bg-transparent py-6">
         <div className="container mx-auto flex items-center justify-between px-4 max-w-7xl 2xl:max-w-none">
           {/* Logo and Title */}
           <div className="flex items-center gap-3 cursor-pointer hover:scale-105 transition-transform duration-200" onClick={handleTitleClick}>
             <div className="relative">
-              <div className="absolute -inset-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-600 opacity-70 blur-sm animate-pulse-slow"></div>
+              <div className="absolute -inset-0.5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-600 opacity-50 blur-sm"></div>
               <div className="relative p-1 rounded-full bg-gradient-to-br from-cyan-400 via-purple-500 to-pink-500">
                 <div className="w-10 h-10 flex items-center justify-center rounded-full bg-black">
                   <Sparkles className="h-5 w-5 text-transparent bg-clip-text bg-gradient-to-br from-cyan-300 to-purple-400" />
                 </div>
               </div>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent font-display tracking-tight hover:from-cyan-200 hover:via-purple-300 hover:to-pink-200 transition-all duration-200">AI Interviewer</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-white/90 font-display tracking-tight hover:text-white transition-all duration-200">AI Interviewer</h1>
           </div>
           
           {/* Desktop Navigation */}
@@ -108,14 +108,14 @@ const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
                   <div className="flex items-center space-x-3 lg:space-x-4">
                     <button
                       onClick={handleSignInClick}
-                      className="flex items-center space-x-2 px-6 py-3 text-gray-300 hover:text-white bg-black/30 hover:bg-white/10 backdrop-blur-sm border border-white/10 hover:border-cyan-500/30 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/10"
+                      className="flex items-center space-x-2 px-4 py-2 text-white/80 hover:text-white bg-transparent hover:bg-white/10 backdrop-blur-sm border border-white/20 hover:border-white/40 rounded-lg transition-all duration-300"
                     >
                       <LogIn size={16} />
                       <span className="font-medium">Sign In</span>
                     </button>
                     <button
                       onClick={handleSignUpClick}
-                      className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white rounded-xl font-medium shadow-lg hover:shadow-purple-500/25 transition-all duration-300 backdrop-blur-sm border border-purple-500/20 hover:scale-105"
+                      className="flex items-center space-x-2 px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-medium backdrop-blur-sm border border-white/30 hover:border-white/50 transition-all duration-300 hover:scale-105"
                     >
                       <UserPlus size={16} />
                       <span>Sign Up</span>
@@ -153,7 +153,7 @@ const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
 
         {/* Mobile Menu Overlay */}
         {isMobile && isMobileMenuOpen && (
-          <div className="absolute top-full left-0 right-0 bg-black/95 backdrop-blur-lg border-t border-white/10 z-50">
+          <div className="absolute top-full left-0 right-0 bg-black/90 backdrop-blur-xl border-t border-white/10 z-50">
             <div className="container mx-auto p-4 space-y-6">
               {/* Mobile Auth Section */}
               <div className="space-y-4">
