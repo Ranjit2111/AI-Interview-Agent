@@ -306,15 +306,14 @@ export function useVoiceFirstInterview(
       setCurrentInterimText('');
     } else {
       console.log('⚠️ No transcript to send - user may have stopped without speaking');
-    }
-    
-    // Reset to idle after processing
-    setTimeout(() => {
+      // If no transcript, return to idle immediately since no message was sent
       setVoiceState(prev => ({
         ...prev,
         microphoneState: 'idle'
       }));
-    }, 1000);
+    }
+    
+    // NOTE: Removed timeout that resets to idle - processing state continues until audio plays
   }, []); // NO DEPENDENCIES - use refs instead
 
   // Voice control functions
@@ -328,28 +327,28 @@ export function useVoiceFirstInterview(
 
   // TTS state management
   const handleTTSStart = useCallback((isInitial: boolean = false) => {
-    console.log('🎙️ TTS Start - Setting audioPlaying=true, turnState=ai', { isInitial });
+    console.log('🎙️ TTS Start - Maintaining processing state during synthesis', { isInitial });
     
     if (isInitial) {
-      // For initial message, only set synthesis state, not visual AI state yet
+      // For initial message, maintain processing state during synthesis
       setIsInitialTTSSynthesizing(true);
       setIsInitialMessage(true);
       setVoiceState(prev => ({
         ...prev,
-        microphoneState: 'disabled' as const // Block mic during synthesis
+        microphoneState: 'processing' as const, // Keep processing during synthesis
+        audioState: 'buffering' as const
       }));
-      console.log('🎙️ Initial TTS Start - Setting synthesis state, mic disabled');
+      console.log('🎙️ Initial TTS Start - Maintaining processing state during synthesis');
     } else {
-      // For regular interview messages, use existing behavior
-      setAudioPlaying(true);
+      // For regular interview messages, maintain processing state during synthesis
       setVoiceState(prev => {
         const newState: VoiceState = {
           ...prev,
-          audioState: 'playing' as const,
-          turnState: 'ai' as const,
-          microphoneState: 'disabled' as const
+          audioState: 'buffering' as const,
+          microphoneState: 'processing' as const // Keep processing during synthesis
+          // turnState remains 'idle' until audio actually plays
         };
-        console.log('🎙️ Regular TTS Start - Voice state updated:', newState);
+        console.log('🎙️ Regular TTS Start - Synthesis started, keeping processing state until audio plays:', newState);
         return newState;
       });
     }
@@ -375,14 +374,14 @@ export function useVoiceFirstInterview(
   // Handler for when initial TTS audio actually starts playing
   const handleInitialTTSPlay = useCallback(() => {
     if (isInitialMessage) {
-      console.log('🎙️ Initial TTS audio started playing - showing visual state');
+      console.log('🎙️ Initial TTS audio started playing - showing AI speaking visual state');
       setIsInitialTTSSynthesizing(false);
       setAudioPlaying(true);
       setVoiceState(prev => ({
         ...prev,
         audioState: 'playing' as const,
         turnState: 'ai' as const,
-        microphoneState: 'disabled' as const
+        microphoneState: 'idle' as const // Mic becomes idle when AI is speaking
       }));
     }
   }, [isInitialMessage]);
@@ -444,12 +443,20 @@ export function useVoiceFirstInterview(
       
       // Set up event handlers before playing
       audio.onplay = () => {
-        console.log('🔊 TTS audio started playing - triggering visual effects');
+        console.log('🔊 TTS audio started playing - NOW showing AI visual state');
+        setAudioPlaying(true);
         if (isInitialMsg) {
           // For initial message, now show the visual state
           handleInitialTTSPlay();
+        } else {
+          // For regular messages, NOW show AI visual state when audio actually plays
+          setVoiceState(prev => ({
+            ...prev,
+            audioState: 'playing' as const,
+            turnState: 'ai' as const,
+            microphoneState: 'idle' as const // Mic becomes idle when AI is speaking
+          }));
         }
-        // For regular messages, visual state was already set during synthesis
       };
       
       audio.onended = () => {
@@ -534,18 +541,18 @@ export function useVoiceFirstInterview(
 
   // Determine overall interaction state
   const getInteractionState = useCallback(() => {
-    const isMicDisabledByTTS = audioPlaying || isInitialTTSSynthesizing;
-    const isMicDisabledByLogic = voiceState.microphoneState === 'disabled';
     const sessionNotReady = sessionData.state !== 'interviewing';
-
-    const disabled = isMicDisabledByTTS || isMicDisabledByLogic || sessionNotReady;
+    const isAISpeaking = audioPlaying && voiceState.turnState === 'ai';
+    
+    // Mic is disabled only when session not ready or AI is speaking
+    const disabled = sessionNotReady || isAISpeaking;
     
     return {
       isListening: microphoneActive && !disabled,
       isProcessing: voiceState.microphoneState === 'processing' && !disabled,
       isDisabled: disabled
     };
-  }, [voiceState, microphoneActive, audioPlaying, isInitialTTSSynthesizing, sessionData.state]);
+  }, [voiceState, microphoneActive, audioPlaying, sessionData.state]);
 
   // Calculate interaction state once
   const interactionState = getInteractionState();
