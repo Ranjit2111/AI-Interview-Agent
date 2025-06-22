@@ -44,6 +44,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; vx: number; vy: number; size: number; color: string; life: number }>>([]);
   const [showCoachNotification, setShowCoachNotification] = useState(false);
   const [lastFeedbackCount, setLastFeedbackCount] = useState(0);
+  const [latestFeedbackToggled, setLatestFeedbackToggled] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const defaultVoiceSetRef = useRef(false);
@@ -63,9 +64,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
     toggleMicrophone,
     toggleTranscript,
     playTextToSpeech,
-    lastExchange,
-    isInitialTTSSynthesizing,
-    isInitialMessage
+    lastExchange
   } = useVoiceFirstInterview(
     {
       messages,
@@ -171,6 +170,45 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       } else {
       toggleMicrophone();
       }
+  };
+
+  // Find the latest user message with coach feedback
+  const getLatestFeedbackMessageIndex = () => {
+    const userMessageIndexes = messages
+      .map((msg, index) => ({ msg, index }))
+      .filter(({ msg }) => msg.role === 'user')
+      .map(({ index }) => index)
+      .reverse(); // Start from latest
+
+    for (const messageIndex of userMessageIndexes) {
+      const feedbackState = coachFeedbackStates[messageIndex];
+      if (feedbackState?.feedback && !feedbackState.isAnalyzing) {
+        return messageIndex;
+      }
+    }
+    return null;
+  };
+
+  // Handle coach icon button click
+  const handleCoachButtonClick = () => {
+    const latestFeedbackIndex = getLatestFeedbackMessageIndex();
+    
+    if (latestFeedbackIndex === null) {
+      // No feedback available yet
+      return;
+    }
+
+    // If transcript is not visible, open it first
+    if (!transcriptVisible) {
+      toggleTranscript();
+      // Wait a bit for the drawer to open, then toggle feedback
+      setTimeout(() => {
+        setLatestFeedbackToggled(!latestFeedbackToggled);
+      }, 300);
+    } else {
+      // Transcript is already open, just toggle the feedback
+      setLatestFeedbackToggled(!latestFeedbackToggled);
+    }
   };
 
   // Calculate session duration
@@ -359,6 +397,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
             {/* Coach Feedback Button */}
             <div className="relative">
               <Button
+                onClick={handleCoachButtonClick}
                 variant="outline"
                 className={`w-12 h-12 md:w-14 md:h-14 rounded-lg md:rounded-xl transition-all duration-300 group relative ${
                   Object.values(coachFeedbackStates).some(state => state.isAnalyzing)
@@ -446,7 +485,7 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
           </div>
         </div>
       </div>
-        </div>
+    </div>
   );
 
   // Handle modal close and trigger TTS
@@ -527,6 +566,8 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
         onPlayMessage={playTextToSpeech}
         onSendTextFromTranscript={onSendMessage}
         coachFeedbackStates={coachFeedbackStates}
+        latestFeedbackToggled={latestFeedbackToggled}
+        latestFeedbackIndex={getLatestFeedbackMessageIndex()}
       />
 
       {/* Interview Instructions Modal */}

@@ -5,8 +5,8 @@ import './index.css'
 // Create main app root
 createRoot(document.getElementById("root")!).render(<App />);
 
-// Initialize stagewise toolbar in development mode only
-if (import.meta.env.DEV) {
+// Initialize stagewise toolbar in development mode only (and when not explicitly disabled)
+if (import.meta.env.DEV && !import.meta.env.VITE_NO_STAGEWISE) {
   import('@stagewise/toolbar-react').then(({ StagewiseToolbar }) => {
     // Create a separate div for the toolbar
     const toolbarDiv = document.createElement('div');
