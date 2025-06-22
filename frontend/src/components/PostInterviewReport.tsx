@@ -920,27 +920,27 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
       <div className="relative z-10 min-h-screen">
         
         {/* Minimal Hero Section */}
-        <section className="py-16 px-4 md:px-8 relative">
-          <div className="max-w-4xl mx-auto">
+        <section className="py-12 sm:py-16 px-3 sm:px-4 md:px-8 relative">
+          <div className="max-w-2xl sm:max-w-3xl lg:max-w-4xl mx-auto">
             {/* Compact header */}
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-gradient-to-br from-cyan-500 via-purple-600 to-pink-500 mb-6 shadow-lg">
-                <BarChart3 className="w-8 h-8 text-white" />
+            <div className="text-center mb-8 sm:mb-12">
+              <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-lg sm:rounded-xl bg-gradient-to-br from-cyan-500 via-purple-600 to-pink-500 mb-4 sm:mb-6 shadow-lg">
+                <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
               </div>
               
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-3 sm:mb-4 px-4 sm:px-0">
                 <span className="bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-400 bg-clip-text text-transparent">
                   Interview Analysis Report
                 </span>
               </h1>
               
-              <p className="text-gray-400 max-w-xl mx-auto">
+              <p className="text-gray-400 text-sm sm:text-base max-w-lg sm:max-w-xl mx-auto px-4 sm:px-0">
                 AI-powered insights into your interview performance
               </p>
             </div>
 
             {/* Compact navigation buttons */}
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap justify-center gap-3 sm:gap-4">
               {[
                 { 
                   id: 'analysis', 
@@ -971,13 +971,13 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                     const element = document.getElementById(section.id);
                     element?.scrollIntoView({ behavior: 'smooth' });
                   }}
-                  className="group relative inline-flex items-center space-x-2 px-6 py-3 bg-black/30 backdrop-blur-xl border border-white/10 hover:border-cyan-400/40 rounded-xl transition-all duration-300 hover:scale-105"
+                  className="group relative inline-flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 bg-black/30 backdrop-blur-xl border border-white/10 hover:border-cyan-400/40 rounded-lg sm:rounded-xl transition-all duration-300 hover:scale-105 min-h-[48px] w-full sm:w-auto"
                 >
                   {/* Icon */}
-                  <section.icon className="w-5 h-5 text-gray-300 group-hover:text-cyan-400 transition-colors" />
+                  <section.icon className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300 group-hover:text-cyan-400 transition-colors" />
                   
                   {/* Label */}
-                  <span className="text-sm font-medium text-white group-hover:text-cyan-400 transition-colors">
+                  <span className="text-sm sm:text-sm font-medium text-white group-hover:text-cyan-400 transition-colors">
                     {section.label}
                   </span>
                 </button>
@@ -987,57 +987,57 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         </section>
 
         {/* Analysis section */}
-        <section id="analysis" className="min-h-screen flex items-center px-4 md:px-8 py-16">
-          <div className="w-full max-w-6xl mx-auto">
+        <section id="analysis" className="min-h-screen flex items-center px-3 sm:px-4 md:px-8 py-12 sm:py-16">
+          <div className="w-full max-w-3xl sm:max-w-4xl lg:max-w-6xl mx-auto">
             {(timingControl.summaryForceLoading || finalSummary.status === 'loading') && renderAnalysisLoading()}
             {!timingControl.summaryForceLoading && (timingControl.actualSummaryData || (finalSummary.status === 'completed' && finalSummary.data)) && (
-              <div className="space-y-8">
-                <h2 className="text-4xl font-bold text-center bg-gradient-to-r from-blue-400 via-purple-500 to-pink-400 bg-clip-text text-transparent mb-12">
+              <div className="space-y-6 sm:space-y-8">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center bg-gradient-to-r from-blue-400 via-purple-500 to-pink-400 bg-clip-text text-transparent mb-8 sm:mb-12 px-4 sm:px-0">
                   Performance Analysis
                 </h2>
                 
                 {/* Analysis results grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
                   {/* Patterns & Tendencies */}
-                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8">
-                    <div className="flex items-center space-x-4 mb-6">
-                      <TrendingUp className="w-8 h-8 text-orange-400" />
-                      <h3 className="text-2xl font-bold text-white">Observed Patterns</h3>
+                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8">
+                    <div className="flex items-center space-x-3 sm:space-x-4 mb-4 sm:mb-6">
+                      <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-orange-400" />
+                      <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">Observed Patterns</h3>
                     </div>
-                    <p className="text-gray-300 leading-relaxed">
+                    <p className="text-gray-300 text-sm sm:text-base leading-relaxed">
                       {(timingControl.actualSummaryData?.patterns_tendencies || finalSummary.data?.patterns_tendencies) || 'No specific patterns identified.'}
                     </p>
                   </div>
 
                   {/* Strengths */}
-                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8">
-                    <div className="flex items-center space-x-4 mb-6">
-                      <Award className="w-8 h-8 text-emerald-400" />
-                      <h3 className="text-2xl font-bold text-white">Key Strengths</h3>
+                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8">
+                    <div className="flex items-center space-x-3 sm:space-x-4 mb-4 sm:mb-6">
+                      <Award className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-400" />
+                      <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">Key Strengths</h3>
                     </div>
-                    <p className="text-gray-300 leading-relaxed">
+                    <p className="text-gray-300 text-sm sm:text-base leading-relaxed">
                       {(timingControl.actualSummaryData?.strengths || finalSummary.data?.strengths) || 'No specific strengths identified.'}
                     </p>
                   </div>
 
                   {/* Areas for Development */}
-                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8">
-                    <div className="flex items-center space-x-4 mb-6">
-                      <Target className="w-8 h-8 text-amber-400" />
-                      <h3 className="text-2xl font-bold text-white">Development Areas</h3>
+                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8">
+                    <div className="flex items-center space-x-3 sm:space-x-4 mb-4 sm:mb-6">
+                      <Target className="w-6 h-6 sm:w-8 sm:h-8 text-amber-400" />
+                      <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">Development Areas</h3>
                     </div>
-                    <p className="text-gray-300 leading-relaxed">
+                    <p className="text-gray-300 text-sm sm:text-base leading-relaxed">
                       {(timingControl.actualSummaryData?.weaknesses || finalSummary.data?.weaknesses) || 'No specific weaknesses identified.'}
                     </p>
                   </div>
 
                   {/* Improvement Focus */}
-                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8">
-                    <div className="flex items-center space-x-4 mb-6">
-                      <Lightbulb className="w-8 h-8 text-purple-400" />
-                      <h3 className="text-2xl font-bold text-white">Focus Areas</h3>
+                  <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8">
+                    <div className="flex items-center space-x-3 sm:space-x-4 mb-4 sm:mb-6">
+                      <Lightbulb className="w-6 h-6 sm:w-8 sm:h-8 text-purple-400" />
+                      <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">Focus Areas</h3>
                     </div>
-                    <p className="text-gray-300 leading-relaxed">
+                    <p className="text-gray-300 text-sm sm:text-base leading-relaxed">
                       {(timingControl.actualSummaryData?.improvement_focus_areas || finalSummary.data?.improvement_focus_areas) || 'No specific focus areas identified.'}
                     </p>
                   </div>
@@ -1045,10 +1045,10 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
               </div>
             )}
             {finalSummary.status === 'error' && (
-              <div className="text-center space-y-6">
-                <AlertCircle className="w-16 h-16 text-red-400 mx-auto" />
-                <h3 className="text-2xl font-bold text-red-400">Analysis Error</h3>
-                <p className="text-red-300">{finalSummary.error}</p>
+              <div className="text-center space-y-4 sm:space-y-6">
+                <AlertCircle className="w-12 h-12 sm:w-16 sm:h-16 text-red-400 mx-auto" />
+                <h3 className="text-xl sm:text-2xl font-bold text-red-400">Analysis Error</h3>
+                <p className="text-red-300 text-sm sm:text-base px-4 sm:px-0">{finalSummary.error}</p>
               </div>
             )}
           </div>
