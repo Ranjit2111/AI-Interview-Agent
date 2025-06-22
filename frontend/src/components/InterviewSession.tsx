@@ -211,6 +211,13 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       }
   };
 
+  // Reset latest feedback toggle when transcript is closed
+  useEffect(() => {
+    if (!transcriptVisible) {
+      setLatestFeedbackToggled(false);
+    }
+  }, [transcriptVisible]);
+
   // Calculate session duration
   const sessionDuration = Math.floor((currentTime - sessionStartTime) / 1000);
   const minutes = Math.floor(sessionDuration / 60);

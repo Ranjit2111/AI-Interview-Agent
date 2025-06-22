@@ -79,6 +79,13 @@ const TranscriptDrawer: React.FC<TranscriptDrawerProps> = ({
     }
   }, [latestFeedbackToggled, latestFeedbackIndex]);
 
+  // Close all coach feedback when transcript is closed
+  useEffect(() => {
+    if (!isOpen) {
+      setExpandedCoachFeedback(new Set());
+    }
+  }, [isOpen]);
+
   // Helper to convert content to string
   const getContentAsString = (content: string | any): string => {
     if (typeof content === 'string') {
