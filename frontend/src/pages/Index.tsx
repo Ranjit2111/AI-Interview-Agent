@@ -46,9 +46,7 @@ const Index = () => {
   const [isVisible, setIsVisible] = useState(false);
   
   // Feature Constellation states
-  const [activeFeature, setActiveFeature] = useState<string | null>(null);
   const [hoveredFeature, setHoveredFeature] = useState<string | null>(null);
-  const [constellationMode, setConstellationMode] = useState<'overview' | 'spotlight'>('overview');
   
   // Configuration state
   const [jobRole, setJobRole] = useState('');
@@ -59,9 +57,11 @@ const Index = () => {
   const [interviewDuration, setInterviewDuration] = useState(10);
   const [company, setCompany] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [showRequiredError, setShowRequiredError] = useState(false);
   
   const heroRef = useRef<HTMLDivElement>(null);
   const configSectionRef = useRef<HTMLDivElement>(null);
+  const jobRoleSectionRef = useRef<HTMLDivElement>(null);
   const featuresSectionRef = useRef<HTMLDivElement>(null);
   const constellationRef = useRef<HTMLDivElement>(null);
 
@@ -101,6 +101,13 @@ const Index = () => {
     }, 4000);
     return () => clearInterval(interval);
   }, []);
+
+  // Clear required error when user starts typing job role
+  useEffect(() => {
+    if (jobRole.trim() && showRequiredError) {
+      setShowRequiredError(false);
+    }
+  }, [jobRole, showRequiredError]);
 
   // Scroll handlers
   const scrollToFeatures = () => {
@@ -276,7 +283,29 @@ const Index = () => {
   // Start interview handler
   const handleStartInterview = () => {
     if (!jobRole.trim()) {
-      toast({ title: "Missing Field", description: "Job Role is required.", variant: "destructive" });
+      // Show visual error state
+      setShowRequiredError(true);
+      
+      // Scroll to job role section with smooth animation
+      setTimeout(() => {
+        jobRoleSectionRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+      }, 100);
+      
+      // Show helpful toast message
+      toast({ 
+        title: "Required Field Missing", 
+        description: "Please enter a job role to start your interview practice.", 
+        variant: "destructive" 
+      });
+      
+      // Clear error state after a few seconds
+      setTimeout(() => {
+        setShowRequiredError(false);
+      }, 5000);
+      
       return;
     }
     
@@ -482,16 +511,41 @@ const Index = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mb-12">
             
             {/* Job Role Selection - Large Featured Panel */}
-            <div className="lg:col-span-8 bg-gradient-to-br from-black/80 via-gray-900/80 to-black/80 backdrop-blur-3xl border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl hover:shadow-cyan-500/10 transition-all duration-500 group">
+            <div 
+              ref={jobRoleSectionRef}
+              className={`lg:col-span-8 bg-gradient-to-br from-black/80 via-gray-900/80 to-black/80 backdrop-blur-3xl border rounded-3xl p-6 sm:p-8 shadow-2xl transition-all duration-500 group ${
+                showRequiredError 
+                  ? 'border-red-500/60 shadow-red-500/20' 
+                  : 'border-white/10 hover:shadow-cyan-500/10'
+              }`}
+            >
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-purple-600 shadow-lg">
+                <div className={`p-3 rounded-xl shadow-lg transition-all duration-300 ${
+                  showRequiredError 
+                    ? 'bg-gradient-to-br from-red-500 to-red-600' 
+                    : 'bg-gradient-to-br from-cyan-500 to-purple-600'
+                }`}>
                   <Target className="w-6 h-6 text-white" />
                 </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-white group-hover:text-cyan-300 transition-colors">Target Role</h3>
+                <div className="flex-1">
+                  <h3 className={`text-2xl font-bold transition-colors ${
+                    showRequiredError 
+                      ? 'text-red-300' 
+                      : 'text-white group-hover:text-cyan-300'
+                  }`}>
+                    Target Role
+                  </h3>
                   <p className="text-gray-400">What position are you preparing for?</p>
                 </div>
-                <span className="ml-auto px-3 py-1 rounded-full bg-red-500/20 text-red-300 text-xs font-medium">Required</span>
+                <div className="flex items-center gap-2">
+                  <span className={`px-4 py-2 rounded-full font-medium text-sm transition-all duration-300 ${
+                    showRequiredError 
+                      ? 'bg-red-500/30 text-red-200' 
+                      : 'bg-red-500/20 text-red-300'
+                  }`}>
+                    Required
+                  </span>
+                </div>
               </div>
               
               {/* Popular roles with advanced hover effects */}
@@ -522,7 +576,7 @@ const Index = () => {
                     {/* Selection indicator */}
                     {jobRole === role.title && (
                       <div className="absolute top-2 right-2">
-                        <CheckCircle className="w-5 h-5 text-white animate-pulse" />
+                        <CheckCircle className="w-5 h-5 text-white" />
                       </div>
                     )}
                   </button>
@@ -535,11 +589,15 @@ const Index = () => {
                   placeholder="Or describe your custom role ..."
                   value={jobRole}
                   onChange={(e) => setJobRole(e.target.value)}
-                  className="bg-black/60 border-white/20 text-white placeholder-gray-400 rounded-xl px-4 py-4 text-lg focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-300 hover:border-white/30"
+                  className={`bg-black/60 text-white placeholder-gray-400 rounded-xl px-4 py-4 text-lg transition-all duration-300 ${
+                    showRequiredError && !jobRole.trim()
+                      ? 'border-red-500/60 focus:border-red-500'
+                      : 'border-white/20 focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 hover:border-white/30'
+                  }`}
                 />
                 {jobRole && !popularRoles.find(r => r.title === jobRole) && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <Sparkles className="w-5 h-5 text-purple-400 animate-pulse" />
+                    <Sparkles className="w-5 h-5 text-purple-400" />
                   </div>
                 )}
               </div>
@@ -806,11 +864,17 @@ const Index = () => {
           <div className="text-center">
             <Button
               onClick={handleStartInterview}
-              disabled={!jobRole.trim() || isLoading}
-              className="group relative px-12 py-6 bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 hover:from-cyan-400 hover:via-purple-500 hover:to-pink-400 text-white font-bold text-xl rounded-2xl shadow-2xl hover:shadow-purple-500/30 transition-all duration-500 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none border-0 overflow-hidden"
+              disabled={isLoading}
+              className={`group relative px-12 py-6 font-bold text-xl rounded-2xl shadow-2xl transition-all duration-500 transform border-0 overflow-hidden ${
+                !jobRole.trim()
+                  ? 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-gray-300 cursor-pointer hover:shadow-gray-500/20 hover:scale-105'
+                  : 'bg-gradient-to-r from-cyan-500 via-purple-600 to-pink-500 hover:from-cyan-400 hover:via-purple-500 hover:to-pink-400 text-white hover:shadow-purple-500/30 hover:scale-105'
+              } ${isLoading ? 'opacity-50 cursor-not-allowed transform-none' : ''}`}
             >
-              {/* Animated background overlay */}
-              <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-purple-700 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              {/* Animated background overlay - only show when job role is selected */}
+              {jobRole.trim() && (
+                <div className="absolute inset-0 bg-gradient-to-r from-cyan-600 via-purple-700 to-pink-600 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              )}
               
               <div className="relative flex items-center justify-center space-x-3">
                 {isLoading ? (
@@ -818,9 +882,14 @@ const Index = () => {
                     <div className="w-6 h-6 border-3 border-white/30 border-t-white rounded-full animate-spin" />
                     <span>Initializing AI Agents...</span>
                   </>
+                ) : !jobRole.trim() ? (
+                  <>
+                    <span>Start Interview Session</span>
+                    <ArrowRight className="w-6 h-6" />
+                  </>
                 ) : (
                   <>
-                    <span>Launch Interview Session</span>
+                    <span>Start Interview Session</span>
                     <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform duration-300" />
                   </>
                 )}
@@ -831,6 +900,13 @@ const Index = () => {
                 <div className="animate-shimmer absolute inset-0 -top-px bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-12 transform translate-x-[-100%]"></div>
               </div>
             </Button>
+            
+            {/* Helpful message when job role is missing */}
+            {!jobRole.trim() && (
+              <p className="mt-4 text-gray-400 text-sm">
+                💡 Choose a job role above to start your personalized interview practice
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -839,7 +915,7 @@ const Index = () => {
 
   // Revolutionary Interactive Feature Constellation
   const renderFeatureConstellation = () => {
-    const activeFeatureData = featureConstellation.find(f => f.id === activeFeature);
+    const hoveredFeatureData = featureConstellation.find(f => f.id === hoveredFeature);
     
     return (
       <div ref={featuresSectionRef} className="relative min-h-screen py-24 overflow-hidden">
@@ -916,45 +992,32 @@ const Index = () => {
               </div>
             </div>
 
-            {/* Feature Orbs with Advanced Interactions */}
+            {/* Feature Orbs with Hover Interactions */}
             {featureConstellation.map((feature, index) => {
               const IconComponent = feature.icon;
               const isHovered = hoveredFeature === feature.id;
-              const isActive = activeFeature === feature.id;
               
               return (
                 <div
                   key={feature.id}
-                  className="absolute cursor-pointer group"
+                  className="absolute group"
                   style={{
                     left: `${feature.position.x}%`,
                     top: `${feature.position.y}%`,
                     transform: 'translate(-50%, -50%)',
-                    zIndex: isActive ? 30 : isHovered ? 25 : 15,
+                    zIndex: isHovered ? 25 : 15,
                   }}
                   onMouseEnter={() => setHoveredFeature(feature.id)}
                   onMouseLeave={() => setHoveredFeature(null)}
-                  onTouchStart={() => setHoveredFeature(feature.id)}
-                  onClick={() => {
-                    if (activeFeature === feature.id) {
-                      setActiveFeature(null);
-                      setConstellationMode('overview');
-                    } else {
-                      setActiveFeature(feature.id);
-                      setConstellationMode('spotlight');
-                    }
-                  }}
                 >
                   {/* Feature orb */}
                   <div 
                     className={`relative transition-all duration-500 ease-out ${
-                      isHovered || isActive ? 'scale-125' : 'scale-100'
+                      isHovered ? 'scale-125' : 'scale-100'
                     }`}
                   >
                     <div 
-                      className={`w-16 h-16 rounded-full shadow-2xl transition-all duration-500 flex items-center justify-center ${
-                        isActive ? 'scale-110' : ''
-                      }`}
+                      className="w-16 h-16 rounded-full shadow-2xl transition-all duration-500 flex items-center justify-center"
                       style={{
                         background: `linear-gradient(135deg, ${feature.color}, ${feature.color}dd)`,
                         boxShadow: `
@@ -978,100 +1041,87 @@ const Index = () => {
                     
                     {/* Feature label */}
                     <div className={`absolute -bottom-10 left-1/2 transform -translate-x-1/2 whitespace-nowrap transition-all duration-300 ${
-                      isHovered || isActive ? 'opacity-100 translate-y-0' : 'opacity-70 translate-y-1'
+                      isHovered ? 'opacity-100 translate-y-0' : 'opacity-70 translate-y-1'
                     }`}>
                       <span className="text-xs font-semibold text-white px-2 py-1 rounded-full bg-black/40 backdrop-blur-sm">
                         {feature.title}
                       </span>
                     </div>
                   </div>
+                  
+                  {/* Compact Hover Card */}
+                  {isHovered && (
+                    <div 
+                      className="absolute z-30 pointer-events-none"
+                      style={{
+                        left: feature.position.x > 50 ? '-340px' : '80px', // Position left/right based on orb position  
+                        top: '50%',
+                        transform: 'translateY(-50%)'
+                      }}
+                    >
+                      <div 
+                        className="w-80 p-5 rounded-2xl backdrop-blur-2xl border border-white/20 shadow-2xl transform transition-all duration-300 ease-out opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100"
+                        style={{
+                          background: `linear-gradient(135deg, ${feature.glowColor}, rgba(0, 0, 0, 0.9))`,
+                          boxShadow: `0 20px 40px -10px ${feature.color}30`
+                        }}
+                      >
+                        {/* Focused Header */}
+                        <div className="mb-4">
+                          <p className="text-lg font-semibold text-white mb-2" style={{ color: feature.color }}>
+                            {feature.subtitle}
+                          </p>
+                          <p className="text-gray-300 text-sm leading-relaxed">
+                            {feature.description}
+                          </p>
+                        </div>
+                        
+                        {/* Enhanced Features List */}
+                        <div className="space-y-3">
+                          <h5 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Key Capabilities</h5>
+                          {feature.features.map((feat, idx) => (
+                            <div key={idx} className="flex items-start gap-3 text-sm">
+                              <div 
+                                className="w-2 h-2 rounded-full flex-shrink-0 mt-2"
+                                style={{ backgroundColor: feature.color }}
+                              />
+                              <span className="text-gray-300 leading-relaxed">{feat}</span>
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {/* Optional: Add a subtle gradient accent */}
+                        <div 
+                          className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl"
+                          style={{ background: `linear-gradient(90deg, ${feature.color}, ${feature.color}80)` }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
 
-            {/* Feature Spotlight Panel */}
-            {activeFeatureData && constellationMode === 'spotlight' && (
-              <div className="absolute inset-0 flex items-center justify-center z-40">
-                <div 
-                  className="w-full max-w-4xl mx-4 p-8 rounded-3xl backdrop-blur-3xl border border-white/20 shadow-2xl transform transition-all duration-500 ease-out"
-                  style={{
-                    background: `linear-gradient(135deg, ${activeFeatureData.glowColor}, rgba(0, 0, 0, 0.8))`,
-                    boxShadow: `0 25px 50px -12px ${activeFeatureData.color}40`
-                  }}
-                >
-                  <div className="flex items-start gap-8">
-                    {/* Feature Icon */}
-                    <div 
-                      className="flex-shrink-0 w-24 h-24 rounded-2xl flex items-center justify-center shadow-lg"
-                      style={{ background: `linear-gradient(135deg, ${activeFeatureData.color}, ${activeFeatureData.color}dd)` }}
-                    >
-                      <activeFeatureData.icon className="w-12 h-12 text-white" />
-                    </div>
-                    
-                    {/* Feature Content */}
-                    <div className="flex-1">
-                      <h3 className="text-4xl font-bold text-white mb-2">{activeFeatureData.title}</h3>
-                      <p className="text-xl font-semibold mb-4" style={{ color: activeFeatureData.color }}>
-                        {activeFeatureData.subtitle}
-                      </p>
-                      <p className="text-gray-300 text-lg leading-relaxed mb-6">
-                        {activeFeatureData.description}
-                      </p>
-                      
-                      {/* Features list */}
-                      <div className="space-y-3">
-                        {activeFeatureData.features.map((feature, idx) => (
-                          <div key={idx} className="flex items-center gap-3">
-                            <div 
-                              className="w-2 h-2 rounded-full flex-shrink-0"
-                              style={{ backgroundColor: activeFeatureData.color }}
-                            />
-                            <span className="text-gray-300">{feature}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    {/* Close button */}
-                    <button
-                      onClick={() => {
-                        setActiveFeature(null);
-                        setConstellationMode('overview');
-                      }}
-                      className="text-white/60 hover:text-white transition-colors duration-200 p-2"
-                    >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
+
           </div>
 
           {/* Interactive Instructions */}
           <div className="text-center mt-16">
             <p className="text-gray-400 text-lg mb-4">
-              {constellationMode === 'overview' 
-                ? 'Hover over the floating elements to explore • Click to learn more'
-                : 'Click anywhere outside to return to overview'
-              }
+              Hover over the floating elements to explore our AI system features
             </p>
             <div className="flex justify-center items-center gap-4">
               {featureConstellation.map((feature, index) => (
                 <div
                   key={feature.id}
                   className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                    activeFeature === feature.id
+                    hoveredFeature === feature.id
                       ? 'scale-125 shadow-lg'
-                      : hoveredFeature === feature.id
-                      ? 'scale-110'
                       : 'scale-100'
                   }`}
                   style={{ 
-                    backgroundColor: activeFeature === feature.id ? feature.color : feature.color + '60',
-                    boxShadow: activeFeature === feature.id ? `0 0 20px ${feature.color}60` : 'none'
+                    backgroundColor: hoveredFeature === feature.id ? feature.color : feature.color + '60',
+                    boxShadow: hoveredFeature === feature.id ? `0 0 20px ${feature.color}60` : 'none'
                   }}
                 />
               ))}
@@ -1303,6 +1353,19 @@ const Index = () => {
           
           .animate-shimmer {
             animation: shimmer 2s ease-in-out infinite;
+          }
+          
+
+          
+          /* Gentle shake animation for invalid submission */
+          @keyframes gentle-shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+          }
+          
+          .animate-gentle-shake {
+            animation: gentle-shake 0.5s ease-in-out;
           }
         `
       }} />
