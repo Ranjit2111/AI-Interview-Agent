@@ -265,11 +265,6 @@ export function useVoiceFirstInterview(
     }
     
     setMicrophoneActive(false);
-    setVoiceState(prev => ({
-      ...prev,
-      microphoneState: 'processing',
-      turnState: 'idle'
-    }));
     
     // Clean up audio resources
     if (micStreamRef.current) {
@@ -293,6 +288,14 @@ export function useVoiceFirstInterview(
     
     if (completeTranscript) {
       console.log('📤 Sending complete transcript on manual stop:', completeTranscript);
+      
+      // ROBUST FIX: Set processing state and maintain it until TTS starts
+      setVoiceState(prev => ({
+        ...prev,
+        microphoneState: 'processing',
+        turnState: 'idle'
+      }));
+      
       if (onSendMessageRef.current) {
         onSendMessageRef.current(completeTranscript);
       } else {
@@ -305,11 +308,12 @@ export function useVoiceFirstInterview(
       // If no transcript, return to idle immediately since no message was sent
       setVoiceState(prev => ({
         ...prev,
-        microphoneState: 'idle'
+        microphoneState: 'idle',
+        turnState: 'idle'
       }));
     }
     
-    // NOTE: Removed timeout that resets to idle - processing state continues until audio plays
+    // NOTE: Processing state continues until TTS audio starts playing
   }, []); // NO DEPENDENCIES - use refs instead
 
   // Voice control functions
@@ -445,7 +449,7 @@ export function useVoiceFirstInterview(
         });
       }
     }
-  }, [sessionData, handleTTSStart, handleTTSEnd, toast, voiceState.audioPlaying, voiceState.turnState]);
+  }, [sessionData.selectedVoice, handleTTSStart, handleTTSEnd, toast]); // Removed voiceState dependencies to prevent recreation
 
   // Auto-enable voice when new AI message arrives
   const { messages, disableAutoTTS } = sessionData;
@@ -470,12 +474,13 @@ export function useVoiceFirstInterview(
         // Mark this message as processed to avoid re-triggering
         lastProcessedMessageRef.current = messageKey;
         
-        console.log('🔊 Auto-playing TTS for AI response');
-        // Auto-play TTS for AI interviewer responses
-        playTextToSpeech(lastMessage.content);
+        console.log('🔊 Auto-playing TTS for AI response - maintaining processing state');
+        
+        // IMMEDIATE TTS call - ensures processing state continuity
+        playTextToSpeech(lastMessage.content as string);
       }
     }
-  }, [lastMessage, disableAutoTTS]); // Added disableAutoTTS to dependencies
+  }, [lastMessage, disableAutoTTS, playTextToSpeech]); // Include playTextToSpeech to prevent stale closures
 
   // Cleanup on unmount
   useEffect(() => {
