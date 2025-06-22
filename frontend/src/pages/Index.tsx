@@ -327,32 +327,32 @@ const Index = () => {
         }}
       />
       
-      {/* Darker overlay for dimmed appearance */}
-      <div className="absolute inset-0 bg-black/40" />
+      {/* Slightly lighter overlay for balanced brightness */}
+      <div className="absolute inset-0 bg-black/30" />
       
       {/* Subtle light beam effects */}
       <div className="absolute inset-0">
         {/* Central light beam */}
         <div 
-          className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1 h-full opacity-20"
+          className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1 h-full opacity-25"
           style={{
-            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%)',
+            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.7) 0%, rgba(255, 255, 255, 0.15) 50%, transparent 100%)',
             filter: 'blur(2px)'
           }}
         />
         
         {/* Side light accents */}
         <div 
-          className="absolute top-1/4 left-1/4 w-px h-32 opacity-15 rotate-12"
+          className="absolute top-1/4 left-1/4 w-px h-32 opacity-18 rotate-12"
           style={{
-            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.4), transparent)',
+            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.5), transparent)',
             filter: 'blur(1px)'
           }}
         />
         <div 
-          className="absolute top-1/3 right-1/4 w-px h-24 opacity-15 -rotate-12"
+          className="absolute top-1/3 right-1/4 w-px h-24 opacity-18 -rotate-12"
           style={{
-            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.4), transparent)',
+            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.5), transparent)',
             filter: 'blur(1px)'
           }}
         />
@@ -375,16 +375,16 @@ const Index = () => {
           {/* Refined Badge */}
           <div className={`inline-flex items-center gap-3 px-8 py-4 rounded-full bg-black/30 backdrop-blur-md border border-white/10 mb-12 transition-all duration-1000 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-8'}`}>
             <Bot className="w-5 h-5 text-gray-300" />
-            <span className="text-sm font-medium text-gray-300 tracking-wide">AI Interview Agent</span>
+            <span className="text-sm font-medium text-gray-300 tracking-wide">AI Interview System</span>
           </div>
 
           {/* Main Headline with Refined Dark Typography */}
           <div className={`space-y-8 mb-12 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-12'}`}>
             <h1 className="text-4xl sm:text-5xl lg:text-7xl xl:text-8xl font-black leading-tight tracking-tight">
-              <div className="text-white/90 mb-3">
+              <div className="text-white/95 mb-3">
                 Master Your
               </div>
-              <div className="text-white/90">
+              <div className="text-white/95">
                 Interview Skills
               </div>
             </h1>
