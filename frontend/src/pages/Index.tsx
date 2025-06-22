@@ -327,32 +327,32 @@ const Index = () => {
         }}
       />
       
-      {/* Overlay for better text readability */}
-      <div className="absolute inset-0 bg-black/20" />
+      {/* Darker overlay for dimmed appearance */}
+      <div className="absolute inset-0 bg-black/40" />
       
       {/* Subtle light beam effects */}
       <div className="absolute inset-0">
         {/* Central light beam */}
         <div 
-          className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1 h-full opacity-30"
+          className="absolute top-0 left-1/2 transform -translate-x-1/2 w-1 h-full opacity-20"
           style={{
-            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%)',
+            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%)',
             filter: 'blur(2px)'
           }}
         />
         
         {/* Side light accents */}
         <div 
-          className="absolute top-1/4 left-1/4 w-px h-32 opacity-20 rotate-12"
+          className="absolute top-1/4 left-1/4 w-px h-32 opacity-15 rotate-12"
           style={{
-            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.6), transparent)',
+            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.4), transparent)',
             filter: 'blur(1px)'
           }}
         />
         <div 
-          className="absolute top-1/3 right-1/4 w-px h-24 opacity-20 -rotate-12"
+          className="absolute top-1/3 right-1/4 w-px h-24 opacity-15 -rotate-12"
           style={{
-            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.6), transparent)',
+            background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.4), transparent)',
             filter: 'blur(1px)'
           }}
         />
@@ -381,19 +381,15 @@ const Index = () => {
           {/* Main Headline with Refined Dark Typography */}
           <div className={`space-y-8 mb-12 transition-all duration-1000 delay-200 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 -translate-y-12'}`}>
             <h1 className="text-4xl sm:text-5xl lg:text-7xl xl:text-8xl font-black leading-tight tracking-tight">
-              <div className="text-gray-100 mb-3" style={{
-                textShadow: '0 2px 8px rgba(0, 0, 0, 0.5)'
-              }}>
+              <div className="text-white/90 mb-3">
                 Master Your
               </div>
-              <div className="text-white" style={{
-                textShadow: '0 2px 12px rgba(0, 0, 0, 0.7)'
-              }}>
+              <div className="text-white/90">
                 Interview Skills
               </div>
             </h1>
             
-            <p className="text-xl sm:text-2xl lg:text-3xl text-gray-300 max-w-4xl mx-auto leading-relaxed font-normal">
+            <p className="text-lg sm:text-xl lg:text-2xl text-gray-300 max-w-4xl mx-auto leading-relaxed font-normal">
               Practice with intelligent AI agents that simulate real interviews
               <br className="hidden sm:block" />
               and provide personalized coaching feedback
@@ -404,7 +400,7 @@ const Index = () => {
           <div className={`flex flex-col sm:flex-row gap-4 justify-center items-center mb-16 transition-all duration-1000 delay-400 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'}`}>
             <Button
               onClick={scrollToConfig}
-              className="w-full sm:w-auto bg-white/90 hover:bg-white text-gray-900 px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:shadow-white/10 transition-all duration-300 group border-0 min-h-[56px] hover:scale-105"
+              className="w-full sm:w-auto bg-white/90 hover:bg-white/90 text-gray-900 px-8 py-4 rounded-xl text-lg font-bold shadow-lg hover:shadow-white/10 transition-all duration-300 group border-0 min-h-[56px] hover:scale-105"
             >
               Get Started
               <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -413,7 +409,7 @@ const Index = () => {
             <Button
               variant="outline"
               onClick={scrollToFeatures}
-              className="w-full sm:w-auto border-2 border-white/30 bg-black/20 hover:bg-white/10 text-gray-200 hover:text-white px-8 py-4 rounded-xl text-lg font-semibold backdrop-blur-sm hover:border-white/50 transition-all duration-300 min-h-[56px] hover:scale-105"
+              className="w-full sm:w-auto border-2 border-white/20 bg-black/20 hover:bg-white/10 text-gray-200 hover:text-white px-8 py-4 rounded-xl text-lg font-semibold backdrop-blur-sm hover:border-white/40 transition-all duration-300 min-h-[56px] hover:scale-105"
             >
               Learn More
             </Button>
@@ -422,9 +418,7 @@ const Index = () => {
           {/* Subtle scroll indicator */}
           <div className={`transition-all duration-1000 delay-600 ${isVisible ? 'opacity-100 transform-none' : 'opacity-0 translate-y-8'}`}>
             <div className="flex items-center justify-center space-x-2 text-gray-400">
-              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
               <span className="text-sm font-medium tracking-wider">Scroll to explore features</span>
-              <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-pulse"></div>
             </div>
           </div>
         </div>
@@ -953,7 +947,7 @@ const Index = () => {
                 
                 {/* Central label */}
                 <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
-                  <span className="text-sm font-semibold text-white/80 px-3 py-1 rounded-full bg-black/30 backdrop-blur-sm">
+                  <span className="text-sm font-semibold text-white/80 px-3 py-1 rounded-full bg-black/40 backdrop-blur-sm">
                     AI Core
                   </span>
                 </div>

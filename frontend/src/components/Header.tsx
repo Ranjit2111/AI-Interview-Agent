@@ -57,7 +57,7 @@ const Header: React.FC<HeaderProps> = ({ onReset, showReset = false }) => {
                 </div>
               </div>
             </div>
-            <h1 className="text-xl sm:text-2xl font-bold text-white/90 font-display tracking-tight hover:text-white transition-all duration-200">AI Interviewer</h1>
+            <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-cyan-300 via-purple-400 to-pink-300 bg-clip-text text-transparent font-display tracking-tight hover:from-cyan-200 hover:via-purple-300 hover:to-pink-200 transition-all duration-200">AI Interviewer</h1>
           </div>
           
           {/* Desktop Navigation */}
