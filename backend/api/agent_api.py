@@ -28,7 +28,7 @@ class InterviewStartRequest(BaseModel):
     difficulty: Optional[str] = Field("medium", description="Interview difficulty level")
     target_question_count: Optional[int] = Field(15, description="Approximate number of questions (fallback for question-based)")
     company_name: Optional[str] = Field(None, description="Company name for context")
-    interview_duration_minutes: Optional[int] = Field(30, description="Interview duration in minutes (for time-based interviews)")
+    interview_duration_minutes: Optional[int] = Field(10, description="Interview duration in minutes (for time-based interviews)")
     use_time_based_interview: Optional[bool] = Field(True, description="Whether to use time-based interview instead of question count")
 
 class UserInput(BaseModel):

@@ -15,7 +15,7 @@ class InterviewConfig(BaseModel):
     resume_content: Optional[str] = Field(None, description="Content of the user's resume")
     company_name: Optional[str] = Field(None, description="Company name")
     interview_style: Optional[str] = Field(InterviewStyle.FORMAL.value, description="Style of interview (FORMAL, CASUAL, AGGRESSIVE, TECHNICAL)")
-    interview_duration_minutes: Optional[int] = Field(30, description="Duration of the interview in minutes")
+    interview_duration_minutes: Optional[int] = Field(10, description="Duration of the interview in minutes")
     use_time_based_interview: Optional[bool] = Field(True, description="Whether to use time-based interview approach")
     difficulty_level: Optional[str] = Field("medium", description="Difficulty level")
     user_id: Optional[str] = Field(None, description="User identifier associated with the session")

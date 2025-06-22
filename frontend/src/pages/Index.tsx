@@ -127,7 +127,7 @@ const Index = () => {
       description: 'Experience natural conversations with an AI that adapts to your responses and asks thoughtful follow-up questions.',
       features: [
         'Natural voice conversations',
-        'Adapts to your experience level', 
+        'Adapts to the JD and your resume', 
         'Multiple interview styles available'
       ],
       icon: Bot,
@@ -138,13 +138,13 @@ const Index = () => {
     },
     {
       id: 'coach-agent', 
-      title: 'Real-time Coach',
-      subtitle: 'Silent Performance Analysis',
+      title: 'Real-time Coach Agent',
+      subtitle: 'Background Performance Analysis',
       description: 'Get instant feedback on your communication patterns, confidence levels, and areas for improvement.',
       features: [
-        'Analyzes your speaking patterns',
-        'Detects confidence and clarity',
-        'Provides actionable feedback'
+        'Analyzes your responses',
+        'Detects clarity and answer relevance',
+        'Provides actionable feedback to improve'
       ],
       icon: Brain,
       position: { x: 20, y: 25 },
@@ -154,13 +154,13 @@ const Index = () => {
     },
     {
       id: 'learning-engine',
-      title: 'Smart Learning Engine', 
-      subtitle: 'Personalized Growth Path',
+      title: 'Resource Search Engine', 
+      subtitle: 'Personalized Resource Search',
       description: 'Receive curated learning resources and practice recommendations based on your performance.',
       features: [
-        'Identifies skill gaps automatically',
-        'Curated learning resources',
-        'Track your progress over time'
+        'Identifies skill gaps',
+        'Search for resources based on your performance',
+        'Curated learning resources'
       ],
       icon: Search,
       position: { x: 75, y: 75 },
@@ -172,11 +172,11 @@ const Index = () => {
       id: 'speech-processing',
       title: 'Speech Processing',
       subtitle: 'Advanced Voice Technology', 
-      description: 'Powered by cutting-edge AI for crystal-clear voice recognition and natural speech synthesis.',
+      description: 'Powered by cutting-edge STT & TTS for crystal-clear voice recognition and natural speech synthesis.',
       features: [
-        'Industry-leading voice recognition',
-        'Natural-sounding AI responses',
-        'Real-time audio processing'
+        "Deepgram's real-time streaming STT",
+        'Natural sounding AI responses via Amazon Polly TTS',
+        'Websockets for real-time communication'
       ],
       icon: Mic,
       position: { x: 25, y: 70 },
@@ -186,13 +186,13 @@ const Index = () => {
     },
     {
       id: 'data-security',
-      title: 'Enterprise Security',
-      subtitle: 'Your Data Protected',
+      title: 'Database',
+      subtitle: 'Your Session Data Protected',
       description: 'Bank-level encryption and secure cloud storage ensure your interview data remains private and protected.',
       features: [
         'End-to-end encryption',
-        'Secure cloud storage', 
-        'GDPR compliant data handling'
+        'Secure data storage in Supabase', 
+        'RLS for data access control'
       ],
       icon: Shield,
       position: { x: 50, y: 85 },
@@ -1168,7 +1168,7 @@ const Index = () => {
                 <a href="https://www.linkedin.com/in/ranjit-n/" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-pink-500/30 hover:shadow-pink-500/20 transition-all duration-300">
                   <Linkedin className="h-5 w-5 text-gray-300 hover:text-pink-400" />
                 </a>
-                <a href="mailto:ranjitnagaraj2131@gmail.com" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-cyan-500/30 hover:shadow-cyan-500/20 transition-all duration-300">
+                <a href="mailto:ranjitn.dev@gmail.com" target="_blank" rel="noopener noreferrer" className="bg-black/40 backdrop-blur-xl border border-white/10 p-3 rounded-full hover:border-cyan-500/30 hover:shadow-cyan-500/20 transition-all duration-300">
                   <Mail className="h-5 w-5 text-gray-300 hover:text-cyan-400" />
                 </a>
               </div>
