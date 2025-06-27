@@ -42,13 +42,13 @@ class ThreadSafeSessionRegistry:
         self._cleanup_task: Optional[asyncio.Task] = None
         logger.info("ThreadSafeSessionRegistry initialized")
 
-    async def start_cleanup_task(self, cleanup_interval_minutes: int = 30, max_idle_minutes: int = 60) -> None:
+    async def start_cleanup_task(self, cleanup_interval_minutes: int = 5, max_idle_minutes: int = 15) -> None:
         """
         Start background task to cleanup inactive sessions.
         
         Args:
-            cleanup_interval_minutes: How often to run cleanup (default: 30 minutes)
-            max_idle_minutes: Max idle time before session cleanup (default: 60 minutes)
+            cleanup_interval_minutes: How often to run cleanup (default: 5 minutes)
+            max_idle_minutes: Max idle time before session cleanup (default: 15 minutes)
         """
         if self._cleanup_task is None:
             self._cleanup_task = asyncio.create_task(
@@ -333,4 +333,60 @@ class ThreadSafeSessionRegistry:
             logger.debug(f"Cleaned up access time for: {session_id}")
         if session_id in self._active_sessions:
             del self._active_sessions[session_id]
-            logger.debug(f"Cleaned up active session for: {session_id}") 
+            logger.debug(f"Cleaned up active session for: {session_id}")
+
+    async def get_session_time_remaining(self, session_id: str, max_idle_minutes: int = 15) -> Optional[int]:
+        """
+        Get remaining time in minutes before session cleanup.
+        
+        Args:
+            session_id: The session ID to check
+            max_idle_minutes: Maximum idle time before cleanup
+            
+        Returns:
+            int: Minutes remaining before cleanup, or None if session not found
+        """
+        if session_id not in self._session_access_times:
+            return None
+        
+        last_access = self._session_access_times[session_id]
+        current_time = datetime.utcnow()
+        elapsed_minutes = (current_time - last_access).total_seconds() / 60
+        
+        remaining_minutes = max_idle_minutes - elapsed_minutes
+        return max(0, int(remaining_minutes))
+
+    async def ping_session(self, session_id: str) -> bool:
+        """
+        Extend session by updating access time (resets idle timer).
+        
+        Args:
+            session_id: The session ID to extend
+            
+        Returns:
+            bool: True if session was found and extended, False otherwise
+        """
+        if session_id in self._session_access_times:
+            self._session_access_times[session_id] = datetime.utcnow()
+            logger.debug(f"Extended session: {session_id}")
+            return True
+        return False
+
+    async def cleanup_session_immediately(self, session_id: str) -> bool:
+        """
+        Immediately cleanup a specific session (for tab close).
+        
+        Args:
+            session_id: The session ID to cleanup
+            
+        Returns:
+            bool: True if session was cleaned up successfully
+        """
+        try:
+            success = await self.release_session(session_id)
+            if success:
+                logger.info(f"Immediately cleaned up session: {session_id}")
+            return success
+        except Exception as e:
+            logger.exception(f"Error during immediate cleanup of session {session_id}: {e}")
+            return False 
