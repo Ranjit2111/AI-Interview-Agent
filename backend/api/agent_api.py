@@ -78,6 +78,22 @@ class SessionResponse(BaseModel):
     session_id: str
     message: str
 
+class SessionTimeRemainingResponse(BaseModel):
+    """Response for session time remaining check."""
+    time_remaining_minutes: int
+    session_active: bool
+
+class SessionPingResponse(BaseModel):
+    """Response for session ping/extension."""
+    success: bool
+    message: str
+    new_expiry_minutes: int
+
+class SessionCleanupResponse(BaseModel):
+    """Response for immediate session cleanup."""
+    success: bool
+    message: str
+
 # Dependency functions
 async def get_session_registry(request: Request) -> ThreadSafeSessionRegistry:
     """Get the session registry from app state."""
@@ -468,6 +484,89 @@ def create_agent_api(app):
         except Exception as e:
             logger.exception(f"Error resetting session {session_manager.session_id}: {e}")
             raise HTTPException(status_code=500, detail=f"Error resetting session: {e}")
+
+    @router.get("/session/time-remaining", response_model=SessionTimeRemainingResponse)
+    async def get_session_time_remaining(
+        session_id: str = Depends(get_session_id),
+        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry),
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    ):
+        """
+        Get remaining time before session cleanup.
+        Used by frontend to show warnings before session expires.
+        """
+        try:
+            time_remaining = await session_registry.get_session_time_remaining(session_id)
+            
+            if time_remaining is None:
+                return SessionTimeRemainingResponse(
+                    time_remaining_minutes=0,
+                    session_active=False
+                )
+            
+            return SessionTimeRemainingResponse(
+                time_remaining_minutes=time_remaining,
+                session_active=True
+            )
+            
+        except Exception as e:
+            logger.exception(f"Error checking session time remaining: {e}")
+            raise HTTPException(status_code=500, detail="Failed to check session status")
+
+    @router.post("/session/ping", response_model=SessionPingResponse)
+    async def ping_session(
+        session_id: str = Depends(get_session_id),
+        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry),
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    ):
+        """
+        Extend session by resetting idle timer.
+        Called when user clicks "Extend Session" in warning dialog.
+        """
+        try:
+            success = await session_registry.ping_session(session_id)
+            
+            if success:
+                return SessionPingResponse(
+                    success=True,
+                    message="Session extended successfully",
+                    new_expiry_minutes=15  # Reset to full timeout period
+                )
+            else:
+                return SessionPingResponse(
+                    success=False,
+                    message="Session not found or already expired",
+                    new_expiry_minutes=0
+                )
+                
+        except Exception as e:
+            logger.exception(f"Error extending session: {e}")
+            raise HTTPException(status_code=500, detail="Failed to extend session")
+
+    @router.post("/session/cleanup", response_model=SessionCleanupResponse)
+    async def cleanup_session(
+        session_id: str = Depends(get_session_id),
+        session_registry: ThreadSafeSessionRegistry = Depends(get_session_registry),
+        current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional)
+    ):
+        """
+        Immediately cleanup session (for tab close events).
+        Saves session state and releases resources immediately.
+        """
+        try:
+            success = await session_registry.cleanup_session_immediately(session_id)
+            
+            return SessionCleanupResponse(
+                success=success,
+                message="Session cleaned up successfully" if success else "Session cleanup failed"
+            )
+            
+        except Exception as e:
+            logger.exception(f"Error during immediate session cleanup: {e}")
+            return SessionCleanupResponse(
+                success=False,
+                message="Session cleanup failed due to error"
+            )
 
     app.include_router(router)
     logger.info("Agent API routes registered") 

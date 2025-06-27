@@ -270,11 +270,35 @@ export interface ResetResponse {
   message: string;
 }
 
+export interface SessionTimeRemainingResponse {
+  time_remaining_minutes: number;
+  session_active: boolean;
+}
+
+export interface SessionPingResponse {
+  success: boolean;
+  message: string;
+  new_expiry_minutes: number;
+}
+
+export interface SessionCleanupResponse {
+  success: boolean;
+  message: string;
+}
+
 // Helper for handling response errors
 const handleResponse = async (response: Response) => {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || 'An error occurred');
+    const errorMessage = errorData.detail || 'An error occurred';
+    
+    // Check for session timeout/not found errors
+    if (response.status === 404 && errorMessage.toLowerCase().includes('session')) {
+      // Session not found - likely timed out
+      throw new Error('SESSION_TIMEOUT: Your session has expired due to inactivity. Please start a new interview from the home page.');
+    }
+    
+    throw new Error(errorMessage);
   }
   
   const contentType = response.headers.get('content-type');
@@ -448,6 +472,42 @@ export async function getFinalSummaryStatus(sessionId: string): Promise<FinalSum
 
 export async function resetInterview(sessionId: string): Promise<ResetResponse> {
   const response = await fetch(`${API_BASE_URL}/interview/reset`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+  });
+
+  return handleResponse(response);
+}
+
+export async function getSessionTimeRemaining(sessionId: string): Promise<SessionTimeRemainingResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/session/time-remaining`, {
+    method: 'GET',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+  });
+
+  return handleResponse(response);
+}
+
+export async function pingSession(sessionId: string): Promise<SessionPingResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/session/ping`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+      'X-Session-ID': sessionId,
+    },
+  });
+
+  return handleResponse(response);
+}
+
+export async function cleanupSession(sessionId: string): Promise<SessionCleanupResponse> {
+  const response = await fetch(`${API_BASE_URL}/interview/session/cleanup`, {
     method: 'POST',
     headers: {
       ...getAuthHeaders(),

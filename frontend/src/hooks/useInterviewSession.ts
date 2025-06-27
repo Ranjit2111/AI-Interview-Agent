@@ -10,7 +10,10 @@ import {
   endInterview as apiEndInterview,
   resetInterview as apiResetInterview,
   getPerTurnFeedback,
-  getFinalSummaryStatus
+  getFinalSummaryStatus,
+  getSessionTimeRemaining,
+  pingSession,
+  cleanupSession
 } from '../services/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -71,6 +74,11 @@ export function useInterviewSession() {
   const [postInterviewState, setPostInterviewState] = useState<PostInterviewState | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  
+  // Session warning and management state
+  const [showSessionWarning, setShowSessionWarning] = useState(false);
+  const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
+  const warningCheckRef = useRef<NodeJS.Timeout | null>(null);
   
   // Real-time coach feedback tracking
   const [coachFeedbackStates, setCoachFeedbackStates] = useState<CoachFeedbackState>({});
@@ -167,6 +175,135 @@ export function useInterviewSession() {
       }
     };
   }, [sessionId]); // FIXED: Removed 'state' dependency to prevent cleanup during state transitions
+
+  // Session warning and timeout management
+  useEffect(() => {
+    if (!sessionId || state !== 'interviewing') {
+      // Clear warning check when not interviewing
+      if (warningCheckRef.current) {
+        clearTimeout(warningCheckRef.current);
+        warningCheckRef.current = null;
+      }
+      setShowSessionWarning(false);
+      return;
+    }
+
+    // Check session time remaining when we've been active for 13+ minutes
+    const checkSessionWarning = async () => {
+      try {
+        const response = await getSessionTimeRemaining(sessionId);
+        setSessionTimeRemaining(response.time_remaining_minutes);
+        
+        if (!response.session_active) {
+          // Session already expired
+          handleSessionTimeout();
+          return;
+        }
+        
+        if (response.time_remaining_minutes <= 2 && response.time_remaining_minutes > 0) {
+          // Show warning with 2 minutes or less remaining
+          setShowSessionWarning(true);
+        } else if (response.time_remaining_minutes > 2) {
+          // Hide warning if we have more than 2 minutes
+          setShowSessionWarning(false);
+        }
+      } catch (error) {
+        console.log('Session warning check failed:', error);
+        // Check if it's a session timeout error
+        if (error instanceof Error && error.message.includes('SESSION_TIMEOUT')) {
+          handleSessionTimeout();
+        }
+      }
+    };
+
+    // Start checking when we reach 13 minutes of activity (2 minutes before 15-minute timeout)
+    const initialDelay = 13 * 60 * 1000; // 13 minutes
+    const checkInterval = 30 * 1000; // Check every 30 seconds once we start
+
+    warningCheckRef.current = setTimeout(() => {
+      checkSessionWarning();
+      // Then check every 30 seconds
+      warningCheckRef.current = setInterval(checkSessionWarning, checkInterval);
+    }, initialDelay);
+
+    return () => {
+      if (warningCheckRef.current) {
+        clearTimeout(warningCheckRef.current);
+        clearInterval(warningCheckRef.current);
+        warningCheckRef.current = null;
+      }
+    };
+  }, [sessionId, state]);
+
+  // Tab close detection for immediate cleanup
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
+      // Use sendBeacon for reliable tab close cleanup
+      try {
+        const cleanupUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/interview/session/cleanup`;
+        const token = localStorage.getItem('ai_interviewer_access_token');
+        
+        const data = JSON.stringify({});
+        const headers = {
+          'Content-Type': 'application/json',
+          'X-Session-ID': sessionId,
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        };
+
+        // Use sendBeacon for more reliable delivery
+        const blob = new Blob([data], { type: 'application/json' });
+        navigator.sendBeacon(cleanupUrl, blob);
+      } catch (error) {
+        console.log('Tab close cleanup failed:', error);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [sessionId]);
+
+  // Handle session timeout
+  const handleSessionTimeout = () => {
+    setShowSessionWarning(false);
+    setState('configuring');
+    setSessionId(null);
+    setMessages([]);
+    
+    toast({
+      title: 'Session Expired',
+      description: 'Your session has expired due to inactivity. Please start a new interview from the home page.',
+      variant: 'destructive',
+      duration: 5000,
+    });
+  };
+
+  // Extend session function
+  const extendSession = async () => {
+    if (!sessionId) return;
+    
+    try {
+      const response = await pingSession(sessionId);
+      if (response.success) {
+        setShowSessionWarning(false);
+        setSessionTimeRemaining(response.new_expiry_minutes);
+        
+        toast({
+          title: 'Session Extended',
+          description: 'Your session has been extended for another 15 minutes.',
+          duration: 3000,
+        });
+      } else {
+        handleSessionTimeout();
+      }
+    } catch (error) {
+      console.error('Failed to extend session:', error);
+      handleSessionTimeout();
+    }
+  };
 
   // Final summary polling function
   const startFinalSummaryPolling = () => {
@@ -597,6 +734,8 @@ export function useInterviewSession() {
     selectedVoice,
     coachFeedbackStates,
     sessionId,
+    showSessionWarning,
+    sessionTimeRemaining,
     actions: {
       startInterview,
       sendMessage,
@@ -604,6 +743,8 @@ export function useInterviewSession() {
       resetInterview,
       setSelectedVoice,
       proceedToFinalSummary,
+      extendSession,
+      handleSessionTimeout,
     }
   };
 }

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import VoiceFirstInterviewPanel from './VoiceFirstInterviewPanel';
 import TranscriptDrawer from './TranscriptDrawer';
 import InterviewInstructionsModal from './InterviewInstructionsModal';
+import { SessionWarningDialog } from './SessionWarningDialog';
 import { useVoiceFirstInterview } from '../hooks/useVoiceFirstInterview';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Message, CoachFeedbackState } from '@/hooks/useInterviewSession';
@@ -21,6 +22,10 @@ interface InterviewSessionProps {
   onEndInterview: () => void;
   onVoiceSelect: (voiceId: string | null) => void;
   coachFeedbackStates: CoachFeedbackState;
+  showSessionWarning: boolean;
+  sessionTimeRemaining: number | null;
+  onExtendSession: () => void;
+  onSessionTimeout: () => void;
 }
 
 const InterviewSession: React.FC<InterviewSessionProps> = ({
@@ -31,6 +36,10 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
   onEndInterview,
   onVoiceSelect,
   coachFeedbackStates,
+  showSessionWarning,
+  sessionTimeRemaining,
+  onExtendSession,
+  onSessionTimeout,
 }) => {
   // Enhanced state management
   const isMobile = useIsMobile();
@@ -581,6 +590,14 @@ const InterviewSession: React.FC<InterviewSessionProps> = ({
       <InterviewInstructionsModal
         isOpen={showInstructions}
         onClose={handleInstructionsClose}
+      />
+
+      {/* Session Warning Dialog */}
+      <SessionWarningDialog
+        open={showSessionWarning}
+        timeRemaining={sessionTimeRemaining}
+        onExtend={onExtendSession}
+        onEndNow={onSessionTimeout}
       />
 
       {/* Custom styles for coach notification animation */}

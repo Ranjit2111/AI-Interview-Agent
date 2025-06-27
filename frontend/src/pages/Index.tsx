@@ -1180,6 +1180,10 @@ const Index = () => {
             onVoiceSelect={actions.setSelectedVoice}
             coachFeedbackStates={coachFeedbackStates}
             sessionId={sessionId}
+            showSessionWarning={showSessionWarning}
+            sessionTimeRemaining={sessionTimeRemaining}
+            onExtendSession={actions.extendSession}
+            onSessionTimeout={actions.handleSessionTimeout}
           />
         )}
 
