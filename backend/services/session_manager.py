@@ -333,7 +333,7 @@ class ThreadSafeSessionRegistry:
             logger.debug(f"Cleaned up access time for: {session_id}")
         if session_id in self._active_sessions:
             del self._active_sessions[session_id]
-            logger.debug(f"Cleaned up active session for: {session_id}")
+            logger.debug(f"Cleaned up active session for: {session_id}") 
 
     async def get_session_time_remaining(self, session_id: str, max_idle_minutes: int = 15) -> Optional[int]:
         """
