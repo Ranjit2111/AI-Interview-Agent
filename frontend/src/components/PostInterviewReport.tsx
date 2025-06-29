@@ -367,6 +367,17 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
     return () => clearInterval(interval);
   }, []);
 
+  // Custom handler for Go Home button - navigates to hero section
+  const handleGoHome = () => {
+    // Reset interview state
+    onGoHome();
+    
+    // Scroll to top (hero section) after a small delay to ensure page has loaded
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
+  };
+
 
 
   // Revolutionary background system with multiple layers
@@ -456,8 +467,8 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
   const renderAnalysisLoading = () => (
     <div className="relative">
       {/* Main analysis card */}
-      <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 relative overflow-hidden">
-        {/* Animated background */}
+      <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl p-6 relative overflow-hidden">
+        {/* Static background - removed shimmer animation */}
         <div 
           className="absolute inset-0 opacity-20"
           style={{
@@ -466,8 +477,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                 rgba(59, 130, 246, 0.1) 0%, 
                 rgba(168, 85, 247, 0.1) 50%, 
                 rgba(236, 72, 153, 0.1) 100%)
-            `,
-            animation: 'shimmer 3s ease-in-out infinite'
+            `
           }}
         />
         
@@ -542,8 +552,8 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
     return (
       <div className="relative">
         {/* Main search card */}
-        <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl p-8 relative overflow-hidden">
-          {/* Animated background */}
+        <div className="bg-black/40 backdrop-blur-2xl border border-white/10 rounded-2xl p-6 relative overflow-hidden">
+          {/* Static background - removed shimmer animation */}
           <div 
             className="absolute inset-0 opacity-20"
             style={{
@@ -552,80 +562,78 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                   rgba(34, 197, 94, 0.1) 0%, 
                   rgba(6, 182, 212, 0.1) 50%, 
                   rgba(59, 130, 246, 0.1) 100%)
-              `,
-              animation: 'shimmer 2s ease-in-out infinite reverse'
+              `
             }}
           />
           
-          <div className="relative z-10 space-y-8">
-            {/* Search Agent Header */}
-            <div className="text-center space-y-4">
-              <div className="relative mx-auto w-20 h-20">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 via-cyan-600 to-blue-500 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
-                  <Search className="w-10 h-10 text-white animate-bounce" />
-                </div>
-                <div className="absolute -inset-2 rounded-full border-2 border-emerald-400/30 animate-ping" />
-                <div className="absolute -inset-4 rounded-full border border-cyan-400/20 animate-pulse" />
+                  <div className="relative z-10 space-y-6">
+          {/* Search Agent Header */}
+          <div className="text-center space-y-4">
+            <div className="relative mx-auto w-16 h-16">
+              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 via-cyan-600 to-blue-500 flex items-center justify-center shadow-2xl shadow-emerald-500/30">
+                <Search className="w-8 h-8 text-white animate-bounce" />
               </div>
-              <div>
-                <h3 className="text-3xl font-bold bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent">
-                  AI Search Agent Active
-                </h3>
-                <p className="text-emerald-300/80 text-lg">Curating personalized learning resources</p>
-              </div>
+              <div className="absolute -inset-2 rounded-full border-2 border-emerald-400/30 animate-ping" />
+              <div className="absolute -inset-4 rounded-full border border-cyan-400/20 animate-pulse" />
             </div>
-
-            {/* Current stage without time/progress */}
-            <div className="text-center space-y-3">
-              <div className="inline-flex items-center space-x-3 px-6 py-3 bg-black/40 rounded-2xl border border-emerald-500/20">
-                <currentStageData.icon className="w-5 h-5 text-emerald-400 animate-pulse" />
-                <span className="text-emerald-300 font-medium">{currentStageData.label}</span>
-              </div>
-              <p className="text-gray-400 text-sm">{currentStageData.description}</p>
+            <div>
+              <h3 className="text-2xl font-bold bg-gradient-to-r from-emerald-400 via-cyan-500 to-blue-400 bg-clip-text text-transparent">
+                AI Search Agent Active
+              </h3>
+              <p className="text-emerald-300/80">Curating personalized learning resources</p>
             </div>
+          </div>
 
-            {/* Perplexity-style timeline without progress indicators */}
-            <div className="space-y-6">
-              {/* Timeline with line and dots */}
-              <div className="relative max-w-2xl mx-auto">
-                {/* Timeline line */}
-                <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gray-600/50"></div>
+          {/* Current stage without time/progress */}
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center space-x-3 px-5 py-2 bg-black/40 rounded-xl border border-emerald-500/20">
+              <currentStageData.icon className="w-4 h-4 text-emerald-400 animate-pulse" />
+              <span className="text-emerald-300 font-medium text-sm">{currentStageData.label}</span>
+            </div>
+            <p className="text-gray-400 text-xs">{currentStageData.description}</p>
+          </div>
+
+                      {/* Perplexity-style timeline with proper alignment */}
+            <div className="space-y-4">
+              {/* Timeline container with improved alignment */}
+              <div className="relative max-w-3xl mx-auto">
+                {/* Timeline line positioned for better alignment */}
+                <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gray-600/50"></div>
                 
                 {/* Progress line */}
                 <div 
-                  className="absolute left-8 top-0 w-0.5 bg-gradient-to-b from-emerald-400 to-cyan-400 transition-all duration-300"
+                  className="absolute left-6 top-0 w-0.5 bg-gradient-to-b from-emerald-400 to-cyan-400 transition-all duration-300"
                   style={{ 
                     height: `${(searchProgress.currentStage / (searchProgress.stages.length - 1)) * 100}%`
                   }}
                 ></div>
                 
-                {/* Timeline stages */}
-                <div className="space-y-8">
+                {/* Timeline stages with proper spacing */}
+                <div className="space-y-4">
                   {searchProgress.stages.map((stage, index) => {
                     const isActive = index === searchProgress.currentStage;
                     const isCompleted = index < searchProgress.currentStage;
                     const isPending = index > searchProgress.currentStage;
                     
                     return (
-                      <div key={stage.id} className="relative flex items-center space-x-6">
-                        {/* Timeline dot */}
-                        <div className={`relative z-10 w-4 h-4 rounded-full border-2 flex-shrink-0 transition-all duration-300 ${
-                          isCompleted 
-                            ? 'bg-emerald-400 border-emerald-400' 
-                            : isActive 
-                              ? 'bg-cyan-400 border-cyan-400 animate-pulse shadow-lg shadow-cyan-400/50' 
-                              : 'bg-gray-600 border-gray-600'
-                        }`}>
-                          {isCompleted && (
-                            <CheckCircle className="w-3 h-3 text-white absolute -top-0.5 -left-0.5" />
-                          )}
+                      <div key={stage.id} className="relative flex items-start">
+                        {/* Timeline dot - properly centered without redundant checkmark */}
+                        <div className="flex-shrink-0 relative">
+                          <div className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${
+                            isCompleted 
+                              ? 'bg-emerald-400 border-emerald-400' 
+                              : isActive 
+                                ? 'bg-cyan-400 border-cyan-400 animate-pulse shadow-lg shadow-cyan-400/50' 
+                                : 'bg-gray-600 border-gray-600'
+                          }`}>
+                          </div>
                         </div>
                         
-                        {/* Stage content */}
-                        <div className={`flex-1 transition-all duration-300 ${
+                        {/* Stage content with proper alignment */}
+                        <div className={`ml-6 flex-1 transition-all duration-300 ${
                           isActive ? 'opacity-100' : isPending ? 'opacity-50' : 'opacity-75'
                         }`}>
-                          <div className="flex items-center space-x-3 mb-1">
+                          <div className="flex items-center space-x-3 mb-2">
                             <stage.icon className={`w-5 h-5 ${
                               isCompleted ? 'text-emerald-400' : isActive ? 'text-cyan-400' : 'text-gray-500'
                             }`} />
@@ -971,13 +979,42 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                     const element = document.getElementById(section.id);
                     element?.scrollIntoView({ behavior: 'smooth' });
                   }}
-                  className="group relative inline-flex items-center justify-center space-x-2 px-4 sm:px-6 py-3 bg-black/30 backdrop-blur-xl border border-white/10 hover:border-cyan-400/40 rounded-lg sm:rounded-xl transition-all duration-300 hover:scale-105 min-h-[48px] w-full sm:w-auto"
+                  className={`group relative inline-flex items-center justify-center space-x-3 px-4 sm:px-6 py-3 backdrop-blur-xl border rounded-lg sm:rounded-xl transition-all duration-300 hover:scale-105 min-h-[48px] w-full sm:w-auto ${
+                    section.status === 'completed' 
+                      ? 'bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-400/50' 
+                      : section.status === 'loading' 
+                        ? 'bg-cyan-500/10 border-cyan-500/30 hover:border-cyan-400/50' 
+                        : 'bg-black/30 border-white/10 hover:border-cyan-400/40'
+                  }`}
                 >
+                  {/* Status indicator */}
+                  <div className="flex-shrink-0">
+                    {section.status === 'loading' ? (
+                      <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                    ) : section.status === 'completed' ? (
+                      <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
+                    ) : (
+                      <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                    )}
+                  </div>
+                  
                   {/* Icon */}
-                  <section.icon className="w-4 h-4 sm:w-5 sm:h-5 text-gray-300 group-hover:text-cyan-400 transition-colors" />
+                  <section.icon className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${
+                    section.status === 'completed' 
+                      ? 'text-emerald-300 group-hover:text-emerald-200' 
+                      : section.status === 'loading' 
+                        ? 'text-cyan-300 group-hover:text-cyan-200' 
+                        : 'text-gray-300 group-hover:text-cyan-400'
+                  }`} />
                   
                   {/* Label */}
-                  <span className="text-sm sm:text-sm font-medium text-white group-hover:text-cyan-400 transition-colors">
+                  <span className={`text-sm font-medium transition-colors ${
+                    section.status === 'completed' 
+                      ? 'text-emerald-200 group-hover:text-emerald-100' 
+                      : section.status === 'loading' 
+                        ? 'text-cyan-200 group-hover:text-cyan-100' 
+                        : 'text-white group-hover:text-cyan-400'
+                  }`}>
                     {section.label}
                   </span>
                 </button>
@@ -1055,8 +1092,8 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         </section>
 
         {/* Resources section */}
-        <section id="resources" className="min-h-screen flex items-center px-4 md:px-8 py-16">
-          <div className="w-full max-w-6xl mx-auto">
+        <section id="resources" className="min-h-screen flex items-center px-4 md:px-8 py-8">
+          <div className="w-full max-w-5xl mx-auto">
             {(timingControl.resourcesForceLoading || resources.status === 'loading') && renderSearchLoading()}
             {!timingControl.resourcesForceLoading && (timingControl.actualResourcesData || (resources.status === 'completed' && resources.data)) && 
               renderSearchResults(timingControl.actualResourcesData || resources.data)
@@ -1111,7 +1148,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
             {/* Two action buttons */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-4">
               <Button
-                onClick={onGoHome}
+                onClick={handleGoHome}
                 className="bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white text-lg font-semibold px-8 py-4 rounded-2xl shadow-2xl hover:shadow-purple-500/20 transition-all duration-300 group border-0"
               >
                 <Home className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
