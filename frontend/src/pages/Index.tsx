@@ -32,6 +32,8 @@ const Index = () => {
     selectedVoice,
     coachFeedbackStates,
     sessionId,
+    showSessionWarning,
+    sessionTimeRemaining,
     actions
   } = useInterviewSession();
   

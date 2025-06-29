@@ -154,7 +154,7 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
 
       {/* Voice Activity Waveform - User */}
       {isListening && (
-        <div className="mt-4 sm:mt-6 flex items-center space-x-1.5 sm:space-x-2 text-blue-400">
+        <div className="absolute top-full mt-2 sm:mt-3 flex items-center space-x-1.5 sm:space-x-2 text-blue-400">
           <div className="voice-activity-wave">
             <div className="wave-bar animate-voice-wave" />
             <div className="wave-bar animate-voice-wave animation-delay-100" />
@@ -167,7 +167,7 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
 
       {/* AI Speaking Indicator */}
       {turnState === 'ai' && (
-        <div className="mt-4 sm:mt-6 flex items-center space-x-1.5 sm:space-x-2 text-orange-400">
+        <div className="absolute top-full mt-2 sm:mt-3 flex items-center space-x-1.5 sm:space-x-2 text-orange-400">
           <div className="ai-voice-activity-wave">
             <div className="wave-bar animate-voice-wave" />
             <div className="wave-bar animate-voice-wave animation-delay-100" />
@@ -179,7 +179,7 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
       )}
 
       {/* Status Text */}
-      <div className="mt-3 sm:mt-4 text-center">
+      <div className="absolute top-full mt-10 sm:mt-12 text-center">
         {buttonState === 'idle' && !isDisabled && (
           <p className="text-xs sm:text-sm text-gray-400 font-medium">
             Tap to speak
