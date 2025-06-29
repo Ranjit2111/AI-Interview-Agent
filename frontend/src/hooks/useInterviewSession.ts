@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { 
   AgentResponse, 
   InterviewStartRequest, 
@@ -10,7 +10,10 @@ import {
   endInterview as apiEndInterview,
   resetInterview as apiResetInterview,
   getPerTurnFeedback,
-  getFinalSummaryStatus
+  getFinalSummaryStatus,
+  getSessionTimeRemaining,
+  pingSession,
+  cleanupSession
 } from '../services/api';
 import { useToast } from '@/hooks/use-toast';
 
@@ -72,13 +75,139 @@ export function useInterviewSession() {
   const [selectedVoice, setSelectedVoice] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   
+  // Session warning and management state
+  const [showSessionWarning, setShowSessionWarning] = useState(false);
+  const [sessionTimeRemaining, setSessionTimeRemaining] = useState<number | null>(null);
+  
   // Real-time coach feedback tracking
   const [coachFeedbackStates, setCoachFeedbackStates] = useState<CoachFeedbackState>({});
   const [lastFeedbackCount, setLastFeedbackCount] = useState(0);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const finalSummaryPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const sessionWarningIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const { toast } = useToast();
+
+  // Session timeout handler
+  const handleSessionTimeout = () => {
+    setShowSessionWarning(false);
+    setSessionTimeRemaining(null);
+    setState('configuring');
+    setMessages([]);
+    setResults(null);
+    setPostInterviewState(null);
+    setSessionId(null);
+    setCoachFeedbackStates({});
+    setLastFeedbackCount(0);
+    
+    // Stop all polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    if (finalSummaryPollingRef.current) {
+      clearInterval(finalSummaryPollingRef.current);
+      finalSummaryPollingRef.current = null;
+    }
+    if (sessionWarningIntervalRef.current) {
+      clearInterval(sessionWarningIntervalRef.current);
+      sessionWarningIntervalRef.current = null;
+    }
+
+    toast({
+      title: 'Session Expired',
+      description: 'Your interview session has expired due to inactivity. Please start a new interview.',
+      variant: 'destructive',
+    });
+  };
+
+  // Session extension function
+  const extendSession = async () => {
+    if (!sessionId) return;
+    
+    try {
+      const response = await pingSession(sessionId);
+      if (response.success) {
+        setShowSessionWarning(false);
+        setSessionTimeRemaining(response.new_expiry_minutes);
+        toast({
+          title: 'Session Extended',
+          description: 'Your session has been extended for another 15 minutes.',
+          variant: 'default',
+        });
+      } else {
+        handleSessionTimeout();
+      }
+    } catch (error) {
+      console.error('Failed to extend session:', error);
+      handleSessionTimeout();
+    }
+  };
+
+  // Session warning management
+  useEffect(() => {
+    if (sessionWarningIntervalRef.current) {
+      clearInterval(sessionWarningIntervalRef.current);
+      sessionWarningIntervalRef.current = null;
+    }
+
+    if (!sessionId || state !== 'interviewing') {
+      setShowSessionWarning(false);
+      setSessionTimeRemaining(null);
+      return;
+    }
+
+    const checkSessionTime = async () => {
+      try {
+        const response = await getSessionTimeRemaining(sessionId);
+        setSessionTimeRemaining(response.time_remaining_minutes);
+        
+        if (!response.session_active) {
+          handleSessionTimeout();
+          return;
+        }
+        
+        if (response.time_remaining_minutes <= 2 && response.time_remaining_minutes > 0) {
+          setShowSessionWarning(true);
+        } else {
+          setShowSessionWarning(false);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('session')) {
+          handleSessionTimeout();
+        } else {
+          console.log('Session time check failed:', error);
+        }
+      }
+    };
+
+    checkSessionTime();
+    sessionWarningIntervalRef.current = setInterval(checkSessionTime, 60000);
+
+    return () => {
+      if (sessionWarningIntervalRef.current) {
+        clearInterval(sessionWarningIntervalRef.current);
+        sessionWarningIntervalRef.current = null;
+      }
+    };
+  }, [sessionId, state]);
+
+  // Tab close detection
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const handleBeforeUnload = () => {
+      if (navigator.sendBeacon) {
+        const cleanupUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/interview/session/cleanup`;
+        const formData = new FormData();
+        formData.append('session_id', sessionId);
+        navigator.sendBeacon(cleanupUrl, formData);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [sessionId]);
 
   // Polling for real-time coach feedback
   useEffect(() => {
@@ -165,120 +294,166 @@ export function useInterviewSession() {
         clearInterval(finalSummaryPollingRef.current);
         finalSummaryPollingRef.current = null;
       }
+      if (sessionWarningIntervalRef.current) {
+        clearInterval(sessionWarningIntervalRef.current);
+        sessionWarningIntervalRef.current = null;
+      }
     };
   }, [sessionId]); // FIXED: Removed 'state' dependency to prevent cleanup during state transitions
 
+  // Final summary polling function
   const startFinalSummaryPolling = () => {
-    console.log('🚀 Starting final summary polling...');
+    console.log('≡ƒöä startFinalSummaryPolling called');
+    console.log('≡ƒöä Current sessionId:', sessionId);
+    console.log('≡ƒöä Current finalSummaryPollingRef:', finalSummaryPollingRef.current);
+    
     if (finalSummaryPollingRef.current) {
+      console.log('≡ƒöä Clearing existing polling interval');
       clearInterval(finalSummaryPollingRef.current);
     }
 
-    let pollCount = 0;
     const pollFinalSummary = async () => {
-      if (!sessionId) return;
-      
+      if (!sessionId) {
+        console.log('Γ¥î No sessionId available for polling');
+        return;
+      }
+
+      console.log('≡ƒöì Polling final summary status...');
+
       try {
-        pollCount++;
-        console.log(`📊 Final summary poll attempt #${pollCount}`);
-        
+        // Use the new dedicated status endpoint
         const statusResponse = await getFinalSummaryStatus(sessionId);
-        console.log('📊 Final summary status response:', statusResponse);
+        console.log('≡ƒôí Final summary status response:', statusResponse);
+        console.log('≡ƒôí Response status:', statusResponse.status);
+        console.log('≡ƒôí Response results:', statusResponse.results);
+        console.log('≡ƒôí Response error:', statusResponse.error);
         
         if (statusResponse.status === 'completed' && statusResponse.results) {
-          console.log('✅ Final summary completed, updating state');
+          console.log('Γ£à Final summary completed! Updating state...');
+          console.log('≡ƒôè Results data:', JSON.stringify(statusResponse.results, null, 2));
+          console.log('≡ƒôÜ Recommended resources:', statusResponse.results.recommended_resources);
           
-          // Stop polling
-          if (finalSummaryPollingRef.current) {
-            clearInterval(finalSummaryPollingRef.current);
-            finalSummaryPollingRef.current = null;
-          }
-          
-          // Update post-interview state with complete data
+          // Update the post-interview state with completed data
           setPostInterviewState(prev => {
-            if (!prev) return prev;
-            
-            const hasValidResources = statusResponse.results?.recommended_resources && statusResponse.results.recommended_resources.length > 0;
-            
-            return {
+            console.log('≡ƒô¥ Previous postInterviewState:', prev);
+            const newState = prev ? {
               ...prev,
               finalSummary: {
-                status: 'completed',
-                data: statusResponse.results,
-                error: undefined
+                status: 'completed' as const,
+                data: statusResponse.results
               },
               resources: {
-                status: hasValidResources ? 'completed' : 'error',
-                data: hasValidResources ? statusResponse.results.recommended_resources : undefined,
-                error: hasValidResources ? undefined : 'No resources available'
+                status: statusResponse.results.recommended_resources ? 'completed' as const : prev.resources.status,
+                data: statusResponse.results.recommended_resources || prev.resources.data
               }
-            };
+            } : null;
+            console.log('≡ƒô¥ New postInterviewState:', newState);
+            return newState;
           });
-          
+
+          // Stop polling when both summary and resources are complete
+          if (statusResponse.results.recommended_resources) {
+            console.log('≡ƒ¢æ Stopping polling - both summary and resources complete');
+            clearInterval(finalSummaryPollingRef.current!);
+            finalSummaryPollingRef.current = null;
+          } else {
+            console.log('ΓÅ│ Resources still loading, continuing to poll...');
+          }
         } else if (statusResponse.status === 'error') {
-          console.log('❌ Final summary generation failed:', statusResponse.error);
+          console.log('Γ¥î Final summary generation failed:', statusResponse.error);
           
-          // Stop polling
-          if (finalSummaryPollingRef.current) {
-            clearInterval(finalSummaryPollingRef.current);
-            finalSummaryPollingRef.current = null;
-          }
+          // Update state to show error
+          setPostInterviewState(prev => prev ? {
+            ...prev,
+            finalSummary: {
+              status: 'error' as const,
+              error: statusResponse.error || 'Failed to load final summary'
+            },
+            resources: {
+              status: 'error' as const, 
+              error: statusResponse.error || 'Failed to load resources'
+            }
+          } : null);
           
-          // Update state with error
-          setPostInterviewState(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              finalSummary: {
-                status: 'error',
-                error: statusResponse.error || 'Final summary generation failed'
-              },
-              resources: {
-                status: 'error',
-                error: statusResponse.error || 'Final summary generation failed'
-              }
-            };
-          });
-          
+          clearInterval(finalSummaryPollingRef.current!);
+          finalSummaryPollingRef.current = null;
         } else {
-          console.log('⏳ Final summary still generating...');
-          // Continue polling - the interval will trigger this function again
+          console.log('ΓÅ│ Final summary still generating, continuing to poll...');
         }
-        
+        // If status is 'generating', continue polling
       } catch (error) {
-        console.error('❌ Error during final summary polling:', error);
-        // Continue polling, but log the error
+        console.error('Γ¥î Error polling final summary:', error);
+        // Update state to show error
+        setPostInterviewState(prev => prev ? {
+          ...prev,
+          finalSummary: {
+            status: 'error' as const,
+            error: 'Failed to check final summary status'
+          },
+          resources: {
+            status: 'error' as const, 
+            error: 'Failed to check resource status'
+          }
+        } : null);
+        
+        clearInterval(finalSummaryPollingRef.current!);
+        finalSummaryPollingRef.current = null;
       }
     };
 
-    // Start the polling cycle
+    console.log('ΓÅ░ Setting up polling interval (every 1 second)');
+    // Poll every 1 second for final summary completion (reduced from 3 seconds for faster response)
+    finalSummaryPollingRef.current = setInterval(pollFinalSummary, 1000);
+    
+    // Also run once immediately
+    console.log('≡ƒÜÇ Running initial poll immediately');
     pollFinalSummary();
-    finalSummaryPollingRef.current = setInterval(pollFinalSummary, 3000); // Poll every 3 seconds
+    
+    // Set a timeout to stop polling after 2 minutes
+    setTimeout(() => {
+      if (finalSummaryPollingRef.current) {
+        console.log('ΓÅ░ Polling timeout reached - stopping polling');
+        clearInterval(finalSummaryPollingRef.current);
+        finalSummaryPollingRef.current = null;
+        
+        setPostInterviewState(prev => prev ? {
+          ...prev,
+          finalSummary: prev.finalSummary.status === 'loading' ? {
+            status: 'error' as const,
+            error: 'Final summary generation timed out'
+          } : prev.finalSummary,
+          resources: prev.resources.status === 'loading' ? {
+            status: 'error' as const,
+            error: 'Resource search timed out'
+          } : prev.resources
+        } : null);
+      }
+    }, 120000); // 2 minutes timeout
   };
 
   const startInterview = async (config: InterviewStartRequest) => {
     try {
       setIsLoading(true);
-      console.log('🚀 Starting interview with config:', config);
+      console.log('≡ƒÜÇ Starting interview with config:', config);
       
       // Step 1: Create a new session
-      console.log('📝 Step 1: Creating session...');
+      console.log('≡ƒô¥ Step 1: Creating session...');
       const sessionResponse = await createSession(config);
       const newSessionId = sessionResponse.session_id;
       setSessionId(newSessionId);
-      console.log('✅ Session created:', newSessionId);
+      console.log('Γ£à Session created:', newSessionId);
       
       // Step 2: Start the interview and get the initial introduction message
-      console.log('🎬 Step 2: Starting interview and getting introduction...');
+      console.log('≡ƒÄ¼ Step 2: Starting interview and getting introduction...');
       const introResponse = await apiStartInterview(newSessionId, config);
-      console.log('📨 Received intro response:', introResponse);
+      console.log('≡ƒô¿ Received intro response:', introResponse);
       
       if (!introResponse || !introResponse.content) {
         throw new Error('No introduction content received from server');
       }
       
       setState('interviewing');
-      console.log('🔄 State changed to interviewing');
+      console.log('≡ƒöä State changed to interviewing');
       
       // Initialize with the introduction message from the interviewer
       const introMessage: Message = {
@@ -289,12 +464,12 @@ export function useInterviewSession() {
         timestamp: introResponse.timestamp
       };
       
-      console.log('💬 Setting intro message:', introMessage);
+      console.log('≡ƒÆ¼ Setting intro message:', introMessage);
       setMessages([introMessage]);
-      console.log('✅ Interview started successfully');
+      console.log('Γ£à Interview started successfully');
       
     } catch (error) {
-      console.error('❌ Error starting interview:', error);
+      console.error('Γ¥î Error starting interview:', error);
       const message = error instanceof Error ? error.message : 'Failed to start interview';
       let description = message;
       
@@ -377,23 +552,23 @@ export function useInterviewSession() {
     
     try {
       setIsLoading(true);
-      console.log('🔄 Starting endInterview API call...');
+      console.log('≡ƒöä Starting endInterview API call...');
       
       const response = await apiEndInterview(sessionId);
-      console.log('📥 Raw API response:', response);
-      console.log('📥 Response type:', typeof response);
-      console.log('📥 Response.results:', response.results);
-      console.log('📥 Response.results type:', typeof response.results);
-      console.log('📥 Response.per_turn_feedback:', response.per_turn_feedback);
+      console.log('≡ƒôÑ Raw API response:', response);
+      console.log('≡ƒôÑ Response type:', typeof response);
+      console.log('≡ƒôÑ Response.results:', response.results);
+      console.log('≡ƒôÑ Response.results type:', typeof response.results);
+      console.log('≡ƒôÑ Response.per_turn_feedback:', response.per_turn_feedback);
       
       const resultsToSet = {
         coachingSummary: response.results,
         perTurnFeedback: response.per_turn_feedback
       };
       
-      console.log('📦 Setting results state to:', resultsToSet);
-      console.log('📦 coachingSummary will be:', resultsToSet.coachingSummary);
-      console.log('📦 coachingSummary type:', typeof resultsToSet.coachingSummary);
+      console.log('≡ƒôª Setting results state to:', resultsToSet);
+      console.log('≡ƒôª coachingSummary will be:', resultsToSet.coachingSummary);
+      console.log('≡ƒôª coachingSummary type:', typeof resultsToSet.coachingSummary);
       
       setResults(resultsToSet);
 
@@ -402,14 +577,14 @@ export function useInterviewSession() {
       const hasValidResults = response.results && Object.keys(response.results).length > 0 && !response.results.error;
       const hasValidResources = hasValidResults && response.results.recommended_resources && response.results.recommended_resources.length > 0;
       
-      console.log('🔍 hasValidResults evaluation:');
+      console.log('≡ƒöì hasValidResults evaluation:');
       console.log('  - response.results exists:', !!response.results);
       console.log('  - response.results keys length:', response.results ? Object.keys(response.results).length : 0);
       console.log('  - response.results keys:', response.results ? Object.keys(response.results) : []);
       console.log('  - response.results.error:', response.results ? response.results.error : 'N/A');
       console.log('  - hasValidResults final:', hasValidResults);
       
-      console.log('🔍 hasValidResources evaluation:');
+      console.log('≡ƒöì hasValidResources evaluation:');
       console.log('  - hasValidResults:', hasValidResults);
       console.log('  - recommended_resources exists:', hasValidResults ? !!response.results.recommended_resources : false);
       console.log('  - recommended_resources length:', hasValidResults && response.results.recommended_resources ? response.results.recommended_resources.length : 0);
@@ -429,28 +604,28 @@ export function useInterviewSession() {
         }
       };
 
-      console.log('📝 Setting initial postInterviewState:', initialPostInterviewState);
+      console.log('≡ƒô¥ Setting initial postInterviewState:', initialPostInterviewState);
       setPostInterviewState(initialPostInterviewState);
       
-      console.log('🔄 Transitioning to post_interview state');
-      console.log('📊 hasValidResults:', hasValidResults, 'hasValidResources:', hasValidResources);
+      console.log('≡ƒöä Transitioning to post_interview state');
+      console.log('≡ƒôè hasValidResults:', hasValidResults, 'hasValidResources:', hasValidResources);
       // Transition to a new state for post-interview
       setState('post_interview');
 
       // If summary or resources are still loading, start polling
       const shouldStartPolling = !hasValidResults || !hasValidResources;
-      console.log('🤔 Should start polling?', shouldStartPolling);
+      console.log('≡ƒñö Should start polling?', shouldStartPolling);
       console.log('  - Reason: !hasValidResults =', !hasValidResults, '|| !hasValidResources =', !hasValidResources);
       
       if (shouldStartPolling) {
-        console.log('🚀 Starting final summary polling...');
+        console.log('≡ƒÜÇ Starting final summary polling...');
         startFinalSummaryPolling();
       } else {
-        console.log('✅ Both results and resources are complete, no polling needed');
+        console.log('Γ£à Both results and resources are complete, no polling needed');
       }
       
     } catch (error) {
-      console.error('❌ Error in endInterview:', error);
+      console.error('Γ¥î Error in endInterview:', error);
       const message = error instanceof Error ? error.message : 'Failed to end interview';
       
       // Set error state for post-interview
@@ -488,6 +663,9 @@ export function useInterviewSession() {
       setResults(null);
       setPostInterviewState(null);
       setSessionId(null);
+      setShowSessionWarning(false);
+      setSessionTimeRemaining(null);
+      
       // Reset coach feedback states
       setCoachFeedbackStates({});
       setLastFeedbackCount(0);
@@ -501,6 +679,10 @@ export function useInterviewSession() {
         clearInterval(finalSummaryPollingRef.current);
         finalSummaryPollingRef.current = null;
       }
+      if (sessionWarningIntervalRef.current) {
+        clearInterval(sessionWarningIntervalRef.current);
+        sessionWarningIntervalRef.current = null;
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to reset interview';
       toast({
@@ -512,17 +694,17 @@ export function useInterviewSession() {
   };
 
   const proceedToFinalSummary = () => {
-    console.log('🎯 proceedToFinalSummary called');
-    console.log('🎯 Current state:', state);
-    console.log('🎯 Results available:', !!results);
-    console.log('🎯 coachingSummary available:', !!results?.coachingSummary);
-    console.log('🎯 Full results object:', results);
+    console.log('≡ƒÄ» proceedToFinalSummary called');
+    console.log('≡ƒÄ» Current state:', state);
+    console.log('≡ƒÄ» Results available:', !!results);
+    console.log('≡ƒÄ» coachingSummary available:', !!results?.coachingSummary);
+    console.log('≡ƒÄ» Full results object:', results);
     
     if (state === 'post_interview') {
-      console.log('🎯 Transitioning state from post_interview to completed');
+      console.log('≡ƒÄ» Transitioning state from post_interview to completed');
       setState('completed');
     } else {
-      console.log('🎯 State transition blocked - not in post_interview state');
+      console.log('≡ƒÄ» State transition blocked - not in post_interview state');
     }
   };
 
@@ -555,6 +737,8 @@ export function useInterviewSession() {
     selectedVoice,
     coachFeedbackStates,
     sessionId,
+    showSessionWarning,
+    sessionTimeRemaining,
     actions: {
       startInterview,
       sendMessage,
@@ -562,6 +746,8 @@ export function useInterviewSession() {
       resetInterview,
       setSelectedVoice,
       proceedToFinalSummary,
+      extendSession,
+      handleSessionTimeout,
     }
   };
 }
