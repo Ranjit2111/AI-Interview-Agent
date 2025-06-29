@@ -197,11 +197,27 @@ export function useInterviewSession() {
     if (!sessionId) return;
 
     const handleBeforeUnload = () => {
-      if (navigator.sendBeacon) {
-        const cleanupUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/interview/session/cleanup`;
-        const formData = new FormData();
-        formData.append('session_id', sessionId);
-        navigator.sendBeacon(cleanupUrl, formData);
+      if (!sessionId) return;
+
+      const cleanupUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/interview/session/cleanup`;
+
+      // Prefer fetch with keepalive so we can include the required header
+      try {
+        // Using keepalive ensures the request is allowed to outlive the page lifecycle
+        fetch(cleanupUrl, {
+          method: 'POST',
+          headers: {
+            'X-Session-ID': sessionId,
+          },
+          // keepalive is critical for requests fired during the unload phase
+          keepalive: true,
+        });
+      } catch (err) {
+        // Fallback: if fetch with keepalive is not supported, attempt sendBeacon with a query param
+        if (navigator.sendBeacon) {
+          const beaconUrl = `${cleanupUrl}?session_id=${encodeURIComponent(sessionId)}`;
+          navigator.sendBeacon(beaconUrl);
+        }
       }
     };
 
