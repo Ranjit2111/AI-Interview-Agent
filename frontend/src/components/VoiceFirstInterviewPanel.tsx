@@ -167,11 +167,12 @@ const VoiceFirstInterviewPanel: React.FC<VoiceFirstInterviewPanelProps> = ({
         {/* User Transcript Display */}
         {accumulatedTranscript && accumulatedTranscript.trim() && (
           <div className="
-            mx-3 sm:mx-4 lg:mx-6 xl:mx-8 mb-4 sm:mb-6 lg:mb-8 px-3 sm:px-4 lg:px-6 py-2.5 sm:py-3 lg:py-4 
+            accumulated-transcript absolute left-1/2 bottom-6 sm:bottom-8 transform -translate-x-1/2
+            mx-3 sm:mx-4 lg:mx-6 xl:mx-8 px-3 sm:px-4 lg:px-6 py-2.5 sm:py-3 lg:py-4 
             bg-gray-900/40 backdrop-blur-sm 
             border border-blue-500/20 
             rounded-lg sm:rounded-xl shadow-lg
-            max-w-xl sm:max-w-2xl self-center w-full
+            max-w-xl sm:max-w-2xl w-[calc(100%-2rem)] sm:w-auto
             transition-all duration-300
           ">
             <div className="flex items-start space-x-2 sm:space-x-3">
