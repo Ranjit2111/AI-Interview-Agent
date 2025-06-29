@@ -23,7 +23,7 @@ const AppleIntelligenceGlow: React.FC<AppleIntelligenceGlowProps> = ({
     if (!glowRef.current) return;
 
     const intensity = Math.max(0.3, voiceActivity);
-    const scale = 1 + (voiceActivity * 0.3);
+    const scale = 1 + (voiceActivity * 0.4);
     
     if (mode === 'user' && isActive) {
       glowRef.current.style.setProperty('--glow-opacity', intensity.toString());
@@ -83,8 +83,8 @@ const AppleIntelligenceGlow: React.FC<AppleIntelligenceGlowProps> = ({
       ref={glowRef}
       className={`relative ${getGlowClass()} ${className}`}
       style={{
-        '--glow-opacity': isActive ? '0.6' : '0.3',
-        '--glow-scale': isActive ? '1.1' : '1',
+        '--glow-opacity': isActive ? '0.75' : '0.35',
+        '--glow-scale': isActive ? '1.2' : '1',
       } as React.CSSProperties}
     >
       {/* Primary Glow Layer */}

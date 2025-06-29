@@ -549,27 +549,37 @@ export function useInterviewSession() {
 
   const endInterview = async () => {
     if (!sessionId) return;
-    
+
+    // 1️⃣ Immediately transition UI to the post-interview screen with placeholders
+    console.log('🚀 endInterview: switching UI to post_interview immediately');
+
+    const placeholderPostState: PostInterviewState = {
+      perTurnFeedback: [],
+      finalSummary: { status: 'loading' },
+      resources: { status: 'loading' }
+    };
+
+    setPostInterviewState(placeholderPostState);
+    setState('post_interview');
+
+    // Allow UI to render without global spinner
+    setIsLoading(false);
+
     try {
-      setIsLoading(true);
-      console.log('≡ƒöä Starting endInterview API call...');
-      
+      console.log('🔄 Calling /end-interview in background…');
       const response = await apiEndInterview(sessionId);
-      console.log('≡ƒôÑ Raw API response:', response);
-      console.log('≡ƒôÑ Response type:', typeof response);
-      console.log('≡ƒôÑ Response.results:', response.results);
-      console.log('≡ƒôÑ Response.results type:', typeof response.results);
-      console.log('≡ƒôÑ Response.per_turn_feedback:', response.per_turn_feedback);
+      console.log('📥 Raw API response:', response);
+      console.log('📥 Response type:', typeof response);
+      console.log('📥 Response.results:', response.results);
+      console.log('📥 Response.results type:', typeof response.results);
+      console.log('📥 Response.per_turn_feedback:', response.per_turn_feedback);
       
       const resultsToSet = {
         coachingSummary: response.results,
         perTurnFeedback: response.per_turn_feedback
       };
       
-      console.log('≡ƒôª Setting results state to:', resultsToSet);
-      console.log('≡ƒôª coachingSummary will be:', resultsToSet.coachingSummary);
-      console.log('≡ƒôª coachingSummary type:', typeof resultsToSet.coachingSummary);
-      
+      console.log('📦 Setting results state to:', resultsToSet);
       setResults(resultsToSet);
 
       // **NEW: Set up progressive loading state**

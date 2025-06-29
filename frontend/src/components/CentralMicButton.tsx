@@ -21,6 +21,19 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [isPressed, setIsPressed] = useState(false);
+  const [aiPulse, setAiPulse] = useState(0.4);
+
+  // Generate synthetic pulse for AI speaking state to mirror live voiceActivity visuals
+  useEffect(() => {
+    if (turnState !== 'ai' || isProcessing) return;
+
+    const interval = setInterval(() => {
+      // random pulse between 0.3 and 1.0 for more lively effect
+      setAiPulse(0.3 + Math.random() * 0.7);
+    }, 120);
+
+    return () => clearInterval(interval);
+  }, [turnState, isProcessing]);
 
   // Handle button press animations
   const handleMouseDown = () => {
@@ -99,7 +112,7 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
           `}
           style={{
             '--voice-intensity': '0',
-            transform: `scale(${isPressed ? '0.95' : '1'}) scale(calc(1 + var(--voice-intensity, 0) * 0.1))`,
+            transform: `scale(${isPressed ? '0.95' : '1'}) scale(calc(1 + var(--voice-intensity, 0) * 0.15))`,
           } as React.CSSProperties}
         >
           {/* Button Background Layers */}
@@ -110,18 +123,19 @@ const CentralMicButton: React.FC<CentralMicButtonProps> = ({
             <div 
               className="absolute inset-0 rounded-full border-2 transition-all duration-200"
               style={{
-                borderColor: `rgba(0, 122, 255, ${Math.max(0.3, voiceActivity)})`,
-                boxShadow: `0 0 ${20 + voiceActivity * 20}px rgba(0, 122, 255, ${Math.max(0.2, voiceActivity * 0.8)})`,
+                borderColor: `rgba(0, 122, 255, ${Math.max(0.4, voiceActivity)})`,
+                boxShadow: `0 0 ${30 + voiceActivity * 30}px rgba(0, 122, 255, ${Math.max(0.25, voiceActivity)})`,
               }}
             />
           )}
 
-          {/* AI Speaking Activity Ring */}
+          {/* AI Speaking Activity Ring - dynamic intensity mirroring user ring */}
           {turnState === 'ai' && !isProcessing && (
             <div
-              className="absolute inset-0 rounded-full border-2 border-orange-500/70 animate-pulse-slow"
+              className="absolute inset-0 rounded-full border-2 transition-all duration-200"
               style={{
-                boxShadow: `0 0 30px rgba(255, 149, 0, 0.4)`,
+                borderColor: `rgba(255, 149, 0, ${Math.max(0.4, aiPulse)})`,
+                boxShadow: `0 0 ${30 + aiPulse * 30}px rgba(255, 149, 0, ${Math.max(0.25, aiPulse)})`,
               }}
             />
           )}
