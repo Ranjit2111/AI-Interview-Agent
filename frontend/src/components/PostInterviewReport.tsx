@@ -207,8 +207,8 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
       const resourcesElapsed = (now - timingControl.resourcesStartTime) / 1000;
 
       // Update analysis progress (10 seconds)
-      if (timingControl.summaryForceLoading || (finalSummary.status === 'loading' && summaryElapsed < 10)) {
-        const progress = Math.min((summaryElapsed / 10) * 100, 100);
+      if (timingControl.summaryForceLoading || (finalSummary.status === 'loading' && summaryElapsed < 12)) {
+        const progress = Math.min((summaryElapsed / 12) * 100, 100);
         const steps = [
           'Initializing AI Analysis...',
           'Processing conversation patterns...',
@@ -217,7 +217,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
           'Generating insights...',
           'Finalizing recommendations...'
         ];
-        const stepIndex = Math.floor((summaryElapsed / 10) * steps.length);
+        const stepIndex = Math.floor((summaryElapsed / 12) * steps.length);
         
         setAnalysisProgress({
           progress,
@@ -226,13 +226,13 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         });
 
         // Check if we should stop showing loading (10 seconds passed AND we have data)
-        if (summaryElapsed >= 10 && timingControl.actualSummaryData) {
+        if (summaryElapsed >= 12 && timingControl.actualSummaryData) {
           setTimingControl(prev => ({ ...prev, summaryForceLoading: false }));
         }
       }
 
       // Update search progress (15 seconds) with stage-based timeline
-      if (timingControl.resourcesForceLoading || (resources.status === 'loading' && resourcesElapsed < 15)) {
+      if (timingControl.resourcesForceLoading || (resources.status === 'loading' && resourcesElapsed < 17)) {
         let cumulativeTime = 0;
         let currentStage = 0;
         
@@ -245,7 +245,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
           }
         }
 
-        const totalProgress = Math.min((resourcesElapsed / 15) * 100, 100);
+        const totalProgress = Math.min((resourcesElapsed / 17) * 100, 100);
         
         setSearchProgress(prev => ({
           ...prev,
@@ -255,7 +255,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         }));
 
         // Check if we should stop showing loading (15 seconds passed AND we have data)
-        if (resourcesElapsed >= 15 && timingControl.actualResourcesData) {
+        if (resourcesElapsed >= 17 && timingControl.actualResourcesData) {
           setTimingControl(prev => ({ ...prev, resourcesForceLoading: false }));
         }
       }
