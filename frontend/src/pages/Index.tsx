@@ -6,6 +6,7 @@ import InterviewSession from '@/components/InterviewSession';
 import InterviewResults from '@/components/InterviewResults';
 import PerTurnFeedbackReview from '@/components/PerTurnFeedbackReview';
 import PostInterviewReport from '@/components/PostInterviewReport';
+import BackendDownNotification from '@/components/BackendDownNotification';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -42,6 +43,11 @@ const Index = () => {
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('register');
   const { toast } = useToast();
   
+  // Backend health check states
+  const [isBackendDown, setIsBackendDown] = useState(false);
+  const [showBackendNotification, setShowBackendNotification] = useState(false);
+  const [hasCheckedBackend, setHasCheckedBackend] = useState(false);
+  
   // Animation and interaction states
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isVisible, setIsVisible] = useState(false);
@@ -65,6 +71,28 @@ const Index = () => {
   const jobRoleSectionRef = useRef<HTMLDivElement>(null);
   const featuresSectionRef = useRef<HTMLDivElement>(null);
   const constellationRef = useRef<HTMLDivElement>(null);
+
+  // Backend health check
+  const checkBackendHealth = async () => {
+    if (hasCheckedBackend) return;
+    
+    try {
+      setHasCheckedBackend(true);
+      await api.checkHealth();
+      // Backend is up, no need to show notification
+      setIsBackendDown(false);
+    } catch (error) {
+      // Backend is down, show notification
+      setIsBackendDown(true);
+      setShowBackendNotification(true);
+      console.log('Backend health check failed:', error);
+    }
+  };
+
+  // Check backend health on component mount
+  useEffect(() => {
+    checkBackendHealth();
+  }, []);
 
   // Mouse tracking for feature constellation interactions
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -94,8 +122,6 @@ const Index = () => {
       }
     };
   }, []);
-
-
 
   // Clear required error when user starts typing job role
   useEffect(() => {
@@ -1264,6 +1290,12 @@ const Index = () => {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         initialMode={authModalMode}
+      />
+
+      {/* Backend Down Notification */}
+      <BackendDownNotification
+        isOpen={showBackendNotification}
+        onClose={() => setShowBackendNotification(false)}
       />
 
       {/* Enhanced Custom Styles for Advanced Animations */}
