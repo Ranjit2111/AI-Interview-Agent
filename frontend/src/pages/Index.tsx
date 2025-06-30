@@ -15,7 +15,7 @@ import {
   Save, History, Award, Users, BriefcaseBusiness, Building2, FileText, UploadCloud, 
   Settings, ArrowRight, Star, TrendingUp, Target, CheckCircle, ArrowUpRight, 
   BookOpen, Headphones, Brain, Search, ChevronRight, Clock, Volume2, MessageSquare,
-  Zap as Lightning, Mic, Shield, Database
+  Zap as Lightning, Mic, Shield, Database, ScrollText
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import AuthModal from '@/components/AuthModal';
@@ -578,7 +578,11 @@ const Index = () => {
                   </div>
                   <div>
                     <h3 className="text-base sm:text-lg font-bold text-white">Company</h3>
-                    <p className="text-xs text-gray-400">Optional context</p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="px-2 sm:px-3 py-1 rounded-full font-medium text-xs bg-gray-500/20 text-gray-300">
+                      Optional
+                    </span>
                   </div>
                 </div>
                 <Input
@@ -598,6 +602,11 @@ const Index = () => {
                   <div>
                     <h3 className="text-base sm:text-lg font-bold text-white">Duration</h3>
                     <p className="text-xs text-gray-400">{interviewDuration} minutes</p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="px-2 sm:px-3 py-1 rounded-full font-medium text-xs bg-gray-500/20 text-gray-300">
+                      Optional
+                    </span>
                   </div>
                 </div>
                 
@@ -631,8 +640,13 @@ const Index = () => {
                   <MessageSquare className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg sm:text-2xl font-bold text-white">Interview Style</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-white">Interview Style</h3>
                   <p className="text-gray-400 text-sm sm:text-base">Choose your preferred interaction mode</p>
+                </div>
+                <div className="flex items-center gap-2 ml-auto">
+                  <span className="px-2 sm:px-3 py-1 rounded-full font-medium text-xs bg-gray-500/20 text-gray-300">
+                    Optional
+                  </span>
                 </div>
               </div>
               
@@ -675,6 +689,11 @@ const Index = () => {
                   <div>
                     <h3 className="text-base sm:text-lg font-bold text-white">Difficulty Level</h3>
                     <p className="text-gray-400 text-sm sm:text-base">Adjust challenge complexity</p>
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <span className="px-2 sm:px-3 py-1 rounded-full font-medium text-xs bg-gray-500/20 text-gray-300">
+                      Optional
+                    </span>
                   </div>
                 </div>
 
@@ -755,72 +774,106 @@ const Index = () => {
               </div>
           </div>
 
-          {/* Resume Upload - Full Width Premium Panel */}
-          <div className="bg-gradient-to-br from-black/80 via-purple-900/20 to-black/80 backdrop-blur-3xl border border-purple-500/20 rounded-3xl p-8 shadow-2xl hover:shadow-purple-500/10 transition-all duration-500 mb-12">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg">
-                <FileText className="w-6 h-6 text-white" />
+          {/* Job Description & Resume - Premium Panels */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-12">
+
+            {/* Job Description Panel */}
+            <div className="bg-gradient-to-br from-black/80 via-cyan-900/20 to-black/80 backdrop-blur-3xl border border-cyan-500/20 rounded-3xl p-8 shadow-2xl hover:shadow-cyan-500/10 transition-all duration-500">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg">
+                  <ScrollText className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-white">Job Description</h3>
+                  <p className="text-gray-400">Paste the job description</p>
+                </div>
+                <div className="flex items-center gap-2 ml-auto">
+                  <span className="px-2 sm:px-3 py-1 rounded-full font-medium text-xs bg-gray-500/20 text-gray-300">
+                    Optional
+                  </span>
+                </div>
               </div>
-              <div>
-                <h3 className="text-2xl font-bold text-white">Resume Analysis</h3>
-                <p className="text-gray-400">Upload your resume for personalized questions (Optional)</p>
-              </div>
+              <Textarea
+                placeholder="Paste the job description here..."
+                value={jobDescription}
+                onChange={(e) => setJobDescription(e.target.value)}
+                rows={8}
+                className="w-full bg-black/60 border-cyan-500/20 text-white placeholder-gray-500 rounded-xl focus:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20 transition-all duration-300 text-sm sm:text-base min-h-[144px]"
+              />
             </div>
-            
-            <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-500 ${
-              resumeContent 
-                ? 'border-green-500/50 bg-green-500/10' 
-                : 'border-purple-500/30 hover:border-purple-500/60 bg-purple-500/5 hover:bg-purple-500/10'
-            }`}>
-              {resumeContent ? (
-                <div className="space-y-4">
-                  <CheckCircle className="w-12 h-12 text-green-400 mx-auto animate-pulse" />
-                  <p className="text-green-300 font-medium">Resume content loaded successfully!</p>
-                  <p className="text-gray-400 text-sm">AI will use this to create personalized interview questions</p>
-                  <button
-                    onClick={() => setResumeContent('')}
-                    className="text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors"
-                  >
-                    Upload different resume
-                  </button>
+
+            {/* Resume Upload Panel */}
+            <div className="bg-gradient-to-br from-black/80 via-purple-900/20 to-black/80 backdrop-blur-3xl border border-purple-500/20 rounded-3xl p-8 shadow-2xl hover:shadow-purple-500/10 transition-all duration-500">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-pink-600 shadow-lg">
+                  <FileText className="w-6 h-6 text-white" />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  <UploadCloud className="w-12 h-12 text-purple-400 mx-auto group-hover:scale-110 transition-transform duration-300" />
-                  <div>
-                    <p className="text-white font-medium mb-2">
-                      Drag & drop your resume or click to browse
-                    </p>
-                    <p className="text-gray-400 text-sm">
-                      Supports PDF, DOCX, and TXT formats
-                    </p>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-white">Resume Upload</h3>
+                  <p className="text-gray-400">Upload your resume for personalized questions</p>
+                </div>
+                <div className="flex items-center gap-2 ml-auto">
+                  <span className="px-2 sm:px-3 py-1 rounded-full font-medium text-xs bg-gray-500/20 text-gray-300">
+                    Optional
+                  </span>
+                </div>
+              </div>
+              
+              <div className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-500 ${
+                resumeContent 
+                  ? 'border-green-500/50 bg-green-500/10' 
+                  : 'border-purple-500/30 hover:border-purple-500/60 bg-purple-500/5 hover:bg-purple-500/10'
+              }`}>
+                {resumeContent ? (
+                  <div className="space-y-4">
+                    <CheckCircle className="w-12 h-12 text-green-400 mx-auto animate-pulse" />
+                    <p className="text-green-300 font-medium">Resume content loaded successfully!</p>
+                    <p className="text-gray-400 text-sm">AI will use this to create personalized interview questions</p>
+                    <button
+                      onClick={() => setResumeContent('')}
+                      className="text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors"
+                    >
+                      Upload different resume
+                    </button>
                   </div>
-                  <input
-                    type="file"
-                    accept=".txt,.pdf,.docx"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="resume-upload"
-                    disabled={isUploading}
-                  />
-                  <label
-                    htmlFor="resume-upload"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white font-medium rounded-xl cursor-pointer transition-all duration-300 shadow-lg hover:shadow-purple-500/25"
-                  >
-                    {isUploading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <UploadCloud className="w-4 h-4" />
-                        Choose File
-                      </>
-                    )}
-                  </label>
-                </div>
-              )}
+                ) : (
+                  <div className="space-y-4">
+                    <UploadCloud className="w-12 h-12 text-purple-400 mx-auto group-hover:scale-110 transition-transform duration-300" />
+                    <div>
+                      <p className="text-white font-medium mb-2">
+                        Drag & drop your resume or click to browse
+                      </p>
+                      <p className="text-gray-400 text-sm">
+                        Supports PDF, DOCX, and TXT formats
+                      </p>
+                    </div>
+                    <input
+                      type="file"
+                      accept=".txt,.pdf,.docx"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                      id="resume-upload"
+                      disabled={isUploading}
+                    />
+                    <label
+                      htmlFor="resume-upload"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-400 hover:to-pink-500 text-white font-medium rounded-xl cursor-pointer transition-all duration-300 shadow-lg hover:shadow-purple-500/25"
+                    >
+                      {isUploading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-4 h-4" />
+                          Choose File
+                        </>
+                      )}
+                    </label>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

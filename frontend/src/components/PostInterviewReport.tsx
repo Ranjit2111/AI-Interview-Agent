@@ -407,28 +407,7 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
         }}
       />
 
-      {/* Floating orbs */}
-      {floatingOrbs.map((orb) => (
-        <div
-          key={orb.id}
-          className="absolute rounded-full blur-3xl"
-          style={{
-            left: `${orb.x}%`,
-            top: `${orb.y}%`,
-            width: `${orb.size}px`,
-            height: `${orb.size}px`,
-            background: `radial-gradient(circle, 
-              ${orb.color === 'cyan' ? 'rgba(6, 182, 212, 0.3)' :
-                orb.color === 'purple' ? 'rgba(168, 85, 247, 0.3)' :
-                orb.color === 'pink' ? 'rgba(236, 72, 153, 0.3)' :
-                orb.color === 'blue' ? 'rgba(59, 130, 246, 0.3)' :
-                'rgba(34, 197, 94, 0.3)'} 0%, 
-              transparent 70%)`,
-            opacity: orb.opacity * (0.5 + 0.5 * Math.sin(orb.pulse)),
-            transform: `translate(-50%, -50%) scale(${0.8 + 0.2 * Math.sin(orb.pulse * 1.2)})`
-          }}
-        />
-      ))}
+      {/* Floating orbs removed per design request */}
 
       {/* Dynamic particles */}
       {particles.map((particle) => (
@@ -840,9 +819,6 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                               <span className="text-xs font-semibold text-purple-300 uppercase tracking-wide">AI Interviewer</span>
                             </div>
                             <p className="text-white leading-relaxed text-sm">{item.question}</p>
-                            
-                            {/* Decorative elements */}
-                            <div className="absolute -top-2 -right-2 w-4 h-4 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full opacity-60"></div>
                           </div>
                         </div>
                       </div>
@@ -865,9 +841,6 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                               <span className="text-xs font-semibold text-blue-300 uppercase tracking-wide">Your Response</span>
                             </div>
                             <p className="text-white leading-relaxed text-sm">{item.answer}</p>
-                            
-                            {/* Decorative elements */}
-                            <div className="absolute -bottom-2 -left-2 w-3 h-3 bg-gradient-to-br from-blue-400 to-cyan-400 rounded-full opacity-60"></div>
                           </div>
                         </div>
                       </div>
@@ -891,9 +864,6 @@ const PostInterviewReport: React.FC<PostInterviewReportProps> = ({
                           
                           {/* Simple feedback content */}
                           <p className="text-white leading-relaxed text-sm">{item.feedback}</p>
-                          
-                          {/* Simple decorative elements */}
-                          <div className="absolute -top-2 -right-2 w-4 h-4 bg-gradient-to-br from-yellow-400 to-orange-400 rounded-full opacity-60"></div>
                         </div>
                       </div>
                     </div>
