@@ -10,29 +10,34 @@ PYTHONPATH=/app
 PORT=8000
 WEBSITES_PORT=8000
 
-# Database Configuration (Supabase)
-SUPABASE_URL=your_supabase_url_here
-SUPABASE_ANON_KEY=your_supabase_anon_key_here
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_here
+# Google API Configuration
+GOOGLE_API_KEY=your_google_api_key_here
 
-# API Keys
-DEEPGRAM_API_KEY=your_deepgram_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
+# Search Service
+SERPER_API_KEY=your_serper_api_key_here
+
+# Speech Recognition
+ASSEMBLYAI_API_KEY=your_assemblyai_api_key_here
 
 # AWS Configuration (for TTS service)
+AWS_ACCESS_KEY_ID=your_aws_access_key_id_here
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key_here
 AWS_REGION=us-east-1
-AWS_ACCESS_KEY_ID=your_aws_access_key_here
-AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
+
+# Real-time Speech Recognition
+DEEPGRAM_API_KEY=your_deepgram_api_key_here
+
+# Database Configuration (Supabase)
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_SERVICE_KEY=your_supabase_service_key_here
+SUPABASE_JWT_SECRET=your_supabase_jwt_secret_here
 
 # Amazon Polly TTS Configuration
 # Engine options: "generative" (high quality, limited usage) or "long-form" (better for longer content)
 POLLY_ENGINE=long-form
 # Voice options for long-form: Gregory, Ruth, Danielle, Patrick (English), Alba, Raúl (Spanish)
 # Voice options for generative: Matthew, Joanna, Danielle, Ruth, Stephen, etc.
-POLLY_DEFAULT_VOICE=Patrick
-
-# Optional: Google API Key (if used)
-GOOGLE_API_KEY=your_google_api_key_here
+POLLY_DEFAULT_VOICE=Gregory
 
 # Logging Level
 LOG_LEVEL=INFO
