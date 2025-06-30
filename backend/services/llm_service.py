@@ -20,14 +20,14 @@ class LLMService:
     """
     def __init__(self, 
                  api_key: Optional[str] = None, 
-                 model_name: str = "gemini-2.0-flash",
+                 model_name: Optional[str] = None,
                  temperature: float = 0.7):
         """
         Initializes the LLMService.
 
         Args:
             api_key (Optional[str]): Google API key. Reads from GOOGLE_API_KEY env var if None.
-            model_name (str): The name of the Google Generative AI model to use.
+            model_name (Optional[str]): The name of the Google Generative AI model to use.
             temperature (float): The sampling temperature for the LLM.
         """
         self.logger = get_logger(__name__)
@@ -36,7 +36,13 @@ class LLMService:
             self.logger.error("Google API key not found. Set GOOGLE_API_KEY environment variable.")
             raise ValueError("Google API key is required.")
 
-        self.model_name = model_name
+        # Determine the model name precedence:
+        # 1. Explicit `model_name` argument
+        # 2. Environment variable `GOOGLE_MODEL_NAME`
+        # 3. Fallback to the previous default "gemini-2.0-flash"
+        self.model_name = model_name or os.environ.get("GOOGLE_MODEL_NAME", "gemini-2.0-flash")
+        if model_name is None and "GOOGLE_MODEL_NAME" in os.environ:
+            self.logger.info(f"Using model name from environment variable GOOGLE_MODEL_NAME: {self.model_name}")
         self.temperature = temperature
         self._llm: Optional[BaseChatModel] = None
 
